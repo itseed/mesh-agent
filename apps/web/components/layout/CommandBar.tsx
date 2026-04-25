@@ -1,5 +1,6 @@
 'use client'
 import { useState } from 'react'
+import { usePathname } from 'next/navigation'
 import { api } from '@/lib/api'
 import { useAuth } from '@/lib/auth'
 
@@ -16,6 +17,7 @@ const ROLE_DOT: Record<string, string> = {
 }
 
 export function CommandBar() {
+  const pathname = usePathname()
   const { token } = useAuth()
   const [role, setRole] = useState('frontend')
   const [prompt, setPrompt] = useState('')
@@ -34,6 +36,8 @@ export function CommandBar() {
       setLoading(false)
     }
   }
+
+  if (pathname === '/login') return null
 
   const inputBase = 'bg-canvas/80 border border-border text-text text-[14px] rounded px-3 py-1.5 placeholder-dim transition-colors focus:border-accent/60'
 
