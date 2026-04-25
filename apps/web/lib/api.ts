@@ -53,4 +53,62 @@ export const api = {
     prs: (token: string, repo: string) => request<any[]>(`/github/prs?repo=${repo}`, token),
     commits: (token: string, repo: string) => request<any[]>(`/github/commits?repo=${repo}`, token),
   },
+  settings: {
+    get: (token: string) =>
+      request<{
+        github: {
+          connected: boolean
+          tokenPreview: string | null
+          oauthEnabled: boolean
+          user: { login: string; avatarUrl?: string } | null
+        }
+      }>('/settings', token),
+    saveToken: (token: string, ghToken: string) =>
+      request<{ ok: boolean; user: { login: string; avatarUrl?: string } }>(
+        '/settings/github/token',
+        token,
+        { method: 'POST', body: JSON.stringify({ token: ghToken }) },
+      ),
+    disconnect: (token: string) =>
+      request<void>('/settings/github/token', token, { method: 'DELETE' }),
+    oauthStart: (token: string) =>
+      request<{ url: string }>('/settings/github/oauth/start', token),
+    listRepos: (token: string) =>
+      request<
+        Array<{
+          id: number
+          fullName: string
+          name: string
+          owner: string
+          private: boolean
+          description: string | null
+          defaultBranch: string
+          updatedAt: string | null
+          htmlUrl: string
+        }>
+      >('/settings/github/repos', token),
+    syncRepos: (token: string, repos: string[], projectId?: string) =>
+      request<{ project: any; syncedRepos: string[] }>('/settings/github/sync', token, {
+        method: 'POST',
+        body: JSON.stringify({ repos, projectId }),
+      }),
+  },
+  chat: {
+    history: (token: string) => request<any[]>('/chat/history', token),
+    clear: (token: string) =>
+      request<void>('/chat/history', token, { method: 'DELETE' }),
+    send: (
+      token: string,
+      data: {
+        message: string
+        workingDir?: string
+        projectId?: string
+        images?: Array<{ name: string; mimeType: string; data: string }>
+      },
+    ) =>
+      request<{ user: any; lead: any; dispatches: any[] }>('/chat', token, {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+  },
 }

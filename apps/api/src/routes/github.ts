@@ -1,7 +1,7 @@
 import { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 import { createHmac, timingSafeEqual } from 'node:crypto'
-import { getGitHubClient, parseRepo } from '../lib/github-client.js'
+import { resolveGitHubClient, parseRepo } from '../lib/github-client.js'
 
 const repoSchema = z.object({ repo: z.string() })
 
@@ -16,12 +16,12 @@ function verifyGitHubSignature(secret: string, payload: string, signature: strin
 
 export async function githubRoutes(fastify: FastifyInstance) {
   const preHandler = [fastify.authenticate]
-  const gh = getGitHubClient()
 
   // GET /github/prs?repo=owner/repo
   fastify.get('/github/prs', { preHandler }, async (request, reply) => {
     const { repo } = repoSchema.parse(request.query)
     const { owner, repo: repoName } = parseRepo(repo)
+    const gh = await resolveGitHubClient(fastify.redis)
     const { data } = await gh.pulls.list({ owner, repo: repoName, state: 'open' })
     return data.map((pr) => ({
       id: pr.number,
@@ -37,6 +37,7 @@ export async function githubRoutes(fastify: FastifyInstance) {
   fastify.get('/github/commits', { preHandler }, async (request, reply) => {
     const { repo } = repoSchema.parse(request.query)
     const { owner, repo: repoName } = parseRepo(repo)
+    const gh = await resolveGitHubClient(fastify.redis)
     const { data } = await gh.repos.listCommits({ owner, repo: repoName, per_page: 20 })
     return data.map((c) => ({
       sha: c.sha.slice(0, 7),

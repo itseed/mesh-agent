@@ -20,8 +20,9 @@ export default {
         purple: '#d2a8ff',
       },
       fontFamily: {
-        sans:  ['IBM Plex Mono', 'Courier New', 'monospace'],
-        mono:  ['IBM Plex Mono', 'Courier New', 'monospace'],
+        sans: ['var(--font-thai)', 'var(--font-sans)', 'Noto Sans Thai', 'Noto Sans', 'system-ui', 'sans-serif'],
+        thai: ['var(--font-thai)', 'Noto Sans Thai', 'system-ui', 'sans-serif'],
+        mono: ['var(--font-mono)', 'IBM Plex Mono', 'Courier New', 'monospace'],
       },
     },
   },
