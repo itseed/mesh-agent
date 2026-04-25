@@ -24,6 +24,7 @@ export const api = {
         method: 'POST',
         body: JSON.stringify({ email, password }),
       }),
+    me: (token: string) => request<{ id: string; email: string }>('/auth/me', token),
   },
   tasks: {
     list: (token: string) => request<any[]>('/tasks', token),
