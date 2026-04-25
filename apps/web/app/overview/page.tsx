@@ -1,9 +1,23 @@
 'use client'
 import { useState, useEffect, useCallback } from 'react'
-import { TopNav } from '@/components/layout/TopNav'
+import { AppShell } from '@/components/layout/AppShell'
 import { AuthGuard } from '@/components/layout/AuthGuard'
 import { api } from '@/lib/api'
 import { useAuth } from '@/lib/auth'
+
+const STAGE_COLOR: Record<string, string> = {
+  backlog: 'text-muted',
+  in_progress: 'text-warning',
+  review: 'text-purple',
+  done: 'text-success',
+}
+
+const STAGE_DOT: Record<string, string> = {
+  backlog: '#3d4f61',
+  in_progress: '#f0883e',
+  review: '#d2a8ff',
+  done: '#3fb950',
+}
 
 export default function OverviewPage() {
   const { token } = useAuth()
@@ -31,76 +45,116 @@ export default function OverviewPage() {
 
   useEffect(() => { fetchData() }, [fetchData])
 
-  const runningAgents = agents.filter((a) => a.status === 'running').length
-  const byStage = (stage: string) => tasks.filter((t) => t.stage === stage).length
-  const recent = [...tasks].sort((a, b) =>
-    new Date(b.updatedAt ?? b.createdAt ?? 0).getTime() -
-    new Date(a.updatedAt ?? a.createdAt ?? 0).getTime()
-  ).slice(0, 5)
+  const running = agents.filter((a) => a.status === 'running').length
+  const byStage = (s: string) => tasks.filter((t) => t.stage === s).length
+  const recent = [...tasks]
+    .sort((a, b) =>
+      new Date(b.updatedAt ?? b.createdAt ?? 0).getTime() -
+      new Date(a.updatedAt ?? a.createdAt ?? 0).getTime()
+    )
+    .slice(0, 6)
 
   return (
     <AuthGuard>
-      <div className="min-h-screen bg-canvas">
-        <TopNav />
-        <main className="p-6 pb-24">
-          <h1 className="text-lg font-semibold mb-6">Overview</h1>
-          {error && <p className="text-danger text-sm mb-4">{error}</p>}
+      <AppShell>
+        <div className="p-6 pb-24 fade-up">
+          {/* Header */}
+          <div className="mb-7">
+            <h1 className="text-[15px] font-semibold text-text tracking-tight">Overview</h1>
+            <p className="text-[13px] text-muted mt-0.5">System status at a glance</p>
+          </div>
+
+          {error && <p className="text-danger text-[14px] mb-4">✕ {error}</p>}
+
           {loading ? (
-            <p className="text-muted text-sm">Loading...</p>
+            <p className="text-muted text-[14px]">
+              <span className="cursor-blink">▋</span> Loading…
+            </p>
           ) : (
             <>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                <div className="bg-surface border border-border rounded-xl p-4">
-                  <h2 className="text-sm font-medium mb-3 text-muted">Agents</h2>
-                  <p className="text-2xl font-bold text-success">{runningAgents}</p>
-                  <p className="text-xs text-muted mt-1">running · {agents.length} total</p>
-                </div>
-                <div className="bg-surface border border-border rounded-xl p-4">
-                  <h2 className="text-sm font-medium mb-3 text-muted">Tasks</h2>
-                  <div className="flex gap-4 text-sm">
-                    <div>
-                      <span className="font-bold">{byStage('backlog')}</span>{' '}
-                      <span className="text-muted text-xs">backlog</span>
-                    </div>
-                    <div>
-                      <span className="font-bold text-warning">{byStage('in_progress')}</span>{' '}
-                      <span className="text-muted text-xs">in progress</span>
-                    </div>
-                    <div>
-                      <span className="font-bold text-success">{byStage('done')}</span>{' '}
-                      <span className="text-muted text-xs">done</span>
-                    </div>
-                  </div>
-                  <p className="text-xs text-muted mt-2">{tasks.length} total</p>
-                </div>
-                <div className="bg-surface border border-border rounded-xl p-4">
-                  <h2 className="text-sm font-medium mb-3 text-muted">GitHub</h2>
-                  <p className="text-xs text-muted">Go to Projects to link a GitHub repo</p>
-                </div>
-              </div>
-              <div className="mt-6 bg-surface border border-border rounded-xl p-4">
-                <h2 className="text-sm font-medium mb-3 text-muted">Recent Activity</h2>
-                {recent.length === 0 ? (
-                  <p className="text-xs text-muted">No recent activity</p>
-                ) : (
-                  <div className="flex flex-col gap-2">
-                    {recent.map((task) => (
-                      <div key={task.id} className="flex items-center justify-between text-sm">
-                        <span className="text-white truncate max-w-xs">{task.title}</span>
-                        <span className={`text-xs ml-4 shrink-0 ${
-                          task.stage === 'done' ? 'text-success' :
-                          task.stage === 'in_progress' ? 'text-warning' :
-                          task.stage === 'review' ? 'text-purple' : 'text-muted'
-                        }`}>{task.stage}</span>
+              {/* Stats row */}
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+                {[
+                  { label: 'Agents running', value: running, color: running > 0 ? 'text-success' : 'text-muted', dot: running > 0 ? '#3fb950' : undefined },
+                  { label: 'Total agents', value: agents.length, color: 'text-text' },
+                  { label: 'In progress', value: byStage('in_progress'), color: 'text-warning' },
+                  { label: 'Tasks done', value: byStage('done'), color: 'text-success' },
+                ].map((s) => (
+                  <div key={s.label} className="bg-surface border border-border rounded-lg p-4">
+                    <div className={`text-2xl font-semibold ${s.color} leading-none`}>{s.value}</div>
+                    <div className="text-[13px] text-muted mt-1.5">{s.label}</div>
+                    {s.dot && running > 0 && (
+                      <div className="mt-2 flex items-center gap-1.5">
+                        <span className="relative inline-flex w-2 h-2">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-60" style={{ backgroundColor: s.dot }} />
+                          <span className="relative inline-flex w-2 h-2 rounded-full" style={{ backgroundColor: s.dot }} />
+                        </span>
+                        <span className="text-[12px] text-muted">live</span>
                       </div>
-                    ))}
+                    )}
                   </div>
-                )}
+                ))}
+              </div>
+
+              {/* Two columns: tasks breakdown + recent activity */}
+              <div className="grid grid-cols-1 lg:grid-cols-5 gap-3">
+                {/* Task stage breakdown */}
+                <div className="lg:col-span-2 bg-surface border border-border rounded-lg p-4">
+                  <div className="text-[12px] font-medium text-muted uppercase tracking-wider mb-3">Tasks by stage</div>
+                  <div className="flex flex-col gap-2.5">
+                    {(['backlog', 'in_progress', 'review', 'done'] as const).map((stage) => {
+                      const count = byStage(stage)
+                      const pct = tasks.length > 0 ? Math.round((count / tasks.length) * 100) : 0
+                      return (
+                        <div key={stage}>
+                          <div className="flex items-center justify-between mb-1">
+                            <div className="flex items-center gap-1.5">
+                              <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: STAGE_DOT[stage] }} />
+                              <span className="text-[13px] text-muted capitalize">{stage.replace('_', ' ')}</span>
+                            </div>
+                            <span className={`text-[14px] font-medium ${STAGE_COLOR[stage]}`}>{count}</span>
+                          </div>
+                          <div className="h-0.5 bg-border rounded-full overflow-hidden">
+                            <div
+                              className="h-full rounded-full transition-all duration-500"
+                              style={{ width: `${pct}%`, backgroundColor: STAGE_DOT[stage] }}
+                            />
+                          </div>
+                        </div>
+                      )
+                    })}
+                    <div className="mt-1 pt-2 border-t border-border text-[13px] text-muted">
+                      {tasks.length} total tasks
+                    </div>
+                  </div>
+                </div>
+
+                {/* Recent activity */}
+                <div className="lg:col-span-3 bg-surface border border-border rounded-lg p-4">
+                  <div className="text-[12px] font-medium text-muted uppercase tracking-wider mb-3">Recent activity</div>
+                  {recent.length === 0 ? (
+                    <p className="text-[14px] text-dim">No tasks yet. Create one in Kanban.</p>
+                  ) : (
+                    <div className="flex flex-col divide-y divide-border">
+                      {recent.map((task) => (
+                        <div key={task.id} className="flex items-center justify-between py-2 gap-3">
+                          <span className="text-[14px] text-text truncate">{task.title}</span>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: STAGE_DOT[task.stage] ?? '#3d4f61' }} />
+                            <span className={`text-[12px] ${STAGE_COLOR[task.stage] ?? 'text-muted'}`}>
+                              {task.stage?.replace('_', ' ')}
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
             </>
           )}
-        </main>
-      </div>
+        </div>
+      </AppShell>
     </AuthGuard>
   )
 }

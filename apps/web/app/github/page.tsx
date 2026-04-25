@@ -1,6 +1,6 @@
 'use client'
 import { useState, useEffect, useCallback } from 'react'
-import { TopNav } from '@/components/layout/TopNav'
+import { AppShell } from '@/components/layout/AppShell'
 import { AuthGuard } from '@/components/layout/AuthGuard'
 import { api } from '@/lib/api'
 import { useAuth } from '@/lib/auth'
@@ -45,68 +45,93 @@ export default function GitHubPage() {
 
   return (
     <AuthGuard>
-      <div className="min-h-screen bg-canvas">
-        <TopNav />
-        <main className="p-6 pb-24">
-          <h1 className="text-lg font-semibold mb-6">GitHub</h1>
-          {error && <p className="text-danger text-sm mb-4">{error}</p>}
+      <AppShell>
+        <div className="p-6 pb-24 fade-up">
+          <div className="mb-6">
+            <h1 className="text-[15px] font-semibold text-text tracking-tight">GitHub</h1>
+            {activeProject && (
+              <p className="text-[13px] text-muted mt-0.5">{activeProject.name}</p>
+            )}
+          </div>
+
+          {error && <p className="text-danger text-[14px] mb-4">✕ {error}</p>}
+
           {loading ? (
-            <p className="text-muted text-sm">Loading...</p>
+            <p className="text-muted text-[14px]"><span className="cursor-blink">▋</span> Loading…</p>
           ) : noRepo ? (
-            <div className="bg-surface border border-border rounded-xl p-6 text-center">
-              <p className="text-muted text-sm">
+            <div className="bg-surface border border-border rounded-lg p-8 text-center">
+              <div className="text-muted text-[24px] mb-3 opacity-30">⌥</div>
+              <p className="text-[14px] text-muted">
                 {!activeProject
                   ? 'No active project. Go to Projects to set one.'
-                  : 'Active project has no linked GitHub repos. Edit the project to add githubRepos.'}
+                  : 'No GitHub repo linked. Edit your project to add githubRepos.'}
               </p>
             </div>
           ) : (
             <>
-              <div className="flex gap-4 mb-6 text-sm border-b border-border pb-3">
-                <button
-                  onClick={() => setTab('prs')}
-                  className={`pb-2 ${tab === 'prs' ? 'text-white border-b-2 border-accent' : 'text-muted hover:text-white'}`}
-                >
-                  Pull Requests ({prs.length})
-                </button>
-                <button
-                  onClick={() => setTab('commits')}
-                  className={`pb-2 ${tab === 'commits' ? 'text-white border-b-2 border-accent' : 'text-muted hover:text-white'}`}
-                >
-                  Commits ({commits.length})
-                </button>
+              {/* Tabs */}
+              <div className="flex gap-0 mb-5 bg-surface border border-border rounded-lg p-0.5 w-fit">
+                {(['prs', 'commits'] as Tab[]).map((t) => (
+                  <button
+                    key={t}
+                    onClick={() => setTab(t)}
+                    className={`px-4 py-1.5 rounded text-[14px] font-medium transition-all ${
+                      tab === t
+                        ? 'bg-canvas text-text shadow-sm'
+                        : 'text-muted hover:text-text'
+                    }`}
+                  >
+                    {t === 'prs' ? `PRs (${prs.length})` : `Commits (${commits.length})`}
+                  </button>
+                ))}
               </div>
+
               {tab === 'prs' && (
                 <div className="flex flex-col gap-2">
                   {prs.length === 0 ? (
-                    <p className="text-muted text-sm">No open pull requests.</p>
+                    <p className="text-muted text-[14px]">No open pull requests.</p>
                   ) : prs.map((pr: any) => (
-                    <div key={pr.id ?? pr.number} className="bg-surface border border-border rounded-xl p-4">
+                    <div key={pr.id ?? pr.number} className="bg-surface border border-border rounded-lg p-4 hover:border-border-hi transition-colors">
                       <div className="flex items-start justify-between gap-3">
                         <div>
-                          <a href={pr.url ?? pr.html_url} target="_blank" rel="noreferrer"
-                            className="text-sm text-accent hover:underline font-medium">
+                          <a
+                            href={pr.url ?? pr.html_url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-[15px] text-accent hover:underline"
+                          >
                             #{pr.number} {pr.title}
                           </a>
-                          <p className="text-xs text-muted mt-1">{pr.user?.login ?? pr.author} · {pr.state}</p>
+                          <p className="text-[13px] text-muted mt-1">
+                            {pr.user?.login ?? pr.author} · {pr.state}
+                          </p>
                         </div>
-                        <span className={`text-xs px-2 py-0.5 rounded-full shrink-0 ${
-                          pr.state === 'open' ? 'bg-success/20 text-success' : 'bg-muted/20 text-muted'
-                        }`}>{pr.state}</span>
+                        <span className={`text-[12px] px-2 py-0.5 rounded-full shrink-0 font-medium ${
+                          pr.state === 'open'
+                            ? 'bg-success/15 text-success border border-success/20'
+                            : 'bg-muted/10 text-muted border border-border'
+                        }`}>
+                          {pr.state}
+                        </span>
                       </div>
                     </div>
                   ))}
                 </div>
               )}
+
               {tab === 'commits' && (
                 <div className="flex flex-col gap-2">
                   {commits.length === 0 ? (
-                    <p className="text-muted text-sm">No commits found.</p>
+                    <p className="text-muted text-[14px]">No commits found.</p>
                   ) : commits.map((c: any, i: number) => (
-                    <div key={c.sha ?? i} className="bg-surface border border-border rounded-xl p-3">
-                      <p className="text-sm font-mono text-white truncate">{c.commit?.message ?? c.message}</p>
-                      <p className="text-xs text-muted mt-1 font-mono">
-                        {(c.sha ?? c.id ?? '').slice(0, 7)} · {c.commit?.author?.name ?? c.author}
+                    <div key={c.sha ?? i} className="bg-surface border border-border rounded-lg p-3 hover:border-border-hi transition-colors">
+                      <p className="text-[14px] text-text truncate leading-snug">
+                        {c.commit?.message ?? c.message}
+                      </p>
+                      <p className="text-[12px] text-muted mt-1.5">
+                        <span className="text-dim font-mono">{(c.sha ?? c.id ?? '').slice(0, 7)}</span>
+                        {' · '}
+                        {c.commit?.author?.name ?? c.author}
                       </p>
                     </div>
                   ))}
@@ -114,8 +139,8 @@ export default function GitHubPage() {
               )}
             </>
           )}
-        </main>
-      </div>
+        </div>
+      </AppShell>
     </AuthGuard>
   )
 }

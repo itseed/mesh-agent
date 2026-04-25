@@ -14,7 +14,7 @@ export function TopNav() {
   const pathname = usePathname()
   return (
     <nav className="bg-surface border-b border-border px-4 flex items-center gap-6 h-12 sticky top-0 z-50">
-      <span className="text-accent font-bold text-sm mr-4">⬡ MeshAgent</span>
+      <img src="/logo.svg" alt="MeshAgent" height={28} style={{ display: 'block' }} />
       {NAV_ITEMS.map((item) => (
         <Link
           key={item.href}

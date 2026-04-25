@@ -12,7 +12,7 @@ export function AgentGrid({ agents }: AgentGridProps) {
 
   return (
     <>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
         {agents.map((agent) => (
           <AgentCard
             key={agent.id}
@@ -22,8 +22,10 @@ export function AgentGrid({ agents }: AgentGridProps) {
           />
         ))}
         {agents.length === 0 && (
-          <div className="col-span-full text-center text-muted py-12 text-sm">
-            No agents running. Use the command bar below to dispatch one.
+          <div className="col-span-full py-16 text-center">
+            <div className="text-[32px] opacity-10 mb-3">◎</div>
+            <p className="text-muted text-[14px]">No agents running.</p>
+            <p className="text-dim text-[13px] mt-1">Use the command bar below to dispatch one.</p>
           </div>
         )}
       </div>

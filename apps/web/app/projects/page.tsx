@@ -1,6 +1,6 @@
 'use client'
 import { useState, useEffect, useCallback } from 'react'
-import { TopNav } from '@/components/layout/TopNav'
+import { AppShell } from '@/components/layout/AppShell'
 import { AuthGuard } from '@/components/layout/AuthGuard'
 import { api } from '@/lib/api'
 import { useAuth } from '@/lib/auth'
@@ -33,17 +33,11 @@ export default function ProjectsPage() {
 
   useEffect(() => { fetchProjects() }, [fetchProjects])
 
-  function addPathRow() {
-    setPaths((prev) => [...prev, { key: '', value: '' }])
+  function addPathRow() { setPaths((p) => [...p, { key: '', value: '' }]) }
+  function updatePath(i: number, f: 'key' | 'value', v: string) {
+    setPaths((p) => p.map((e, idx) => idx === i ? { ...e, [f]: v } : e))
   }
-
-  function updatePath(i: number, field: 'key' | 'value', val: string) {
-    setPaths((prev) => prev.map((p, idx) => idx === i ? { ...p, [field]: val } : p))
-  }
-
-  function removePath(i: number) {
-    setPaths((prev) => prev.filter((_, idx) => idx !== i))
-  }
+  function removePath(i: number) { setPaths((p) => p.filter((_, idx) => idx !== i)) }
 
   async function createProject(e: React.FormEvent) {
     e.preventDefault()
@@ -78,43 +72,57 @@ export default function ProjectsPage() {
     }
   }
 
+  const inputCls = 'bg-canvas border border-border text-text text-[14px] rounded px-2.5 py-1.5 placeholder-dim w-full'
+
   return (
     <AuthGuard>
-      <div className="min-h-screen bg-canvas">
-        <TopNav />
-        <main className="p-6 pb-24">
+      <AppShell>
+        <div className="p-6 pb-24 fade-up">
           <div className="flex items-center justify-between mb-6">
-            <h1 className="text-lg font-semibold">Projects</h1>
+            <div>
+              <h1 className="text-[15px] font-semibold text-text tracking-tight">Projects</h1>
+              <p className="text-[13px] text-muted mt-0.5">{projects.length} project{projects.length !== 1 ? 's' : ''}</p>
+            </div>
             <button
               onClick={() => setShowModal(true)}
-              className="bg-accent text-canvas text-xs font-semibold px-3 py-1.5 rounded-lg"
+              className="flex items-center gap-1.5 bg-accent/15 hover:bg-accent/25 border border-accent/25 text-accent text-[13px] font-semibold px-3 py-1.5 rounded transition-all"
             >
-              + New Project
+              + New project
             </button>
           </div>
-          {error && <p className="text-danger text-sm mb-4">{error}</p>}
+
+          {error && <p className="text-danger text-[14px] mb-4">✕ {error}</p>}
+
           {loading ? (
-            <p className="text-muted text-sm">Loading projects...</p>
+            <p className="text-muted text-[14px]"><span className="cursor-blink">▋</span> Loading…</p>
           ) : projects.length === 0 ? (
-            <p className="text-muted text-sm">No projects yet. Create one to get started.</p>
+            <div className="bg-surface border border-border rounded-lg p-8 text-center">
+              <p className="text-[14px] text-muted">No projects yet. Create one to get started.</p>
+            </div>
           ) : (
-            <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-2">
               {projects.map((project) => (
                 <div
                   key={project.id}
-                  className="bg-surface border border-border rounded-xl p-4 flex items-center justify-between"
+                  className={`bg-surface border rounded-lg p-4 flex items-start justify-between gap-4 transition-colors ${
+                    project.isActive ? 'border-accent/25 bg-accent/[0.03]' : 'border-border hover:border-border-hi'
+                  }`}
                 >
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium text-sm">{project.name}</span>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-[15px] font-medium text-text">{project.name}</span>
                       {project.isActive && (
-                        <span className="text-xs bg-success/20 text-success px-1.5 py-0.5 rounded">active</span>
+                        <span className="text-[12px] bg-success/15 text-success border border-success/20 px-1.5 py-0.5 rounded-full font-medium">
+                          active
+                        </span>
                       )}
                     </div>
                     {project.paths && Object.keys(project.paths).length > 0 && (
-                      <div className="mt-1 flex flex-wrap gap-2">
+                      <div className="flex flex-wrap gap-x-3 gap-y-1 mt-1.5">
                         {Object.entries(project.paths).map(([k, v]) => (
-                          <span key={k} className="text-xs text-muted font-mono">{k}: {v as string}</span>
+                          <span key={k} className="text-[12px] text-dim">
+                            <span className="text-muted">{k}</span>: {v as string}
+                          </span>
                         ))}
                       </div>
                     )}
@@ -123,72 +131,87 @@ export default function ProjectsPage() {
                     <button
                       onClick={() => activate(project.id)}
                       disabled={activating === project.id}
-                      className="text-xs text-accent border border-accent/40 px-3 py-1.5 rounded-lg hover:bg-accent/10 disabled:opacity-50"
+                      className="text-[13px] text-accent border border-accent/30 px-3 py-1.5 rounded hover:bg-accent/10 disabled:opacity-50 transition-all shrink-0"
                     >
-                      {activating === project.id ? 'Setting...' : 'Set Active'}
+                      {activating === project.id ? '…' : 'Set active'}
                     </button>
                   )}
                 </div>
               ))}
             </div>
           )}
-        </main>
+        </div>
+
         {showModal && (
-          <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
-            <div className="bg-surface border border-border rounded-xl w-full max-w-md p-6">
-              <h2 className="text-sm font-semibold mb-4">New Project</h2>
+          <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+            <div className="bg-surface border border-border-hi rounded-xl w-full max-w-md p-5 glow-border fade-up">
+              <h2 className="text-[14px] font-semibold text-text mb-4">New project</h2>
               <form onSubmit={createProject} className="flex flex-col gap-3">
                 <input
                   type="text"
                   placeholder="Project name"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  className="bg-canvas border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-accent"
+                  className={inputCls}
                   autoFocus
                   required
                 />
                 <div>
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs text-muted">Paths</span>
-                    <button type="button" onClick={addPathRow} className="text-xs text-accent">+ Add path</button>
+                    <span className="text-[12px] text-muted uppercase tracking-wider">Paths</span>
+                    <button type="button" onClick={addPathRow} className="text-[13px] text-accent hover:text-accent/80">
+                      + add row
+                    </button>
                   </div>
                   {paths.map((p, i) => (
-                    <div key={i} className="flex gap-2 mb-2">
+                    <div key={i} className="flex gap-1.5 mb-1.5">
                       <input
                         type="text"
-                        placeholder="role (e.g. frontend)"
+                        placeholder="role"
                         value={p.key}
                         onChange={(e) => updatePath(i, 'key', e.target.value)}
-                        className="flex-1 bg-canvas border border-border rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:border-accent"
+                        className={`${inputCls} flex-[0_0_35%]`}
                       />
                       <input
                         type="text"
                         placeholder="/path/to/dir"
                         value={p.value}
                         onChange={(e) => updatePath(i, 'value', e.target.value)}
-                        className="flex-1 bg-canvas border border-border rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:border-accent"
+                        className={`${inputCls} flex-1`}
                       />
                       {paths.length > 1 && (
-                        <button type="button" onClick={() => removePath(i)} className="text-muted hover:text-danger text-xs px-1">✕</button>
+                        <button
+                          type="button"
+                          onClick={() => removePath(i)}
+                          className="text-muted hover:text-danger text-[13px] px-1 transition-colors"
+                        >
+                          ✕
+                        </button>
                       )}
                     </div>
                   ))}
                 </div>
                 <div className="flex gap-2 justify-end mt-1">
-                  <button type="button" onClick={() => setShowModal(false)} className="text-muted text-sm px-3 py-1.5">Cancel</button>
+                  <button
+                    type="button"
+                    onClick={() => setShowModal(false)}
+                    className="text-muted text-[14px] px-3 py-1.5 hover:text-text transition-colors"
+                  >
+                    Cancel
+                  </button>
                   <button
                     type="submit"
                     disabled={creating}
-                    className="bg-accent text-canvas text-xs font-semibold px-3 py-1.5 rounded-lg disabled:opacity-50"
+                    className="bg-accent/90 hover:bg-accent text-canvas text-[14px] font-semibold px-4 py-1.5 rounded transition-colors disabled:opacity-50"
                   >
-                    {creating ? 'Creating...' : 'Create'}
+                    {creating ? '…' : 'Create'}
                   </button>
                 </div>
               </form>
             </div>
           </div>
         )}
-      </div>
+      </AppShell>
     </AuthGuard>
   )
 }

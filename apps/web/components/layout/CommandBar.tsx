@@ -3,7 +3,17 @@ import { useState } from 'react'
 import { api } from '@/lib/api'
 import { useAuth } from '@/lib/auth'
 
-const AGENT_ROLES = ['frontend', 'backend', 'mobile', 'devops', 'designer', 'qa', 'reviewer']
+const ROLES = ['frontend', 'backend', 'mobile', 'devops', 'designer', 'qa', 'reviewer']
+
+const ROLE_DOT: Record<string, string> = {
+  frontend: '#22d3ee',
+  backend: '#60a5fa',
+  mobile: '#c084fc',
+  devops: '#4ade80',
+  designer: '#f472b6',
+  qa: '#fb923c',
+  reviewer: '#f87171',
+}
 
 export function CommandBar() {
   const { token } = useAuth()
@@ -25,73 +35,99 @@ export function CommandBar() {
     }
   }
 
+  const inputBase = 'bg-canvas/80 border border-border text-text text-[14px] rounded px-3 py-1.5 placeholder-dim transition-colors focus:border-accent/60'
+
   return (
-    <div className="fixed bottom-0 left-0 right-0 bg-surface border-t border-border p-3 z-30">
+    <div className="fixed bottom-0 left-14 lg:left-[216px] right-0 z-30 border-t border-border/80 backdrop-blur-md bg-surface/90">
+
+
       {expanded ? (
-        <div className="max-w-2xl mx-auto flex flex-col gap-3">
+        <div className="max-w-2xl mx-auto p-3 flex flex-col gap-2.5">
           <div className="flex items-center justify-between">
-            <span className="text-sm font-medium">New Task</span>
-            <button onClick={() => setExpanded(false)} className="text-muted hover:text-white text-sm">✕</button>
+            <div className="flex items-center gap-2">
+              <span
+                className="w-2 h-2 rounded-full inline-block shrink-0"
+                style={{ backgroundColor: ROLE_DOT[role] ?? '#6a7a8e' }}
+              />
+              <span className="text-[13px] font-medium text-text">Dispatch agent</span>
+            </div>
+            <button
+              onClick={() => setExpanded(false)}
+              className="text-muted hover:text-text text-[13px] transition-colors"
+            >
+              ✕ collapse
+            </button>
           </div>
+
           <div className="grid grid-cols-2 gap-2">
             <select
               value={role}
               onChange={(e) => setRole(e.target.value)}
-              className="bg-canvas border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-accent"
+              className={inputBase}
             >
-              {AGENT_ROLES.map((r) => <option key={r}>{r}</option>)}
+              {ROLES.map((r) => <option key={r}>{r}</option>)}
             </select>
             <input
               type="text"
               placeholder="Working directory"
               value={workingDir}
               onChange={(e) => setWorkingDir(e.target.value)}
-              className="bg-canvas border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-accent"
+              className={inputBase}
             />
           </div>
+
           <textarea
-            placeholder="Describe the task for the agent..."
+            placeholder="Describe the task…"
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
-            rows={4}
-            className="bg-canvas border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-accent resize-none"
+            rows={3}
+            className={`${inputBase} resize-none w-full`}
           />
+
           <button
             onClick={dispatch}
             disabled={loading || !prompt.trim()}
-            className="bg-success text-canvas font-semibold py-2 rounded-lg text-sm disabled:opacity-50"
+            className="bg-accent/90 hover:bg-accent text-canvas text-[14px] font-semibold py-1.5 rounded transition-colors disabled:opacity-40"
           >
-            {loading ? 'Dispatching...' : `Assign to ${role} →`}
+            {loading ? 'Dispatching…' : `→ assign to ${role}`}
           </button>
         </div>
       ) : (
-        <div className="max-w-2xl mx-auto flex gap-2 items-center">
-          <select
-            value={role}
-            onChange={(e) => setRole(e.target.value)}
-            className="bg-canvas border border-border rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:border-accent"
-          >
-            {AGENT_ROLES.map((r) => <option key={r}>{r}</option>)}
-          </select>
+        <div className="max-w-2xl mx-auto px-3 py-2 flex gap-2 items-center">
+          <div className="flex items-center gap-1.5 shrink-0">
+            <span
+              className="w-2 h-2 rounded-full"
+              style={{ backgroundColor: ROLE_DOT[role] ?? '#6a7a8e' }}
+            />
+            <select
+              value={role}
+              onChange={(e) => setRole(e.target.value)}
+              className="bg-transparent text-muted text-[13px] border-none focus:outline-none cursor-pointer"
+            >
+              {ROLES.map((r) => <option key={r}>{r}</option>)}
+            </select>
+          </div>
           <input
             type="text"
-            placeholder="Quick command..."
+            placeholder="Quick task…"
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && dispatch()}
-            className="flex-1 bg-canvas border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-accent"
+            className={`${inputBase} flex-1`}
           />
           <button
             onClick={() => setExpanded(true)}
-            className="text-muted hover:text-white text-xs px-2"
+            className="text-dim hover:text-muted text-[12px] px-1 transition-colors"
             title="Expand"
-          >⤢</button>
+          >
+            ⤢
+          </button>
           <button
             onClick={dispatch}
             disabled={loading || !prompt.trim()}
-            className="bg-accent text-canvas text-xs font-semibold px-3 py-1.5 rounded-lg disabled:opacity-50"
+            className="bg-accent/20 hover:bg-accent/30 border border-accent/30 text-accent text-[13px] font-semibold px-3 py-1.5 rounded transition-colors disabled:opacity-40"
           >
-            Send
+            {loading ? '…' : 'Send'}
           </button>
         </div>
       )}
