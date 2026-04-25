@@ -1,0 +1,36 @@
+import Fastify, { FastifyRequest, FastifyReply } from 'fastify'
+import fjwt from '@fastify/jwt'
+import { env } from './env.js'
+import dbPlugin from './plugins/db.js'
+import redisPlugin from './plugins/redis.js'
+import { authRoutes } from './routes/auth.js'
+
+declare module 'fastify' {
+  interface FastifyInstance {
+    authenticate: (request: FastifyRequest, reply: FastifyReply) => Promise<void>
+  }
+}
+
+export async function buildServer() {
+  const fastify = Fastify({
+    logger: env.NODE_ENV !== 'test',
+  })
+
+  await fastify.register(fjwt, { secret: env.JWT_SECRET })
+
+  fastify.decorate('authenticate', async function (request: FastifyRequest, reply: FastifyReply) {
+    try {
+      await request.jwtVerify()
+    } catch {
+      reply.status(401).send({ error: 'Unauthorized' })
+    }
+  })
+
+  await fastify.register(dbPlugin)
+  await fastify.register(redisPlugin)
+  await fastify.register(authRoutes)
+
+  fastify.get('/health', async () => ({ status: 'ok' }))
+
+  return fastify
+}
