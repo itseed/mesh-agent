@@ -11,6 +11,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@fastify/cors": "^8.5.0",
     "@fastify/jwt": "^8.0.0",
     "@fastify/websocket": "^8.3.1",
     "@meshagent/shared": "workspace:*",
