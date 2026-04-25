@@ -211,8 +211,8 @@ meshagent/
 
 ```bash
 # 1. Clone
-git clone https://github.com/your-org/meshagent.git
-cd meshagent
+git clone https://github.com/itseed/mesh-agent.git
+cd mesh-agent
 
 # 2. Install deps
 pnpm install
@@ -249,7 +249,7 @@ pnpm --filter @meshagent/orchestrator dev  # Orchestrator → http://localhost:3
 
 ```bash
 # 1. Setup Droplet ใหม่ (รันบน Droplet)
-bash <(curl -fsSL https://raw.githubusercontent.com/your-org/meshagent/main/scripts/setup-droplet.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/itseed/mesh-agent/main/scripts/setup-droplet.sh)
 
 # 2. Deploy จาก local
 DROPLET_HOST=your.droplet.ip bash scripts/deploy.sh
