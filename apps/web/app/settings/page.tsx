@@ -4,7 +4,6 @@ import { useSearchParams } from 'next/navigation'
 import { AppShell } from '@/components/layout/AppShell'
 import { AuthGuard } from '@/components/layout/AuthGuard'
 import { api } from '@/lib/api'
-import { useAuth } from '@/lib/auth'
 
 interface GhStatus {
   connected: boolean
@@ -41,7 +40,6 @@ export default function SettingsPage() {
 }
 
 function SettingsPageInner() {
-  const { token } = useAuth()
   const searchParams = useSearchParams()
   const [status, setStatus] = useState<GhStatus | null>(null)
   const [projects, setProjects] = useState<Project[]>([])
@@ -56,16 +54,15 @@ function SettingsPageInner() {
   const [info, setInfo] = useState('')
 
   const refresh = useCallback(async () => {
-    if (!token) return
     try {
-      const [s, p] = await Promise.all([api.settings.get(token), api.projects.list(token)])
+      const [s, p] = await Promise.all([api.settings.get(), api.projects.list()])
       setStatus(s.github)
       setProjects(p as Project[])
       setError('')
     } catch (e: any) {
       setError(e.message)
     }
-  }, [token])
+  }, [])
 
   useEffect(() => {
     refresh()
@@ -78,11 +75,10 @@ function SettingsPageInner() {
   }, [searchParams])
 
   async function loadRepos() {
-    if (!token) return
     setLoadingRepos(true)
     setError('')
     try {
-      const list = await api.settings.listRepos(token)
+      const list = await api.settings.listRepos()
       setRepos(list)
     } catch (e: any) {
       setError(e.message)
@@ -92,11 +88,11 @@ function SettingsPageInner() {
   }
 
   async function saveToken() {
-    if (!token || !tokenInput.trim()) return
+    if (!tokenInput.trim()) return
     setSaving(true)
     setError('')
     try {
-      await api.settings.saveToken(token, tokenInput.trim())
+      await api.settings.saveToken(tokenInput.trim())
       setTokenInput('')
       setInfo('บันทึก token สำเร็จ')
       await refresh()
@@ -109,10 +105,9 @@ function SettingsPageInner() {
   }
 
   async function disconnect() {
-    if (!token) return
     if (!confirm('ตัดการเชื่อมต่อ GitHub?')) return
     try {
-      await api.settings.disconnect(token)
+      await api.settings.disconnect()
       setRepos([])
       setSelected(new Set())
       setInfo('ตัดการเชื่อมต่อแล้ว')
@@ -123,10 +118,9 @@ function SettingsPageInner() {
   }
 
   async function startOAuth() {
-    if (!token) return
     setError('')
     try {
-      const { url } = await api.settings.oauthStart(token)
+      const { url } = await api.settings.oauthStart()
       window.location.href = url
     } catch (e: any) {
       setError(e.message)
@@ -143,7 +137,7 @@ function SettingsPageInner() {
   }
 
   async function syncSelected() {
-    if (!token || selected.size === 0) return
+    if (selected.size === 0) return
     const activeProject = projects.find((p) => p.isActive)
     if (!activeProject) {
       setError('กรุณาตั้ง active project ก่อนใน Projects')
@@ -152,7 +146,7 @@ function SettingsPageInner() {
     setSyncing(true)
     setError('')
     try {
-      await api.settings.syncRepos(token, Array.from(selected), activeProject.id)
+      await api.settings.syncRepos(Array.from(selected), activeProject.id)
       setInfo(`ผูก ${selected.size} repo ไว้กับ ${activeProject.name} แล้ว`)
       setSelected(new Set())
       await refresh()

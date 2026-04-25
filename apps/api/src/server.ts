@@ -1,7 +1,11 @@
 import Fastify, { FastifyRequest, FastifyReply } from 'fastify'
 import fjwt from '@fastify/jwt'
+import fcookie from '@fastify/cookie'
 import cors from '@fastify/cors'
-import { env } from './env.js'
+import helmet from '@fastify/helmet'
+import rateLimit from '@fastify/rate-limit'
+import { env, isProd, isTest } from './env.js'
+import { loggerOptions } from './lib/logger.js'
 import dbPlugin from './plugins/db.js'
 import redisPlugin from './plugins/redis.js'
 import { authRoutes } from './routes/auth.js'
@@ -12,6 +16,7 @@ import { wsHandler } from './ws/handler.js'
 import { githubRoutes } from './routes/github.js'
 import { settingsRoutes } from './routes/settings.js'
 import { chatRoutes } from './routes/chat.js'
+import { metricsRoutes } from './routes/metrics.js'
 
 declare module 'fastify' {
   interface FastifyInstance {
@@ -19,14 +24,52 @@ declare module 'fastify' {
   }
 }
 
+const COOKIE_NAME = 'mesh_token'
+
 export async function buildServer() {
   const fastify = Fastify({
-    logger: env.NODE_ENV !== 'test',
-    bodyLimit: 25 * 1024 * 1024, // 25MB to allow image attachments
+    logger: isTest ? false : loggerOptions,
+    bodyLimit: 25 * 1024 * 1024,
+    trustProxy: isProd,
+    disableRequestLogging: isTest,
   })
 
-  await fastify.register(cors, { origin: true, credentials: true })
-  await fastify.register(fjwt, { secret: env.JWT_SECRET })
+  await fastify.register(helmet, {
+    contentSecurityPolicy: false,
+    crossOriginEmbedderPolicy: false,
+    crossOriginResourcePolicy: { policy: 'cross-origin' },
+  })
+
+  const allowed = env.CORS_ALLOWED_ORIGINS
+  await fastify.register(cors, {
+    origin: (origin, cb) => {
+      if (!origin) return cb(null, true)
+      if (allowed.length === 0 && !isProd) return cb(null, true)
+      if (allowed.includes(origin)) return cb(null, true)
+      return cb(new Error(`Origin ${origin} not allowed by CORS`), false)
+    },
+    credentials: true,
+  })
+
+  await fastify.register(fcookie, {
+    parseOptions: { path: '/' },
+  })
+
+  await fastify.register(fjwt, {
+    secret: env.JWT_SECRET,
+    cookie: { cookieName: COOKIE_NAME, signed: false },
+  })
+
+  await fastify.register(rateLimit, {
+    global: true,
+    max: env.RATE_LIMIT_MAX,
+    timeWindow: env.RATE_LIMIT_WINDOW,
+    allowList: ['127.0.0.1', '::1'],
+    keyGenerator: (req) => {
+      const auth = (req.headers.authorization ?? '').slice(0, 64)
+      return `${req.ip}:${auth}`
+    },
+  })
 
   fastify.decorate('authenticate', async function (request: FastifyRequest, reply: FastifyReply) {
     try {
@@ -46,8 +89,21 @@ export async function buildServer() {
   await fastify.register(githubRoutes)
   await fastify.register(settingsRoutes)
   await fastify.register(chatRoutes)
+  await fastify.register(metricsRoutes)
 
   fastify.get('/health', async () => ({ status: 'ok' }))
 
+  fastify.setErrorHandler((err, req, reply) => {
+    if (err.validation) {
+      return reply.status(400).send({ error: 'ValidationError', details: err.validation })
+    }
+    req.log.error({ err }, 'Unhandled error')
+    const status = err.statusCode ?? 500
+    const message = status >= 500 ? 'Internal Server Error' : err.message
+    reply.status(status).send({ error: message })
+  })
+
   return fastify
 }
+
+export const COOKIE = { name: COOKIE_NAME }

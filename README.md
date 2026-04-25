@@ -145,20 +145,21 @@ sequenceDiagram
     actor User
     participant Web as Next.js PWA
     participant API as Fastify API
+    participant DB as PostgreSQL
 
     User->>Web: เปิด app ครั้งแรก
-    Web->>Web: เช็ค localStorage token
-    alt ไม่มี token
+    Web->>API: GET /auth/me (HttpOnly cookie)
+    alt ไม่มี cookie หรือ invalid
+        API-->>Web: 401
         Web->>User: redirect /login
         User->>Web: ใส่ email + password
-        Web->>API: POST /auth/login
-        API->>API: ตรวจสอบกับ AUTH_EMAIL/PASSWORD ใน env
-        API-->>Web: { token: JWT }
-        Web->>Web: เก็บ token ใน localStorage
+        Web->>API: POST /auth/login (credentials: include)
+        API->>DB: SELECT * FROM users WHERE email = ?
+        API->>API: bcrypt.compare(password, hash)
+        API-->>Web: Set-Cookie: mesh_token (HttpOnly, Secure, SameSite=Lax)
         Web->>User: redirect /overview
-    else มี token
-        Web->>API: GET /auth/me (Bearer token)
-        API-->>Web: { email }
+    else มี cookie ที่ valid
+        API-->>Web: { id, email, role }
         Web->>User: แสดง dashboard
     end
 ```
@@ -262,14 +263,55 @@ DROPLET_HOST=your.droplet.ip bash scripts/deploy.sh
 | Variable | Required | Description |
 |---|---|---|
 | `DATABASE_URL` | ✓ | PostgreSQL connection URL |
+| `DB_POOL_MAX` | — | DB pool size (default 10) |
 | `REDIS_URL` | ✓ | Redis connection URL |
-| `AUTH_EMAIL` | ✓ | Login email (single user) |
-| `AUTH_PASSWORD` | ✓ | Login password |
+| `AUTH_EMAIL` | ✓ | Initial admin email (seeded into `users` table on first boot) |
+| `AUTH_PASSWORD` | ✓ | Initial admin password (bcrypt-hashed at seed time) |
 | `JWT_SECRET` | ✓ | JWT signing secret (32+ chars) |
+| `TOKEN_ENCRYPTION_KEY` | ✓ | AES-256-GCM key for encrypting GitHub tokens at rest (32+ chars) |
+| `CORS_ALLOWED_ORIGINS` | ✓ in prod | Comma-separated allowed browser origins |
+| `COOKIE_DOMAIN` | — | Set to your apex domain when API and web are on subdomains |
+| `RATE_LIMIT_MAX` / `RATE_LIMIT_WINDOW` | — | Global API rate limit (default: 120 req/min) |
+| `AUTH_RATE_LIMIT_MAX` / `AUTH_RATE_LIMIT_WINDOW` | — | Tighter limit on `/auth/login` (default: 10 req/min) |
 | `ANTHROPIC_API_KEY` | ✓ | สำหรับ Claude Code CLI |
-| `GITHUB_TOKEN` | — | GitHub API access token |
-| `GITHUB_WEBHOOK_SECRET` | — | GitHub webhook HMAC secret |
+| `GITHUB_TOKEN` | — | Fallback GitHub PAT |
+| `GITHUB_WEBHOOK_SECRET` | ✓ in prod | HMAC secret for verifying GitHub webhooks (min 16 chars) |
+| `GITHUB_OAUTH_CLIENT_ID` / `GITHUB_OAUTH_CLIENT_SECRET` | — | Enables OAuth flow on Settings page |
 | `ORCHESTRATOR_URL` | — | Internal URL ของ orchestrator (default: http://localhost:3002) |
+| `MAX_CONCURRENT_SESSIONS` | — | Cap on simultaneous agent sessions (default: 8) |
+| `SESSION_IDLE_TIMEOUT_MS` | — | Auto-kill idle sessions after this many ms (default: 1h) |
+| `LOG_LEVEL` | — | pino log level (default: info) |
+
+### Generating secrets
+
+```bash
+# 32-byte hex (use for JWT_SECRET, TOKEN_ENCRYPTION_KEY, GITHUB_WEBHOOK_SECRET)
+openssl rand -hex 32
+```
+
+### Multi-user
+
+The first boot seeds an admin from `AUTH_EMAIL` / `AUTH_PASSWORD`. Subsequent
+users are created via the API:
+
+```bash
+curl -X POST https://your-api/auth/users \
+  -H 'Content-Type: application/json' \
+  -b mesh_token=<admin-jwt> \
+  -d '{"email":"dev@example.com","password":"...","role":"member"}'
+```
+
+Roles: `admin` (full access, manages users + roles), `member` (default), `viewer`.
+
+### Database backups
+
+A daily backup script is provided. Add to crontab on the host:
+
+```cron
+0 3 * * * /opt/mesh-agent/scripts/db-backup.sh >>/var/log/meshagent-backup.log 2>&1
+```
+
+Restore: `./scripts/db-restore.sh /var/backups/meshagent/meshagent-...sql.gz`
 
 ---
 

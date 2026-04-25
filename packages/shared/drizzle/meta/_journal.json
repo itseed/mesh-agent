@@ -8,6 +8,13 @@
       "when": 1777110805792,
       "tag": "0000_naive_thanos",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1777200000000,
+      "tag": "0001_security_and_persistence",
+      "breakpoints": true
     }
   ]
 }

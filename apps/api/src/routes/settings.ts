@@ -4,25 +4,18 @@ import { Octokit } from '@octokit/rest'
 import { eq } from 'drizzle-orm'
 import { projects } from '@meshagent/shared'
 import { env } from '../env.js'
+import { encryptSecret } from '../lib/crypto.js'
+import { TOKEN_KEY, readStoredToken } from '../lib/github-client.js'
+import { logAudit } from '../lib/audit.js'
 
-const TOKEN_KEY = 'settings:github:token'
 const STATE_KEY_PREFIX = 'settings:github:oauth:state:'
 const STATE_TTL_SECONDS = 600
 
-const tokenSchema = z.object({
-  token: z.string().min(10),
-})
-
+const tokenSchema = z.object({ token: z.string().min(10).max(512) })
 const syncSchema = z.object({
-  repos: z.array(z.string()).min(1),
+  repos: z.array(z.string().regex(/^[A-Za-z0-9._-]+\/[A-Za-z0-9._-]+$/)).min(1).max(100),
   projectId: z.string().optional(),
 })
-
-async function getStoredToken(redis: any): Promise<string | null> {
-  const raw = await redis.get(TOKEN_KEY)
-  if (raw) return raw
-  return env.GITHUB_TOKEN ?? null
-}
 
 function maskToken(t: string | null): string | null {
   if (!t) return null
@@ -33,9 +26,8 @@ function maskToken(t: string | null): string | null {
 export async function settingsRoutes(fastify: FastifyInstance) {
   const preHandler = [fastify.authenticate]
 
-  // GET /settings — current connection status
   fastify.get('/settings', { preHandler }, async () => {
-    const token = await getStoredToken(fastify.redis)
+    const token = (await readStoredToken(fastify.redis)) ?? env.GITHUB_TOKEN ?? null
     let user: { login: string; avatarUrl?: string } | null = null
     if (token) {
       try {
@@ -50,46 +42,48 @@ export async function settingsRoutes(fastify: FastifyInstance) {
       github: {
         connected: !!user,
         tokenPreview: maskToken(token),
-        oauthEnabled: !!process.env.GITHUB_OAUTH_CLIENT_ID,
+        oauthEnabled: !!env.GITHUB_OAUTH_CLIENT_ID,
         user,
       },
     }
   })
 
-  // POST /settings/github/token — store a personal access token
   fastify.post('/settings/github/token', { preHandler }, async (request, reply) => {
     const { token } = tokenSchema.parse(request.body)
-    // Validate token by calling GitHub
     try {
       const oct = new Octokit({ auth: token })
       const { data } = await oct.users.getAuthenticated()
-      await fastify.redis.set(TOKEN_KEY, token)
+      await fastify.redis.set(TOKEN_KEY, encryptSecret(token))
+      await logAudit(fastify, request, {
+        action: 'settings.github.token.saved',
+        metadata: { login: data.login },
+      })
       return { ok: true, user: { login: data.login, avatarUrl: data.avatar_url } }
-    } catch (e: any) {
+    } catch {
       return reply.status(400).send({ error: 'Invalid GitHub token' })
     }
   })
 
-  // DELETE /settings/github/token — disconnect
-  fastify.delete('/settings/github/token', { preHandler }, async (_, reply) => {
+  fastify.delete('/settings/github/token', { preHandler }, async (request, reply) => {
     await fastify.redis.del(TOKEN_KEY)
-    reply.status(204)
+    await logAudit(fastify, request, { action: 'settings.github.token.deleted' })
+    reply.status(204).send()
   })
 
-  // GET /settings/github/oauth/start — begin OAuth flow
   fastify.get('/settings/github/oauth/start', { preHandler }, async (request, reply) => {
-    const clientId = process.env.GITHUB_OAUTH_CLIENT_ID
+    const clientId = env.GITHUB_OAUTH_CLIENT_ID
     if (!clientId) {
       return reply.status(400).send({
-        error: 'OAuth is not configured. Set GITHUB_OAUTH_CLIENT_ID and GITHUB_OAUTH_CLIENT_SECRET, or paste a personal access token instead.',
+        error:
+          'OAuth is not configured. Set GITHUB_OAUTH_CLIENT_ID and GITHUB_OAUTH_CLIENT_SECRET, or paste a personal access token.',
       })
     }
     const state = crypto.randomUUID()
-    const userEmail = (request.user as any).email
-    await fastify.redis.set(`${STATE_KEY_PREFIX}${state}`, userEmail, 'EX', STATE_TTL_SECONDS)
+    const userId = (request.user as { id: string }).id
+    await fastify.redis.set(`${STATE_KEY_PREFIX}${state}`, userId, 'EX', STATE_TTL_SECONDS)
 
     const redirectUri =
-      process.env.GITHUB_OAUTH_REDIRECT_URI ?? `http://localhost:${env.PORT}/settings/github/oauth/callback`
+      env.GITHUB_OAUTH_REDIRECT_URI ?? `http://localhost:${env.PORT}/settings/github/oauth/callback`
     const url = new URL('https://github.com/login/oauth/authorize')
     url.searchParams.set('client_id', clientId)
     url.searchParams.set('redirect_uri', redirectUri)
@@ -98,21 +92,16 @@ export async function settingsRoutes(fastify: FastifyInstance) {
     return { url: url.toString() }
   })
 
-  // GET /settings/github/oauth/callback — exchange code for token
   fastify.get('/settings/github/oauth/callback', async (request, reply) => {
     const { code, state } = request.query as { code?: string; state?: string }
-    if (!code || !state) {
-      return reply.status(400).send({ error: 'Missing code/state' })
-    }
+    if (!code || !state) return reply.status(400).send({ error: 'Missing code/state' })
 
     const stored = await fastify.redis.get(`${STATE_KEY_PREFIX}${state}`)
-    if (!stored) {
-      return reply.status(400).send({ error: 'Invalid or expired state' })
-    }
+    if (!stored) return reply.status(400).send({ error: 'Invalid or expired state' })
     await fastify.redis.del(`${STATE_KEY_PREFIX}${state}`)
 
-    const clientId = process.env.GITHUB_OAUTH_CLIENT_ID
-    const clientSecret = process.env.GITHUB_OAUTH_CLIENT_SECRET
+    const clientId = env.GITHUB_OAUTH_CLIENT_ID
+    const clientSecret = env.GITHUB_OAUTH_CLIENT_SECRET
     if (!clientId || !clientSecret) {
       return reply.status(400).send({ error: 'OAuth not configured' })
     }
@@ -127,15 +116,15 @@ export async function settingsRoutes(fastify: FastifyInstance) {
       return reply.status(400).send({ error: tokenJson.error ?? 'Token exchange failed' })
     }
 
-    await fastify.redis.set(TOKEN_KEY, tokenJson.access_token)
+    await fastify.redis.set(TOKEN_KEY, encryptSecret(tokenJson.access_token))
+    await logAudit(fastify, null, { action: 'settings.github.oauth.success', target: stored })
 
-    const webBase = process.env.WEB_BASE_URL ?? 'http://localhost:3000'
+    const webBase = env.WEB_BASE_URL ?? 'http://localhost:3000'
     return reply.redirect(`${webBase}/settings?connected=1`)
   })
 
-  // GET /settings/github/repos — list repos accessible to the user
   fastify.get('/settings/github/repos', { preHandler }, async (_, reply) => {
-    const token = await getStoredToken(fastify.redis)
+    const token = (await readStoredToken(fastify.redis)) ?? env.GITHUB_TOKEN ?? null
     if (!token) return reply.status(400).send({ error: 'Not connected to GitHub' })
     const oct = new Octokit({ auth: token })
     try {
@@ -160,17 +149,17 @@ export async function settingsRoutes(fastify: FastifyInstance) {
     }
   })
 
-  // POST /settings/github/sync — attach repos to a project
   fastify.post('/settings/github/sync', { preHandler }, async (request, reply) => {
     const body = syncSchema.parse(request.body)
-    const token = await getStoredToken(fastify.redis)
+    const token = (await readStoredToken(fastify.redis)) ?? env.GITHUB_TOKEN ?? null
     if (!token) return reply.status(400).send({ error: 'Not connected to GitHub' })
 
     let targetId = body.projectId
     if (!targetId) {
       const all = await fastify.db.select().from(projects)
       const active = all.find((p) => p.isActive)
-      if (!active) return reply.status(400).send({ error: 'No active project. Create or activate one first.' })
+      if (!active)
+        return reply.status(400).send({ error: 'No active project. Create or activate one first.' })
       targetId = active.id
     }
 
@@ -187,6 +176,11 @@ export async function settingsRoutes(fastify: FastifyInstance) {
       .where(eq(projects.id, targetId))
       .returning()
 
+    await logAudit(fastify, request, {
+      action: 'settings.github.sync',
+      target: targetId,
+      metadata: { repos: body.repos },
+    })
     return { project: updated, syncedRepos: body.repos }
   })
 }

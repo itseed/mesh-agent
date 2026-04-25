@@ -4,18 +4,15 @@ import { AppShell } from '@/components/layout/AppShell'
 import { AgentGrid } from '@/components/agents/AgentGrid'
 import { AuthGuard } from '@/components/layout/AuthGuard'
 import { api } from '@/lib/api'
-import { useAuth } from '@/lib/auth'
 
 export default function AgentsPage() {
-  const { token } = useAuth()
   const [agents, setAgents] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
   const fetchAgents = useCallback(async () => {
-    if (!token) return
     try {
-      const data = await api.agents.list(token)
+      const data = await api.agents.list()
       setAgents(data)
       setError('')
     } catch (e: any) {
@@ -23,7 +20,7 @@ export default function AgentsPage() {
     } finally {
       setLoading(false)
     }
-  }, [token])
+  }, [])
 
   useEffect(() => {
     fetchAgents()
@@ -31,7 +28,9 @@ export default function AgentsPage() {
     return () => clearInterval(id)
   }, [fetchAgents])
 
-  const running = agents.filter((a) => a.status === 'running').length
+  const running = agents.filter(
+    (a) => a.status === 'running' || a.status === 'pending',
+  ).length
 
   return (
     <AuthGuard>

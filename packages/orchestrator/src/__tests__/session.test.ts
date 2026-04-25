@@ -1,54 +1,63 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { AgentSession } from '../session.js'
 
+const baseOpts = {
+  id: 'test',
+  role: 'frontend',
+  workingDir: '/tmp',
+  prompt: 'hello',
+  claudeCmd: 'echo',
+}
+
 describe('AgentSession', () => {
-  it('has idle status on creation', () => {
-    const session = new AgentSession({
-      id: 'test-1',
-      role: 'frontend',
-      workingDir: '/tmp',
-      claudeCmd: 'echo',
-    })
-    expect(session.status).toBe('idle')
+  it('has pending status on creation', () => {
+    const session = new AgentSession({ ...baseOpts, id: 'test-1' })
+    expect(session.status).toBe('pending')
     expect(session.id).toBe('test-1')
     expect(session.role).toBe('frontend')
   })
 
-  it('transitions to running when started', async () => {
-    const session = new AgentSession({
-      id: 'test-2',
-      role: 'backend',
-      workingDir: '/tmp',
-      claudeCmd: 'echo',
-    })
-    const onOutput = vi.fn()
-    // echo "hello" จะ exit ทันที
-    await session.start('hello', onOutput)
-    expect(session.status).toBe('idle')
+  it('transitions to completed when echo exits cleanly', async () => {
+    const session = new AgentSession({ ...baseOpts, id: 'test-2', role: 'backend' })
+    await session.start()
+    expect(session.status).toBe('completed')
   })
 
-  it('calls onOutput with stdout lines', async () => {
+  it('emits output for stdout lines', async () => {
     const session = new AgentSession({
+      ...baseOpts,
       id: 'test-3',
       role: 'qa',
-      workingDir: '/tmp',
-      claudeCmd: 'echo',
+      prompt: 'test output',
     })
     const lines: string[] = []
-    await session.start('test output', (line) => lines.push(line))
+    session.on('output', (line) => lines.push(line))
+    await session.start()
     expect(lines.length).toBeGreaterThan(0)
   })
 
-  it('stop() terminates running process', async () => {
+  it('stop() marks the session killed', async () => {
     const session = new AgentSession({
+      ...baseOpts,
       id: 'test-4',
-      role: 'frontend',
-      workingDir: '/tmp',
       claudeCmd: 'sleep',
+      prompt: '10',
     })
-    session.start('10', () => {})
+    const startPromise = session.start()
     await new Promise((r) => setTimeout(r, 50))
     session.stop()
-    expect(session.status).toBe('idle')
+    await startPromise
+    expect(session.status).toBe('killed')
+  })
+
+  it('emits end event with metrics', async () => {
+    const session = new AgentSession({ ...baseOpts, id: 'test-5' })
+    const onEnd = vi.fn()
+    session.on('end', onEnd)
+    await session.start()
+    expect(onEnd).toHaveBeenCalledOnce()
+    const metrics = onEnd.mock.calls[0][0]
+    expect(metrics.outputBytes).toBeGreaterThan(0)
+    expect(metrics.success).toBe(true)
   })
 })

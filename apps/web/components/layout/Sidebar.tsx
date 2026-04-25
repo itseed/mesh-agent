@@ -78,7 +78,8 @@ const NAV = [
 
 export function Sidebar() {
   const pathname = usePathname()
-  const { logout } = useAuth()
+  const { logout, user } = useAuth()
+  const isAdmin = user?.role === 'admin'
 
   return (
     <aside className="fixed inset-y-0 left-0 z-40 flex flex-col bg-surface border-r border-border w-14 lg:w-[216px] transition-[width]">
@@ -114,10 +115,16 @@ export function Sidebar() {
         })}
       </nav>
 
-      {/* Sign out */}
+      {/* User info + sign out */}
       <div className="p-2 border-t border-border">
+        {user && (
+          <div className="px-2.5 py-1.5 hidden lg:block">
+            <div className="text-[12px] text-text truncate">{user.email}</div>
+            <div className="text-[11px] text-muted capitalize">{user.role}</div>
+          </div>
+        )}
         <button
-          onClick={logout}
+          onClick={() => logout()}
           title="Sign out"
           className="flex items-center gap-2.5 px-2.5 py-2 rounded text-[14px] font-medium text-muted hover:text-danger hover:bg-danger/5 border border-transparent w-full transition-all"
         >

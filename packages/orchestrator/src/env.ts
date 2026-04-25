@@ -2,9 +2,13 @@ import { z } from 'zod'
 
 const envSchema = z.object({
   REDIS_URL: z.string().url(),
+  DATABASE_URL: z.string().url().optional(),
   PORT: z.coerce.number().default(3002),
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   CLAUDE_CMD: z.string().default('claude'),
+  MAX_CONCURRENT_SESSIONS: z.coerce.number().int().positive().default(8),
+  SESSION_IDLE_TIMEOUT_MS: z.coerce.number().int().nonnegative().default(60 * 60 * 1000),
+  LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
 })
 
 export const env = envSchema.parse(process.env)

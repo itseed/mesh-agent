@@ -3,33 +3,33 @@ import { useState, useEffect, useCallback } from 'react'
 import { AppShell } from '@/components/layout/AppShell'
 import { AuthGuard } from '@/components/layout/AuthGuard'
 import { api } from '@/lib/api'
-import { useAuth } from '@/lib/auth'
 
-type Tab = 'prs' | 'commits'
+type Tab = 'prs' | 'commits' | 'issues'
 
 export default function GitHubPage() {
-  const { token } = useAuth()
   const [tab, setTab] = useState<Tab>('prs')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [activeProject, setActiveProject] = useState<any>(null)
   const [prs, setPrs] = useState<any[]>([])
   const [commits, setCommits] = useState<any[]>([])
+  const [issues, setIssues] = useState<any[]>([])
 
   const fetchData = useCallback(async () => {
-    if (!token) return
     try {
-      const projects = await api.projects.list(token)
+      const projects = await api.projects.list()
       const active = projects.find((p: any) => p.isActive) ?? null
       setActiveProject(active)
       if (active?.githubRepos?.length) {
         const repo = active.githubRepos[0]
-        const [prsData, commitsData] = await Promise.all([
-          api.github.prs(token, repo),
-          api.github.commits(token, repo),
+        const [prsData, commitsData, issuesData] = await Promise.all([
+          api.github.prs(repo),
+          api.github.commits(repo),
+          api.github.issues(repo).catch(() => []),
         ])
         setPrs(prsData)
         setCommits(commitsData)
+        setIssues(issuesData)
       }
       setError('')
     } catch (e: any) {
@@ -37,7 +37,7 @@ export default function GitHubPage() {
     } finally {
       setLoading(false)
     }
-  }, [token])
+  }, [])
 
   useEffect(() => { fetchData() }, [fetchData])
 
@@ -71,17 +71,19 @@ export default function GitHubPage() {
             <>
               {/* Tabs */}
               <div className="flex gap-0 mb-5 bg-surface border border-border rounded-lg p-0.5 w-fit">
-                {(['prs', 'commits'] as Tab[]).map((t) => (
+                {(['prs', 'commits', 'issues'] as Tab[]).map((t) => (
                   <button
                     key={t}
                     onClick={() => setTab(t)}
                     className={`px-4 py-1.5 rounded text-[14px] font-medium transition-all ${
-                      tab === t
-                        ? 'bg-canvas text-text shadow-sm'
-                        : 'text-muted hover:text-text'
+                      tab === t ? 'bg-canvas text-text shadow-sm' : 'text-muted hover:text-text'
                     }`}
                   >
-                    {t === 'prs' ? `PRs (${prs.length})` : `Commits (${commits.length})`}
+                    {t === 'prs'
+                      ? `PRs (${prs.length})`
+                      : t === 'commits'
+                        ? `Commits (${commits.length})`
+                        : `Issues (${issues.length})`}
                   </button>
                 ))}
               </div>
@@ -114,6 +116,29 @@ export default function GitHubPage() {
                           {pr.state}
                         </span>
                       </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {tab === 'issues' && (
+                <div className="flex flex-col gap-2">
+                  {issues.length === 0 ? (
+                    <p className="text-muted text-[14px]">No open issues.</p>
+                  ) : issues.map((issue: any) => (
+                    <div key={issue.id} className="bg-surface border border-border rounded-lg p-4 hover:border-border-hi transition-colors">
+                      <a href={issue.url} target="_blank" rel="noreferrer" className="text-[15px] text-accent hover:underline">
+                        #{issue.id} {issue.title}
+                      </a>
+                      <p className="text-[13px] text-muted mt-1">
+                        {issue.author} · {issue.state}
+                        {issue.labels?.length > 0 && (
+                          <>
+                            {' · '}
+                            {issue.labels.filter(Boolean).join(', ')}
+                          </>
+                        )}
+                      </p>
                     </div>
                   ))}
                 </div>

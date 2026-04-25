@@ -10,7 +10,14 @@ export class Streamer {
   publishLine(sessionId: string, line: string): void {
     this.publisher.publish(
       `agent:${sessionId}:output`,
-      JSON.stringify({ line, timestamp: Date.now() }),
+      JSON.stringify({ type: 'line', line, timestamp: Date.now() }),
+    )
+  }
+
+  publishEvent(sessionId: string, event: Record<string, unknown>): void {
+    this.publisher.publish(
+      `agent:${sessionId}:output`,
+      JSON.stringify({ ...event, sessionId, timestamp: Date.now() }),
     )
   }
 

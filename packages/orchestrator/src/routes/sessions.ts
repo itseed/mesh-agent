@@ -1,31 +1,43 @@
 import { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 import type { SessionManager } from '../manager.js'
-import type { Streamer } from '../streamer.js'
-import type { AgentRole } from '@meshagent/shared'
+import type { SessionStore } from '../store.js'
 
 const createSessionSchema = z.object({
-  role: z.enum(['frontend', 'backend', 'mobile', 'devops', 'designer', 'qa', 'reviewer']),
-  workingDir: z.string(),
-  prompt: z.string(),
+  role: z.string().min(1).max(64),
+  workingDir: z.string().min(1).max(1024),
+  prompt: z.string().min(1).max(64 * 1024),
+  projectId: z.string().optional().nullable(),
+  taskId: z.string().optional().nullable(),
+  createdBy: z.string().optional().nullable(),
 })
 
 export async function sessionRoutes(
   fastify: FastifyInstance,
-  opts: { manager: SessionManager; streamer: Streamer },
+  opts: { manager: SessionManager; store: SessionStore },
 ) {
-  const { manager, streamer } = opts
+  const { manager, store } = opts
 
   fastify.post('/sessions', async (request, reply) => {
     const body = createSessionSchema.parse(request.body)
-    const session = manager.createSession({
-      role: body.role as AgentRole,
-      workingDir: body.workingDir,
-    })
 
-    session
-      .start(body.prompt, (line) => streamer.publishLine(session.id, line))
-      .catch((err) => fastify.log.error({ sessionId: session.id, err }, 'session error'))
+    let session
+    try {
+      session = await manager.createSession({
+        role: body.role,
+        workingDir: body.workingDir,
+        prompt: body.prompt,
+        projectId: body.projectId ?? null,
+        taskId: body.taskId ?? null,
+        createdBy: body.createdBy ?? null,
+      })
+    } catch (err: any) {
+      return reply.status(429).send({ error: err.message ?? 'Failed to create session' })
+    }
+
+    session.start().catch((err) => {
+      fastify.log.error({ sessionId: session.id, err }, 'session error')
+    })
 
     reply.status(201)
     return { id: session.id, role: session.role, status: session.status }
@@ -36,15 +48,38 @@ export async function sessionRoutes(
       id: s.id,
       role: s.role,
       status: s.status,
+      legacyStatus: s.legacyStatus,
+      pid: s.pid,
+      projectId: s.projectId,
+      taskId: s.taskId,
     }))
+  })
+
+  fastify.get('/sessions/:id', async (request, reply) => {
+    const { id } = request.params as { id: string }
+    const live = manager.getSession(id)
+    if (live) {
+      return {
+        id: live.id,
+        role: live.role,
+        status: live.status,
+        pid: live.pid,
+        projectId: live.projectId,
+        taskId: live.taskId,
+        error: live.error,
+      }
+    }
+    const persisted = await store.findById(id)
+    if (!persisted) return reply.status(404).send({ error: 'Session not found' })
+    return persisted
   })
 
   fastify.delete('/sessions/:id', async (request, reply) => {
     const { id } = request.params as { id: string }
-    if (!manager.getSession(id)) {
+    if (!manager.getSession(id) && !(await store.findById(id))) {
       return reply.status(404).send({ error: 'Session not found' })
     }
-    manager.removeSession(id)
-    reply.status(204)
+    await manager.removeSession(id)
+    reply.status(204).send()
   })
 }

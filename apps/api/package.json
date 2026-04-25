@@ -11,20 +11,27 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@fastify/cookie": "^9.3.1",
     "@fastify/cors": "^8.5.0",
+    "@fastify/helmet": "^11.1.1",
     "@fastify/jwt": "^8.0.0",
+    "@fastify/rate-limit": "^9.1.0",
     "@fastify/websocket": "^8.3.1",
     "@meshagent/shared": "workspace:*",
     "@octokit/rest": "^22.0.1",
+    "bcryptjs": "^2.4.3",
     "dotenv": "^17.4.2",
     "drizzle-orm": "^0.36.0",
     "fastify": "^4.27.0",
     "fastify-plugin": "^4.5.1",
     "ioredis": "^5.3.2",
+    "pino": "^9.4.0",
+    "pino-pretty": "^11.2.2",
     "postgres": "^3.4.4",
     "zod": "^3.23.0"
   },
   "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
     "@types/node": "^20.0.0",
     "tsx": "^4.7.0",
     "typescript": "^5.4.0",

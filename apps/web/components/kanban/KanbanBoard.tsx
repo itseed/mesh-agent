@@ -3,7 +3,6 @@ import { useState, useEffect } from 'react'
 import { DragDropContext, DropResult } from '@hello-pangea/dnd'
 import { KanbanColumn } from './KanbanColumn'
 import { api } from '@/lib/api'
-import { useAuth } from '@/lib/auth'
 
 const STAGES = ['backlog', 'in_progress', 'review', 'done'] as const
 
@@ -12,7 +11,6 @@ interface KanbanBoardProps {
 }
 
 export function KanbanBoard({ initialTasks }: KanbanBoardProps) {
-  const { token } = useAuth()
   const [tasks, setTasks] = useState(initialTasks)
 
   useEffect(() => {
@@ -20,20 +18,19 @@ export function KanbanBoard({ initialTasks }: KanbanBoardProps) {
   }, [initialTasks])
 
   async function onDragEnd(result: DropResult) {
-    if (!result.destination || !token) return
+    if (!result.destination) return
     const { draggableId, destination } = result
     const newStage = destination.droppableId
 
     setTasks((prev) =>
       prev.map((t) => (t.id === draggableId ? { ...t, stage: newStage } : t)),
     )
-    await api.tasks.updateStage(token, draggableId, newStage)
+    await api.tasks.updateStage(draggableId, newStage)
   }
 
   async function handleDelete(id: string) {
-    if (!token) return
     setTasks((prev) => prev.filter((t) => t.id !== id))
-    await api.tasks.delete(token, id)
+    await api.tasks.delete(id)
   }
 
   const byStage = (stage: string) => tasks.filter((t) => t.stage === stage)

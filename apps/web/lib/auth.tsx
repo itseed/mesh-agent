@@ -1,36 +1,62 @@
 'use client'
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react'
+import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react'
+import { api } from './api'
+
+export type UserRole = 'admin' | 'member' | 'viewer'
+
+export interface AuthUser {
+  id: string
+  email: string
+  role: UserRole
+}
 
 interface AuthCtx {
-  token: string | null
+  user: AuthUser | null
   initialized: boolean
-  login: (token: string) => void
-  logout: () => void
+  login: (email: string, password: string) => Promise<void>
+  logout: () => Promise<void>
+  refresh: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthCtx | null>(null)
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [token, setToken] = useState<string | null>(null)
+  const [user, setUser] = useState<AuthUser | null>(null)
   const [initialized, setInitialized] = useState(false)
 
-  useEffect(() => {
-    setToken(localStorage.getItem('token'))
-    setInitialized(true)
+  const refresh = useCallback(async () => {
+    try {
+      const me = await api.auth.me()
+      setUser(me)
+    } catch {
+      setUser(null)
+    } finally {
+      setInitialized(true)
+    }
   }, [])
 
-  const login = (t: string) => {
-    localStorage.setItem('token', t)
-    setToken(t)
-  }
+  useEffect(() => {
+    refresh()
+  }, [refresh])
 
-  const logout = () => {
-    localStorage.removeItem('token')
-    setToken(null)
-  }
+  const login = useCallback(
+    async (email: string, password: string) => {
+      const res = await api.auth.login(email, password)
+      setUser(res.user)
+    },
+    [],
+  )
+
+  const logout = useCallback(async () => {
+    try {
+      await api.auth.logout()
+    } finally {
+      setUser(null)
+    }
+  }, [])
 
   return (
-    <AuthContext.Provider value={{ token, initialized, login, logout }}>
+    <AuthContext.Provider value={{ user, initialized, login, logout, refresh }}>
       {children}
     </AuthContext.Provider>
   )

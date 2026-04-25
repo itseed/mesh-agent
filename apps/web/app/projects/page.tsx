@@ -3,12 +3,10 @@ import { useState, useEffect, useCallback } from 'react'
 import { AppShell } from '@/components/layout/AppShell'
 import { AuthGuard } from '@/components/layout/AuthGuard'
 import { api } from '@/lib/api'
-import { useAuth } from '@/lib/auth'
 
 interface PathEntry { key: string; value: string }
 
 export default function ProjectsPage() {
-  const { token } = useAuth()
   const [projects, setProjects] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -19,9 +17,8 @@ export default function ProjectsPage() {
   const [activating, setActivating] = useState<string | null>(null)
 
   const fetchProjects = useCallback(async () => {
-    if (!token) return
     try {
-      const data = await api.projects.list(token)
+      const data = await api.projects.list()
       setProjects(data)
       setError('')
     } catch (e: any) {
@@ -29,7 +26,7 @@ export default function ProjectsPage() {
     } finally {
       setLoading(false)
     }
-  }, [token])
+  }, [])
 
   useEffect(() => { fetchProjects() }, [fetchProjects])
 
@@ -41,13 +38,13 @@ export default function ProjectsPage() {
 
   async function createProject(e: React.FormEvent) {
     e.preventDefault()
-    if (!token || !name.trim()) return
+    if (!name.trim()) return
     setCreating(true)
     try {
       const pathsMap = Object.fromEntries(
         paths.filter((p) => p.key.trim() && p.value.trim()).map((p) => [p.key.trim(), p.value.trim()])
       )
-      await api.projects.create(token, { name: name.trim(), paths: pathsMap })
+      await api.projects.create({ name: name.trim(), paths: pathsMap })
       setName('')
       setPaths([{ key: '', value: '' }])
       setShowModal(false)
@@ -60,10 +57,9 @@ export default function ProjectsPage() {
   }
 
   async function activate(id: string) {
-    if (!token) return
     setActivating(id)
     try {
-      await api.projects.activate(token, id)
+      await api.projects.activate(id)
       fetchProjects()
     } catch (e: any) {
       setError(e.message)

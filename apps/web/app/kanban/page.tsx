@@ -4,10 +4,8 @@ import { AppShell } from '@/components/layout/AppShell'
 import { KanbanBoard } from '@/components/kanban/KanbanBoard'
 import { AuthGuard } from '@/components/layout/AuthGuard'
 import { api } from '@/lib/api'
-import { useAuth } from '@/lib/auth'
 
 export default function KanbanPage() {
-  const { token } = useAuth()
   const [tasks, setTasks] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -16,9 +14,8 @@ export default function KanbanPage() {
   const [creating, setCreating] = useState(false)
 
   const fetchTasks = useCallback(async () => {
-    if (!token) return
     try {
-      const data = await api.tasks.list(token)
+      const data = await api.tasks.list()
       setTasks(data)
       setError('')
     } catch (e: any) {
@@ -26,16 +23,16 @@ export default function KanbanPage() {
     } finally {
       setLoading(false)
     }
-  }, [token])
+  }, [])
 
   useEffect(() => { fetchTasks() }, [fetchTasks])
 
   async function createTask(e: React.FormEvent) {
     e.preventDefault()
-    if (!token || !newTitle.trim()) return
+    if (!newTitle.trim()) return
     setCreating(true)
     try {
-      await api.tasks.create(token, { title: newTitle.trim() })
+      await api.tasks.create({ title: newTitle.trim() })
       setNewTitle('')
       setShowModal(false)
       fetchTasks()
