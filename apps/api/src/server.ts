@@ -5,6 +5,7 @@ import dbPlugin from './plugins/db.js'
 import redisPlugin from './plugins/redis.js'
 import { authRoutes } from './routes/auth.js'
 import { taskRoutes } from './routes/tasks.js'
+import { projectRoutes } from './routes/projects.js'
 
 declare module 'fastify' {
   interface FastifyInstance {
@@ -31,6 +32,7 @@ export async function buildServer() {
   await fastify.register(redisPlugin)
   await fastify.register(authRoutes)
   await fastify.register(taskRoutes)
+  await fastify.register(projectRoutes)
 
   fastify.get('/health', async () => ({ status: 'ok' }))
 
