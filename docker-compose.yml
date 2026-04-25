@@ -27,6 +27,25 @@ services:
       timeout: 5s
       retries: 5
 
+  orchestrator:
+    build:
+      context: .
+      dockerfile: packages/orchestrator/Dockerfile.dev
+    environment:
+      REDIS_URL: redis://redis:6379
+      PORT: 3002
+      CLAUDE_CMD: claude
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+    volumes:
+      - ./packages/orchestrator:/app/packages/orchestrator
+      - ./packages/shared:/app/packages/shared
+      - ~/.claude:/root/.claude:ro
+    ports:
+      - "3002:3002"
+    depends_on:
+      redis:
+        condition: service_healthy
+
 volumes:
   db_data:
   redis_data:

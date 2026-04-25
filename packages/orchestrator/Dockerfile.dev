@@ -1,0 +1,8 @@
+FROM node:20-alpine
+RUN npm install -g pnpm@9
+WORKDIR /app
+COPY package.json pnpm-workspace.yaml ./
+COPY packages/shared/package.json ./packages/shared/
+COPY packages/orchestrator/package.json ./packages/orchestrator/
+RUN pnpm install
+CMD ["pnpm", "--filter", "@meshagent/orchestrator", "dev"]
