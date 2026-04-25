@@ -10,6 +10,8 @@ import { projectRoutes } from './routes/projects.js'
 import { agentRoutes } from './routes/agents.js'
 import { wsHandler } from './ws/handler.js'
 import { githubRoutes } from './routes/github.js'
+import { settingsRoutes } from './routes/settings.js'
+import { chatRoutes } from './routes/chat.js'
 
 declare module 'fastify' {
   interface FastifyInstance {
@@ -20,6 +22,7 @@ declare module 'fastify' {
 export async function buildServer() {
   const fastify = Fastify({
     logger: env.NODE_ENV !== 'test',
+    bodyLimit: 25 * 1024 * 1024, // 25MB to allow image attachments
   })
 
   await fastify.register(cors, { origin: true, credentials: true })
@@ -41,6 +44,8 @@ export async function buildServer() {
   await fastify.register(agentRoutes)
   await fastify.register(wsHandler)
   await fastify.register(githubRoutes)
+  await fastify.register(settingsRoutes)
+  await fastify.register(chatRoutes)
 
   fastify.get('/health', async () => ({ status: 'ok' }))
 
