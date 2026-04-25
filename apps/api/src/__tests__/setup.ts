@@ -1,0 +1,6 @@
+process.env.DATABASE_URL = 'postgresql://meshagent:meshagent@localhost:5432/meshagent'
+process.env.REDIS_URL = 'redis://localhost:6379'
+process.env.AUTH_EMAIL = 'admin@example.com'
+process.env.AUTH_PASSWORD = 'changeme123'
+process.env.JWT_SECRET = 'test-secret-that-is-at-least-32-characters-long'
+process.env.NODE_ENV = 'test'

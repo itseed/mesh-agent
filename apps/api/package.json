@@ -13,7 +13,7 @@
   "dependencies": {
     "@fastify/jwt": "^8.0.0",
     "@meshagent/shared": "workspace:*",
-    "drizzle-orm": "^0.30.0",
+    "drizzle-orm": "^0.36.0",
     "fastify": "^4.27.0",
     "fastify-plugin": "^4.5.1",
     "ioredis": "^5.3.2",
