@@ -8,6 +8,9 @@ const envSchema = z.object({
   JWT_SECRET: z.string().min(32),
   PORT: z.coerce.number().default(3001),
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
+  ORCHESTRATOR_URL: z.string().url().default('http://localhost:3002'),
+  GITHUB_TOKEN: z.string().optional(),
+  GITHUB_WEBHOOK_SECRET: z.string().optional(),
 })
 
 export const env = envSchema.parse(process.env)
