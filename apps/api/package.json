@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@fastify/jwt": "^8.0.0",
+    "@fastify/websocket": "^8.3.1",
     "@meshagent/shared": "workspace:*",
     "drizzle-orm": "^0.36.0",
     "fastify": "^4.27.0",

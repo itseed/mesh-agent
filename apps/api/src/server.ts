@@ -7,6 +7,7 @@ import { authRoutes } from './routes/auth.js'
 import { taskRoutes } from './routes/tasks.js'
 import { projectRoutes } from './routes/projects.js'
 import { agentRoutes } from './routes/agents.js'
+import { wsHandler } from './ws/handler.js'
 
 declare module 'fastify' {
   interface FastifyInstance {
@@ -35,6 +36,7 @@ export async function buildServer() {
   await fastify.register(taskRoutes)
   await fastify.register(projectRoutes)
   await fastify.register(agentRoutes)
+  await fastify.register(wsHandler)
 
   fastify.get('/health', async () => ({ status: 'ok' }))
 
