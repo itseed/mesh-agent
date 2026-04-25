@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { DragDropContext, DropResult } from '@hello-pangea/dnd'
 import { KanbanColumn } from './KanbanColumn'
 import { api } from '@/lib/api'
@@ -14,6 +14,10 @@ interface KanbanBoardProps {
 export function KanbanBoard({ initialTasks }: KanbanBoardProps) {
   const { token } = useAuth()
   const [tasks, setTasks] = useState(initialTasks)
+
+  useEffect(() => {
+    setTasks(initialTasks)
+  }, [initialTasks])
 
   async function onDragEnd(result: DropResult) {
     if (!result.destination || !token) return
