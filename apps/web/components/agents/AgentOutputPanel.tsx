@@ -21,7 +21,7 @@ export function AgentOutputPanel({ sessionId, role, onClose }: AgentOutputPanelP
           {lines.length === 0 ? (
             <span className="text-border">Waiting for output...</span>
           ) : (
-            lines.map((line, i) => <div key={i}>{line}</div>)
+            lines.map((line: string, i: number) => <div key={i}>{line}</div>)
           )}
         </div>
       </div>
