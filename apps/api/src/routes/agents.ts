@@ -8,30 +8,38 @@ const dispatchSchema = z.object({
   prompt: z.string().min(1),
 })
 
+async function proxyFetch(url: string, init?: RequestInit) {
+  try {
+    return await fetch(url, init)
+  } catch {
+    return null
+  }
+}
+
 export async function agentRoutes(fastify: FastifyInstance) {
   const preHandler = [fastify.authenticate]
 
   fastify.get('/agents', { preHandler }, async (_, reply) => {
-    const res = await fetch(`${env.ORCHESTRATOR_URL}/sessions`)
-    if (!res.ok) return reply.status(502).send({ error: 'Orchestrator unavailable' })
+    const res = await proxyFetch(`${env.ORCHESTRATOR_URL}/sessions`)
+    if (!res || !res.ok) return []
     return res.json()
   })
 
   fastify.post('/agents', { preHandler }, async (request, reply) => {
     const body = dispatchSchema.parse(request.body)
-    const res = await fetch(`${env.ORCHESTRATOR_URL}/sessions`, {
+    const res = await proxyFetch(`${env.ORCHESTRATOR_URL}/sessions`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     })
-    if (!res.ok) return reply.status(502).send({ error: 'Orchestrator unavailable' })
+    if (!res || !res.ok) return reply.status(502).send({ error: 'Orchestrator unavailable' })
     reply.status(201)
     return res.json()
   })
 
   fastify.delete('/agents/:id', { preHandler }, async (request, reply) => {
     const { id } = request.params as { id: string }
-    await fetch(`${env.ORCHESTRATOR_URL}/sessions/${id}`, { method: 'DELETE' })
+    await proxyFetch(`${env.ORCHESTRATOR_URL}/sessions/${id}`, { method: 'DELETE' })
     reply.status(204)
   })
 }
