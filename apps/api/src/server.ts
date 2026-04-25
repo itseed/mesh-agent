@@ -1,5 +1,6 @@
 import Fastify, { FastifyRequest, FastifyReply } from 'fastify'
 import fjwt from '@fastify/jwt'
+import cors from '@fastify/cors'
 import { env } from './env.js'
 import dbPlugin from './plugins/db.js'
 import redisPlugin from './plugins/redis.js'
@@ -21,6 +22,7 @@ export async function buildServer() {
     logger: env.NODE_ENV !== 'test',
   })
 
+  await fastify.register(cors, { origin: true, credentials: true })
   await fastify.register(fjwt, { secret: env.JWT_SECRET })
 
   fastify.decorate('authenticate', async function (request: FastifyRequest, reply: FastifyReply) {
