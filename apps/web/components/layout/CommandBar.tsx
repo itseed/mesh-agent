@@ -2,7 +2,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { usePathname } from 'next/navigation'
 import { api } from '@/lib/api'
-import { useAuth } from '@/lib/auth'
+import { useChatStream } from '@/lib/ws'
 
 const ROLE_DOT: Record<string, string> = {
   frontend: '#22d3ee',
@@ -51,7 +51,6 @@ function readAsBase64(file: File): Promise<{ data: string; preview: string }> {
 
 export function CommandBar() {
   const pathname = usePathname()
-  const { token } = useAuth()
   const [open, setOpen] = useState(false)
   const [history, setHistory] = useState<ChatMessage[]>([])
   const [message, setMessage] = useState('')
@@ -61,16 +60,17 @@ export function CommandBar() {
   const [unread, setUnread] = useState(0)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
+  const openRef = useRef(open)
+  openRef.current = open
 
   const loadHistory = useCallback(async () => {
-    if (!token) return
     try {
-      const list = await api.chat.history(token)
+      const list = await api.chat.history()
       setHistory(list)
     } catch {
       /* ignore */
     }
-  }, [token])
+  }, [])
 
   useEffect(() => {
     if (open) {
@@ -78,6 +78,18 @@ export function CommandBar() {
       setUnread(0)
     }
   }, [open, loadHistory])
+
+  // Real-time push from server-side chat events
+  const handleStream = useCallback((msg: ChatMessage) => {
+    setHistory((prev) => {
+      if (prev.some((m) => m.id === msg.id)) return prev
+      return [...prev, msg]
+    })
+    if (!openRef.current && msg.role !== 'user') {
+      setUnread((u) => u + 1)
+    }
+  }, [])
+  useChatStream(handleStream)
 
   useEffect(() => {
     if (!open) return
@@ -123,7 +135,7 @@ export function CommandBar() {
   }
 
   async function send() {
-    if (!token || (!message.trim() && attachments.length === 0)) return
+    if (!message.trim() && attachments.length === 0) return
     setSending(true)
     setError('')
     const payload = {
@@ -135,10 +147,11 @@ export function CommandBar() {
       })),
     }
     try {
-      const res = await api.chat.send(token, payload)
+      // The server publishes the messages via the chat WebSocket stream,
+      // so we don't manually append here — useChatStream will receive them.
+      await api.chat.send(payload)
       setMessage('')
       setAttachments([])
-      setHistory((prev) => [...prev, res.user, res.lead, ...res.dispatches])
     } catch (e: any) {
       setError(e.message ?? 'ส่งไม่สำเร็จ')
     } finally {
@@ -147,9 +160,8 @@ export function CommandBar() {
   }
 
   async function clearHistory() {
-    if (!token) return
     if (!confirm('ล้างประวัติแชท?')) return
-    await api.chat.clear(token)
+    await api.chat.clear()
     setHistory([])
   }
 

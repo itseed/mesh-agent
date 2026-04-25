@@ -18,7 +18,7 @@ interface AgentOutputPanelProps {
 }
 
 export function AgentOutputPanel({ sessionId, role, onClose }: AgentOutputPanelProps) {
-  const lines = useAgentOutput(sessionId)
+  const { lines, status } = useAgentOutput(sessionId)
   const roleColor = ROLE_COLOR[role] ?? '#6a7a8e'
 
   return (
@@ -66,7 +66,10 @@ export function AgentOutputPanel({ sessionId, role, onClose }: AgentOutputPanelP
         </div>
 
         <div className="px-4 py-2 border-t border-border text-[12px] text-dim flex items-center justify-between">
-          <span>{lines.length} lines</span>
+          <span>
+            {lines.length} lines
+            {status && <> · <span className="text-muted">{status}</span></>}
+          </span>
           <span>session: {sessionId.slice(0, 8)}…</span>
         </div>
       </div>

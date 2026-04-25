@@ -1,45 +1,219 @@
 import { FastifyInstance } from 'fastify'
 import { z } from 'zod'
+import { eq, desc, and, gte, sql } from 'drizzle-orm'
+import { agentSessions, agentRoles, agentMetrics } from '@meshagent/shared'
 import { env } from '../env.js'
+import { logAudit } from '../lib/audit.js'
 
 const dispatchSchema = z.object({
-  role: z.enum(['frontend', 'backend', 'mobile', 'devops', 'designer', 'qa', 'reviewer']),
-  workingDir: z.string(),
-  prompt: z.string().min(1),
+  role: z.string().min(1).max(64),
+  workingDir: z.string().min(1).max(1024),
+  prompt: z.string().min(1).max(64 * 1024),
+  projectId: z.string().optional(),
+  taskId: z.string().optional(),
 })
 
-async function proxyFetch(url: string, init?: RequestInit) {
+async function proxyFetch(url: string, init?: RequestInit, timeoutMs = 10000) {
+  const ctrl = new AbortController()
+  const t = setTimeout(() => ctrl.abort(), timeoutMs)
   try {
-    return await fetch(url, init)
+    return await fetch(url, { ...init, signal: ctrl.signal })
   } catch {
     return null
+  } finally {
+    clearTimeout(t)
   }
 }
 
 export async function agentRoutes(fastify: FastifyInstance) {
   const preHandler = [fastify.authenticate]
 
-  fastify.get('/agents', { preHandler }, async (_, reply) => {
+  fastify.get('/agents', { preHandler }, async () => {
     const res = await proxyFetch(`${env.ORCHESTRATOR_URL}/sessions`)
-    if (!res || !res.ok) return []
+    if (!res || !res.ok) {
+      const recent = await fastify.db
+        .select()
+        .from(agentSessions)
+        .orderBy(desc(agentSessions.createdAt))
+        .limit(50)
+      return recent.map((r) => ({
+        id: r.id,
+        role: r.role,
+        status: r.status,
+        projectId: r.projectId,
+        taskId: r.taskId,
+        startedAt: r.startedAt,
+        endedAt: r.endedAt,
+      }))
+    }
     return res.json()
+  })
+
+  fastify.get('/agents/history', { preHandler }, async (request) => {
+    const { limit } = z
+      .object({ limit: z.coerce.number().int().min(1).max(500).default(100) })
+      .parse(request.query)
+    const rows = await fastify.db
+      .select()
+      .from(agentSessions)
+      .orderBy(desc(agentSessions.createdAt))
+      .limit(limit)
+    return rows
   })
 
   fastify.post('/agents', { preHandler }, async (request, reply) => {
     const body = dispatchSchema.parse(request.body)
+
+    const [role] = await fastify.db
+      .select()
+      .from(agentRoles)
+      .where(eq(agentRoles.slug, body.role))
+    if (!role) {
+      return reply.status(400).send({ error: `Unknown agent role: ${body.role}` })
+    }
+
+    const userId = (request.user as { id: string }).id
     const res = await proxyFetch(`${env.ORCHESTRATOR_URL}/sessions`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
+      body: JSON.stringify({
+        role: body.role,
+        workingDir: body.workingDir,
+        prompt: body.prompt,
+        projectId: body.projectId ?? null,
+        taskId: body.taskId ?? null,
+        createdBy: userId,
+      }),
     })
-    if (!res || !res.ok) return reply.status(502).send({ error: 'Orchestrator unavailable' })
+    if (!res) return reply.status(502).send({ error: 'Orchestrator unavailable' })
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: 'Failed' }))
+      return reply.status(res.status).send(err)
+    }
+
+    const json = await res.json()
+    await logAudit(fastify, request, {
+      action: 'agent.dispatch',
+      target: (json as any).id,
+      metadata: { role: body.role, workingDir: body.workingDir },
+    })
     reply.status(201)
-    return res.json()
+    return json
   })
 
   fastify.delete('/agents/:id', { preHandler }, async (request, reply) => {
     const { id } = request.params as { id: string }
     await proxyFetch(`${env.ORCHESTRATOR_URL}/sessions/${id}`, { method: 'DELETE' })
-    reply.status(204)
+    await logAudit(fastify, request, { action: 'agent.stopped', target: id })
+    reply.status(204).send()
+  })
+
+  // ----- Roles registry -----
+
+  fastify.get('/agents/roles', { preHandler }, async () => {
+    return fastify.db.select().from(agentRoles).orderBy(agentRoles.name)
+  })
+
+  const roleSchema = z.object({
+    slug: z
+      .string()
+      .min(2)
+      .max(64)
+      .regex(/^[a-z0-9_-]+$/),
+    name: z.string().min(1).max(128),
+    description: z.string().max(2048).optional(),
+    systemPrompt: z.string().max(32 * 1024).optional(),
+    keywords: z.array(z.string().max(64)).max(50).default([]),
+  })
+
+  const requireAdmin = async (request: any, reply: any) => {
+    await fastify.authenticate(request, reply)
+    if (reply.sent) return
+    if ((request.user as { role: string }).role !== 'admin') {
+      return reply.status(403).send({ error: 'Forbidden — admin only' })
+    }
+  }
+
+  fastify.post('/agents/roles', { preHandler: [requireAdmin] }, async (request, reply) => {
+    const body = roleSchema.parse(request.body)
+    const [created] = await fastify.db
+      .insert(agentRoles)
+      .values({ ...body, isBuiltin: false })
+      .onConflictDoNothing()
+      .returning()
+    if (!created) {
+      return reply.status(409).send({ error: `Role slug "${body.slug}" already exists` })
+    }
+    await logAudit(fastify, request, { action: 'agent.role.created', target: created.slug })
+    return created
+  })
+
+  fastify.patch(
+    '/agents/roles/:slug',
+    { preHandler: [requireAdmin] },
+    async (request, reply) => {
+      const { slug } = request.params as { slug: string }
+      const body = roleSchema.partial({ slug: true }).parse(request.body)
+      const [updated] = await fastify.db
+        .update(agentRoles)
+        .set(body)
+        .where(eq(agentRoles.slug, slug))
+        .returning()
+      if (!updated) return reply.status(404).send({ error: 'Role not found' })
+      await logAudit(fastify, request, { action: 'agent.role.updated', target: slug })
+      return updated
+    },
+  )
+
+  fastify.delete(
+    '/agents/roles/:slug',
+    { preHandler: [requireAdmin] },
+    async (request, reply) => {
+      const { slug } = request.params as { slug: string }
+      const [existing] = await fastify.db
+        .select()
+        .from(agentRoles)
+        .where(eq(agentRoles.slug, slug))
+      if (!existing) return reply.status(404).send({ error: 'Role not found' })
+      if (existing.isBuiltin) {
+        return reply.status(400).send({ error: 'Cannot delete a builtin role' })
+      }
+      await fastify.db.delete(agentRoles).where(eq(agentRoles.slug, slug))
+      await logAudit(fastify, request, { action: 'agent.role.deleted', target: slug })
+      reply.status(204).send()
+    },
+  )
+
+  // ----- Metrics -----
+
+  fastify.get('/agents/metrics', { preHandler }, async (request) => {
+    const { sinceHours } = z
+      .object({ sinceHours: z.coerce.number().int().min(1).max(24 * 30).default(24) })
+      .parse(request.query)
+
+    const since = new Date(Date.now() - sinceHours * 3600 * 1000)
+    const rows = await fastify.db
+      .select({
+        role: agentMetrics.role,
+        count: sql<number>`count(*)::int`,
+        successCount: sql<number>`sum(case when ${agentMetrics.success} then 1 else 0 end)::int`,
+        avgDurationMs: sql<number>`coalesce(avg(${agentMetrics.durationMs}), 0)::int`,
+        totalOutputBytes: sql<number>`coalesce(sum(${agentMetrics.outputBytes}), 0)::bigint`,
+      })
+      .from(agentMetrics)
+      .where(gte(agentMetrics.createdAt, since))
+      .groupBy(agentMetrics.role)
+
+    return {
+      sinceHours,
+      perRole: rows,
+      totals: rows.reduce(
+        (acc, r) => ({
+          count: acc.count + r.count,
+          successCount: acc.successCount + r.successCount,
+        }),
+        { count: 0, successCount: 0 },
+      ),
+    }
   })
 }

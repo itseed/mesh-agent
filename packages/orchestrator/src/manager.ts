@@ -1,32 +1,144 @@
 import { AgentSession } from './session.js'
 import type { AgentRole } from '@meshagent/shared'
+import type { SessionStore } from './store.js'
+import type { Streamer } from './streamer.js'
+import type pino from 'pino'
 
 interface CreateSessionOpts {
   role: AgentRole
   workingDir: string
+  prompt: string
+  projectId?: string | null
+  taskId?: string | null
+  createdBy?: string | null
+  sessionId?: string
 }
 
 interface ManagerOptions {
   claudeCmd: string
+  store: SessionStore
+  streamer: Streamer
+  logger: pino.Logger
+  maxConcurrent: number
+  idleTimeoutMs: number
 }
 
 export class SessionManager {
   private sessions = new Map<string, AgentSession>()
-  private readonly claudeCmd: string
+  private timers = new Map<string, NodeJS.Timeout>()
 
-  constructor(opts: ManagerOptions) {
-    this.claudeCmd = opts.claudeCmd
+  constructor(private readonly opts: ManagerOptions) {}
+
+  get activeCount(): number {
+    return Array.from(this.sessions.values()).filter(
+      (s) => s.status === 'running' || s.status === 'pending',
+    ).length
   }
 
-  createSession(opts: CreateSessionOpts): AgentSession {
+  async createSession(input: CreateSessionOpts): Promise<AgentSession> {
+    if (this.activeCount >= this.opts.maxConcurrent) {
+      throw new Error(
+        `Concurrency limit reached (${this.opts.maxConcurrent}). Stop a session and retry.`,
+      )
+    }
+
     const session = new AgentSession({
-      id: crypto.randomUUID(),
-      role: opts.role,
-      workingDir: opts.workingDir,
-      claudeCmd: this.claudeCmd,
+      id: input.sessionId ?? crypto.randomUUID(),
+      role: input.role,
+      workingDir: input.workingDir,
+      prompt: input.prompt,
+      claudeCmd: this.opts.claudeCmd,
+      projectId: input.projectId,
+      taskId: input.taskId,
+      createdBy: input.createdBy,
     })
     this.sessions.set(session.id, session)
+
+    await this.opts.store.create({
+      id: session.id,
+      role: String(session.role),
+      workingDir: session.workingDir,
+      prompt: session.prompt,
+      status: 'pending',
+      projectId: session.projectId,
+      taskId: session.taskId,
+      createdBy: session.createdBy,
+    })
+
+    this.wireSessionEvents(session)
     return session
+  }
+
+  private wireSessionEvents(session: AgentSession): void {
+    const { store, streamer, logger, idleTimeoutMs } = this.opts
+
+    session.on('output', (line) => {
+      streamer.publishLine(session.id, line)
+      this.resetIdleTimer(session.id)
+    })
+
+    session.on('status', async (status) => {
+      try {
+        await store.update(session.id, {
+          status,
+          pid: session.pid,
+          startedAt: status === 'running' ? new Date() : undefined,
+        })
+      } catch (err) {
+        logger.warn({ err, sessionId: session.id }, 'Failed to persist session status')
+      }
+      streamer.publishEvent(session.id, { type: 'status', status })
+    })
+
+    session.on('end', async (metrics) => {
+      try {
+        await store.update(session.id, {
+          status: session.status,
+          exitCode: metrics.exitCode,
+          error: session.error,
+          endedAt: metrics.endedAt ?? new Date(),
+        })
+        await store.recordMetric({
+          sessionId: session.id,
+          role: String(session.role),
+          durationMs: metrics.durationMs,
+          outputBytes: metrics.outputBytes,
+          success: metrics.success,
+        })
+      } catch (err) {
+        logger.warn({ err, sessionId: session.id }, 'Failed to persist session end')
+      }
+      streamer.publishEvent(session.id, { type: 'end', metrics })
+      this.clearIdleTimer(session.id)
+    })
+
+    session.on('error', (err) => {
+      logger.error({ err, sessionId: session.id }, 'Session error')
+    })
+
+    if (idleTimeoutMs > 0) this.resetIdleTimer(session.id)
+  }
+
+  private resetIdleTimer(id: string): void {
+    this.clearIdleTimer(id)
+    const timeout = this.opts.idleTimeoutMs
+    if (timeout <= 0) return
+    const t = setTimeout(() => {
+      const s = this.sessions.get(id)
+      if (s && s.status === 'running') {
+        this.opts.logger.warn({ sessionId: id, timeoutMs: timeout }, 'Idle session timeout — killing')
+        s.stop()
+      }
+    }, timeout)
+    this.timers.set(id, t)
+  }
+
+  private clearIdleTimer(id: string): void {
+    const t = this.timers.get(id)
+    if (t) {
+      clearTimeout(t)
+      this.timers.delete(id)
+    }
   }
 
   getSession(id: string): AgentSession | undefined {
@@ -37,11 +149,38 @@ export class SessionManager {
     return Array.from(this.sessions.values())
   }
 
-  removeSession(id: string): void {
+  async removeSession(id: string): Promise<void> {
     const session = this.sessions.get(id)
     if (session) {
       session.stop()
-      this.sessions.delete(id)
+      await this.opts.store.update(id, { status: 'killed', endedAt: new Date() })
     }
+    this.sessions.delete(id)
+    this.clearIdleTimer(id)
+  }
+
+  async recoverFromCrash(): Promise<number> {
+    const stale = await this.opts.store.findRunning()
+    for (const row of stale) {
+      await this.opts.store.update(row.id, {
+        status: 'errored',
+        error: 'Orchestrator restarted before completion',
+        endedAt: new Date(),
+      })
+    }
+    if (stale.length > 0) {
+      this.opts.logger.warn(
+        { count: stale.length },
+        'Marked stale running sessions as errored after restart',
+      )
+    }
+    return stale.length
+  }
+
+  async shutdown(): Promise<void> {
+    for (const t of this.timers.values()) clearTimeout(t)
+    this.timers.clear()
+    for (const session of this.sessions.values()) session.stop()
+    this.sessions.clear()
   }
 }

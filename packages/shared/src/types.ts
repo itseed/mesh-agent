@@ -1,15 +1,38 @@
 export type KanbanStage = 'backlog' | 'in_progress' | 'review' | 'done'
 
-export type AgentRole =
-  | 'frontend'
-  | 'backend'
-  | 'mobile'
-  | 'devops'
-  | 'designer'
-  | 'qa'
-  | 'reviewer'
+export type AgentRole = string
+
+export const BUILTIN_AGENT_ROLES = [
+  'frontend',
+  'backend',
+  'mobile',
+  'devops',
+  'designer',
+  'qa',
+  'reviewer',
+] as const
+
+export type BuiltinAgentRole = (typeof BUILTIN_AGENT_ROLES)[number]
 
 export type AgentStatus = 'idle' | 'running' | 'error'
+
+export type AgentSessionStatus =
+  | 'pending'
+  | 'running'
+  | 'completed'
+  | 'errored'
+  | 'killed'
+
+export type UserRole = 'admin' | 'member' | 'viewer'
+
+export interface User {
+  id: string
+  email: string
+  role: UserRole
+  isActive: boolean
+  createdAt: Date
+  lastLoginAt: Date | null
+}
 
 export interface Task {
   id: string
@@ -38,4 +61,14 @@ export interface Project {
   githubRepos: string[]
   isActive: boolean
   createdAt: Date
+}
+
+export interface AgentRoleDefinition {
+  id: string
+  slug: string
+  name: string
+  description: string | null
+  systemPrompt: string | null
+  keywords: string[]
+  isBuiltin: boolean
 }

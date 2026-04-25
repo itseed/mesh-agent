@@ -3,7 +3,6 @@ import { useState, useEffect, useCallback } from 'react'
 import { AppShell } from '@/components/layout/AppShell'
 import { AuthGuard } from '@/components/layout/AuthGuard'
 import { api } from '@/lib/api'
-import { useAuth } from '@/lib/auth'
 
 const STAGE_COLOR: Record<string, string> = {
   backlog: 'text-muted',
@@ -20,19 +19,14 @@ const STAGE_DOT: Record<string, string> = {
 }
 
 export default function OverviewPage() {
-  const { token } = useAuth()
   const [agents, setAgents] = useState<any[]>([])
   const [tasks, setTasks] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
   const fetchData = useCallback(async () => {
-    if (!token) return
     try {
-      const [agentsData, tasksData] = await Promise.all([
-        api.agents.list(token),
-        api.tasks.list(token),
-      ])
+      const [agentsData, tasksData] = await Promise.all([api.agents.list(), api.tasks.list()])
       setAgents(agentsData)
       setTasks(tasksData)
       setError('')
@@ -41,7 +35,7 @@ export default function OverviewPage() {
     } finally {
       setLoading(false)
     }
-  }, [token])
+  }, [])
 
   useEffect(() => { fetchData() }, [fetchData])
 

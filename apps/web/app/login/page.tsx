@@ -1,7 +1,6 @@
 'use client'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { api } from '@/lib/api'
 import { useAuth } from '@/lib/auth'
 
 export default function LoginPage() {
@@ -17,11 +16,10 @@ export default function LoginPage() {
     setLoading(true)
     setError('')
     try {
-      const { token } = await api.auth.login(email, password)
-      login(token)
+      await login(email, password)
       router.push('/overview')
-    } catch {
-      setError('Invalid credentials')
+    } catch (err: any) {
+      setError(err?.message ?? 'Invalid credentials')
     } finally {
       setLoading(false)
     }

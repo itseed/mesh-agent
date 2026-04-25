@@ -1,11 +1,13 @@
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
 
-async function request<T>(path: string, token: string | null, init?: RequestInit): Promise<T> {
+async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
     ...init,
+    credentials: 'include',
     headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(init?.body && !(init.body instanceof FormData)
+        ? { 'Content-Type': 'application/json' }
+        : {}),
       ...init?.headers,
     },
   })
@@ -20,41 +22,95 @@ async function request<T>(path: string, token: string | null, init?: RequestInit
 export const api = {
   auth: {
     login: (email: string, password: string) =>
-      request<{ token: string }>('/auth/login', null, {
-        method: 'POST',
-        body: JSON.stringify({ email, password }),
-      }),
-    me: (token: string) => request<{ id: string; email: string }>('/auth/me', token),
+      request<{ user: { id: string; email: string; role: 'admin' | 'member' | 'viewer' } }>(
+        '/auth/login',
+        { method: 'POST', body: JSON.stringify({ email, password }) },
+      ),
+    logout: () => request<void>('/auth/logout', { method: 'POST' }),
+    me: () =>
+      request<{ id: string; email: string; role: 'admin' | 'member' | 'viewer' }>('/auth/me'),
+    listUsers: () =>
+      request<
+        Array<{
+          id: string
+          email: string
+          role: string
+          isActive: boolean
+          createdAt: string
+          lastLoginAt: string | null
+        }>
+      >('/auth/users'),
+    inviteUser: (data: { email: string; password: string; role: string }) =>
+      request<any>('/auth/users', { method: 'POST', body: JSON.stringify(data) }),
+    updateUser: (id: string, data: { role?: string; isActive?: boolean; password?: string }) =>
+      request<any>(`/auth/users/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+    deleteUser: (id: string) => request<void>(`/auth/users/${id}`, { method: 'DELETE' }),
   },
   tasks: {
-    list: (token: string) => request<any[]>('/tasks', token),
-    create: (token: string, data: { title: string; stage?: string; agentRole?: string; projectId?: string }) =>
-      request<any>('/tasks', token, { method: 'POST', body: JSON.stringify(data) }),
-    updateStage: (token: string, id: string, stage: string) =>
-      request<any>(`/tasks/${id}/stage`, token, { method: 'PATCH', body: JSON.stringify({ stage }) }),
-    delete: (token: string, id: string) =>
-      request<void>(`/tasks/${id}`, token, { method: 'DELETE' }),
+    list: () => request<any[]>('/tasks'),
+    create: (data: { title: string; stage?: string; agentRole?: string; projectId?: string }) =>
+      request<any>('/tasks', { method: 'POST', body: JSON.stringify(data) }),
+    updateStage: (id: string, stage: string) =>
+      request<any>(`/tasks/${id}/stage`, {
+        method: 'PATCH',
+        body: JSON.stringify({ stage }),
+      }),
+    delete: (id: string) => request<void>(`/tasks/${id}`, { method: 'DELETE' }),
   },
   projects: {
-    list: (token: string) => request<any[]>('/projects', token),
-    create: (token: string, data: any) =>
-      request<any>('/projects', token, { method: 'POST', body: JSON.stringify(data) }),
-    activate: (token: string, id: string) =>
-      request<any>(`/projects/${id}/activate`, token, { method: 'PATCH' }),
+    list: () => request<any[]>('/projects'),
+    create: (data: any) => request<any>('/projects', { method: 'POST', body: JSON.stringify(data) }),
+    activate: (id: string) => request<any>(`/projects/${id}/activate`, { method: 'PATCH' }),
   },
   agents: {
-    list: (token: string) => request<any[]>('/agents', token),
-    dispatch: (token: string, data: { role: string; workingDir: string; prompt: string }) =>
-      request<any>('/agents', token, { method: 'POST', body: JSON.stringify(data) }),
-    stop: (token: string, id: string) =>
-      request<void>(`/agents/${id}`, token, { method: 'DELETE' }),
+    list: () => request<any[]>('/agents'),
+    history: (limit = 100) => request<any[]>(`/agents/history?limit=${limit}`),
+    dispatch: (data: {
+      role: string
+      workingDir: string
+      prompt: string
+      projectId?: string
+      taskId?: string
+    }) => request<any>('/agents', { method: 'POST', body: JSON.stringify(data) }),
+    stop: (id: string) => request<void>(`/agents/${id}`, { method: 'DELETE' }),
+    listRoles: () =>
+      request<
+        Array<{
+          id: string
+          slug: string
+          name: string
+          description: string | null
+          keywords: string[]
+          isBuiltin: boolean
+        }>
+      >('/agents/roles'),
+    createRole: (data: {
+      slug: string
+      name: string
+      description?: string
+      systemPrompt?: string
+      keywords?: string[]
+    }) => request<any>('/agents/roles', { method: 'POST', body: JSON.stringify(data) }),
+    updateRole: (slug: string, data: any) =>
+      request<any>(`/agents/roles/${slug}`, {
+        method: 'PATCH',
+        body: JSON.stringify(data),
+      }),
+    deleteRole: (slug: string) => request<void>(`/agents/roles/${slug}`, { method: 'DELETE' }),
+    metrics: (sinceHours = 24) => request<any>(`/agents/metrics?sinceHours=${sinceHours}`),
   },
   github: {
-    prs: (token: string, repo: string) => request<any[]>(`/github/prs?repo=${repo}`, token),
-    commits: (token: string, repo: string) => request<any[]>(`/github/commits?repo=${repo}`, token),
+    prs: (repo: string) => request<any[]>(`/github/prs?repo=${encodeURIComponent(repo)}`),
+    createPr: (data: { repo: string; title: string; head: string; base?: string; body?: string }) =>
+      request<any>('/github/prs', { method: 'POST', body: JSON.stringify(data) }),
+    issues: (repo: string, state: 'open' | 'closed' | 'all' = 'open') =>
+      request<any[]>(`/github/issues?repo=${encodeURIComponent(repo)}&state=${state}`),
+    createIssue: (data: { repo: string; title: string; body?: string; labels?: string[] }) =>
+      request<any>('/github/issues', { method: 'POST', body: JSON.stringify(data) }),
+    commits: (repo: string) => request<any[]>(`/github/commits?repo=${encodeURIComponent(repo)}`),
   },
   settings: {
-    get: (token: string) =>
+    get: () =>
       request<{
         github: {
           connected: boolean
@@ -62,18 +118,15 @@ export const api = {
           oauthEnabled: boolean
           user: { login: string; avatarUrl?: string } | null
         }
-      }>('/settings', token),
-    saveToken: (token: string, ghToken: string) =>
+      }>('/settings'),
+    saveToken: (ghToken: string) =>
       request<{ ok: boolean; user: { login: string; avatarUrl?: string } }>(
         '/settings/github/token',
-        token,
         { method: 'POST', body: JSON.stringify({ token: ghToken }) },
       ),
-    disconnect: (token: string) =>
-      request<void>('/settings/github/token', token, { method: 'DELETE' }),
-    oauthStart: (token: string) =>
-      request<{ url: string }>('/settings/github/oauth/start', token),
-    listRepos: (token: string) =>
+    disconnect: () => request<void>('/settings/github/token', { method: 'DELETE' }),
+    oauthStart: () => request<{ url: string }>('/settings/github/oauth/start'),
+    listRepos: () =>
       request<
         Array<{
           id: number
@@ -86,29 +139,34 @@ export const api = {
           updatedAt: string | null
           htmlUrl: string
         }>
-      >('/settings/github/repos', token),
-    syncRepos: (token: string, repos: string[], projectId?: string) =>
-      request<{ project: any; syncedRepos: string[] }>('/settings/github/sync', token, {
+      >('/settings/github/repos'),
+    syncRepos: (repos: string[], projectId?: string) =>
+      request<{ project: any; syncedRepos: string[] }>('/settings/github/sync', {
         method: 'POST',
         body: JSON.stringify({ repos, projectId }),
       }),
   },
   chat: {
-    history: (token: string) => request<any[]>('/chat/history', token),
-    clear: (token: string) =>
-      request<void>('/chat/history', token, { method: 'DELETE' }),
-    send: (
-      token: string,
-      data: {
-        message: string
-        workingDir?: string
-        projectId?: string
-        images?: Array<{ name: string; mimeType: string; data: string }>
-      },
-    ) =>
-      request<{ user: any; lead: any; dispatches: any[] }>('/chat', token, {
+    history: () => request<any[]>('/chat/history'),
+    clear: () => request<void>('/chat/history', { method: 'DELETE' }),
+    send: (data: {
+      message: string
+      workingDir?: string
+      projectId?: string
+      images?: Array<{ name: string; mimeType: string; data: string }>
+    }) =>
+      request<{ user: any; lead: any; dispatches: any[] }>('/chat', {
         method: 'POST',
         body: JSON.stringify(data),
       }),
+  },
+  metrics: {
+    health: () =>
+      request<{
+        tasks: number
+        totalSessions: number
+        last24h: { count: number; avgDurationMs: number; successRate: number }
+        orchestrator: { ok: boolean; activeSessions: number }
+      }>('/metrics/health'),
   },
 }

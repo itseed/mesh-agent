@@ -1,27 +1,19 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
+import './setup.js'
 import { buildServer } from '../server.js'
 import { projects } from '@meshagent/shared'
-
-const ENV = {
-  DATABASE_URL: 'postgresql://meshagent:meshagent@localhost:5432/meshagent',
-  REDIS_URL: 'redis://localhost:6379',
-  AUTH_EMAIL: 'admin@example.com',
-  AUTH_PASSWORD: 'changeme123',
-  JWT_SECRET: 'test-secret-that-is-at-least-32-characters-long',
-}
 
 describe('Projects API', () => {
   let server: Awaited<ReturnType<typeof buildServer>>
   let token: string
 
   beforeAll(async () => {
-    Object.assign(process.env, ENV)
     server = await buildServer()
-    // Clean up projects table before tests
     await server.db.delete(projects)
     const res = await server.inject({
-      method: 'POST', url: '/auth/login',
-      payload: { email: ENV.AUTH_EMAIL, password: ENV.AUTH_PASSWORD },
+      method: 'POST',
+      url: '/auth/login',
+      payload: { email: 'admin@example.com', password: 'changeme123' },
     })
     token = res.json().token
   })
