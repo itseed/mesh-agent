@@ -1,7 +1,7 @@
 import { drizzle } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
 import { eq, inArray } from 'drizzle-orm'
-import { agentSessions, agentMetrics } from '@meshagent/shared'
+import { agentSessions, agentMetrics, tasks } from '@meshagent/shared'
 import type { AgentSessionStatus } from '@meshagent/shared'
 
 export type SessionRecord = typeof agentSessions.$inferSelect
@@ -12,6 +12,7 @@ export interface SessionStore {
   findById(id: string): Promise<SessionRecord | null>
   findRunning(): Promise<SessionRecord[]>
   recordMetric(rec: typeof agentMetrics.$inferInsert): Promise<void>
+  updateTaskStage(taskId: string, stage: 'done' | 'in_progress'): Promise<void>
   close(): Promise<void>
 }
 
@@ -49,6 +50,10 @@ class PgSessionStore implements SessionStore {
     await this.db.insert(agentMetrics).values(rec)
   }
 
+  async updateTaskStage(taskId: string, stage: 'done' | 'in_progress'): Promise<void> {
+    await this.db.update(tasks).set({ stage, updatedAt: new Date() }).where(eq(tasks.id, taskId))
+  }
+
   async close(): Promise<void> {
     await this.client.end({ timeout: 5 })
   }
@@ -64,6 +69,7 @@ class NoopSessionStore implements SessionStore {
     return []
   }
   async recordMetric() {}
+  async updateTaskStage() {}
   async close() {}
 }
 

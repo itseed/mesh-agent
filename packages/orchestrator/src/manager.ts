@@ -108,6 +108,14 @@ export class SessionManager {
       } catch (err) {
         logger.warn({ err, sessionId: session.id }, 'Failed to persist session end')
       }
+      if (session.taskId) {
+        const stage = metrics.success ? 'done' : 'in_progress'
+        try {
+          await store.updateTaskStage(session.taskId, stage)
+        } catch (err) {
+          logger.warn({ err, taskId: session.taskId }, 'Failed to update task stage')
+        }
+      }
       streamer.publishEvent(session.id, { type: 'end', metrics })
       this.clearIdleTimer(session.id)
     })

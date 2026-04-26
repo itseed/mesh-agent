@@ -22,6 +22,7 @@ function makeStubStore(): SessionStore & { _data: SessionRecord[] } {
       return data.filter((r) => r.status === 'running' || r.status === 'pending')
     },
     async recordMetric() {},
+    async updateTaskStage() {},
     async close() {},
   }
 }
