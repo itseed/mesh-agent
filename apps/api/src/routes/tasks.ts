@@ -1,9 +1,10 @@
 import { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 import { eq, desc, and } from 'drizzle-orm'
-import { tasks, taskComments, taskActivities, taskAttachments } from '@meshagent/shared'
+import { tasks, taskComments, taskActivities, taskAttachments, projects } from '@meshagent/shared'
 import { logAudit } from '../lib/audit.js'
 import { analyzeTask, type AnalyzePlan } from '../lib/analyze.js'
+import { dispatchAgent, buildGitInstructions } from '../lib/dispatch.js'
 
 const STAGES = ['backlog', 'in_progress', 'review', 'done'] as const
 const STATUSES = ['open', 'in_progress', 'blocked', 'done', 'cancelled'] as const
@@ -318,6 +319,35 @@ export async function taskRoutes(fastify: FastifyInstance) {
     })
 
     await logAudit(fastify, request, { action: 'task.approved', target: id })
+
+    // Dispatch agents for each subtask
+    if (task.projectId) {
+      const [project] = await fastify.db.select().from(projects).where(eq(projects.id, task.projectId)).limit(1)
+      if (project) {
+        const baseBranch = (project as any).baseBranch ?? 'main'
+        const branchSuffix = Date.now().toString(36)
+        const gitInstructions = buildGitInstructions(baseBranch, branchSuffix)
+
+        await Promise.all(subtasks.map(async (subtask) => {
+          if (!subtask) return
+          const role = subtask.agentRole ?? 'reviewer'
+          const paths = (project.paths ?? {}) as Record<string, string>
+          const workingDir = paths[role] ?? Object.values(paths)[0] ?? '/tmp'
+          const prompt = `${subtask.title}\n\n${subtask.description ?? ''}${gitInstructions}`
+
+          const result = await dispatchAgent(role, workingDir, prompt, {
+            projectId: task.projectId,
+            taskId: subtask.id,
+            createdBy: null,
+          })
+
+          if (result.id) {
+            await fastify.db.update(tasks).set({ stage: 'in_progress' }).where(eq(tasks.id, subtask.id))
+          }
+        }))
+      }
+    }
+
     return { task: { ...task, status: 'in_progress' }, subtasks }
   })
 }

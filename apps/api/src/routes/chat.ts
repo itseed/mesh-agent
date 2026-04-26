@@ -4,6 +4,7 @@ import { eq } from 'drizzle-orm'
 import { tasks, projects } from '@meshagent/shared'
 import { env } from '../env.js'
 import { detectRolesFromMessage, ensureBuiltinRoles, findRoleBySlug } from '../lib/roles.js'
+import { dispatchAgent, buildGitInstructions } from '../lib/dispatch.js'
 
 const HISTORY_KEY = 'chat:lead:history'
 const HISTORY_LIMIT = 200
@@ -44,33 +45,6 @@ async function pushHistory(fastify: FastifyInstance, msg: ChatMessage) {
   await fastify.redis.publish(CHAT_CHANNEL, JSON.stringify({ type: 'message', message: msg }))
 }
 
-async function dispatchAgent(
-  role: string,
-  workingDir: string,
-  prompt: string,
-  context: { projectId?: string | null; taskId?: string | null; createdBy?: string | null },
-): Promise<{ id: string | null; error?: string }> {
-  const ctrl = new AbortController()
-  const timer = setTimeout(() => ctrl.abort(), 10000)
-  try {
-    const res = await fetch(`${env.ORCHESTRATOR_URL}/sessions`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ role, workingDir, prompt, ...context }),
-      signal: ctrl.signal,
-    })
-    if (!res.ok) {
-      const err = (await res.json().catch(() => ({}))) as { error?: string }
-      return { id: null, error: err.error ?? `Orchestrator returned ${res.status}` }
-    }
-    const data = (await res.json()) as { id?: string }
-    return { id: data.id ?? null }
-  } catch (e: any) {
-    return { id: null, error: e?.message ?? 'Orchestrator request failed' }
-  } finally {
-    clearTimeout(timer)
-  }
-}
 
 export async function chatRoutes(fastify: FastifyInstance) {
   await ensureBuiltinRoles(fastify).catch((err) =>
@@ -145,29 +119,7 @@ export async function chatRoutes(fastify: FastifyInstance) {
         : ''
 
     const branchSuffix = Date.now().toString(36)
-    const gitInstructions = `
-
-## Git Workflow (REQUIRED — ทำทุกครั้ง)
-Base branch: \`${baseBranch}\`
-
-**ก่อนเริ่มงาน:**
-\`\`\`bash
-git fetch origin
-git checkout ${baseBranch}
-git pull origin ${baseBranch}
-git checkout -b task/\${ROLE}-${branchSuffix}
-\`\`\`
-(แทน \${ROLE} ด้วย role ของตัวเอง เช่น frontend, backend)
-
-**ระหว่างทำงาน:** commit บ่อยๆ
-
-**เมื่องานเสร็จ:**
-\`\`\`bash
-git push -u origin HEAD
-gh pr create --base ${baseBranch} --title "<สรุปงานที่ทำ>" --body "<รายละเอียด>"
-\`\`\`
-
-**สำคัญ:** แจ้ง PR URL กลับมาในรายงานสุดท้ายด้วย`
+    const gitInstructions = buildGitInstructions(baseBranch, branchSuffix)
 
     const fullPrompt = `${body.message}${imageNote}${gitInstructions}`
 
