@@ -205,6 +205,21 @@ export async function settingsRoutes(fastify: FastifyInstance) {
     }
   })
 
+  fastify.get('/settings/github/branches', { preHandler }, async (request, reply) => {
+    const { repo } = request.query as { repo?: string }
+    if (!repo || !repo.includes('/')) return reply.status(400).send({ error: 'repo query param required (owner/repo)' })
+    const token = (await readStoredToken(fastify.redis)) ?? env.GITHUB_TOKEN ?? null
+    if (!token) return reply.status(400).send({ error: 'Not connected to GitHub' })
+    const [owner, repoName] = repo.split('/')
+    const oct = new Octokit({ auth: token })
+    try {
+      const { data } = await oct.repos.listBranches({ owner, repo: repoName, per_page: 100 })
+      return data.map((b) => ({ name: b.name, protected: b.protected }))
+    } catch (e: any) {
+      return reply.status(502).send({ error: e.message ?? 'Failed to list branches' })
+    }
+  })
+
   fastify.post('/settings/github/sync', { preHandler }, async (request, reply) => {
     const body = syncSchema.parse(request.body)
     const token = (await readStoredToken(fastify.redis)) ?? env.GITHUB_TOKEN ?? null
