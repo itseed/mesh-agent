@@ -17,15 +17,20 @@ const PRIORITY_DOT: Record<string, string> = {
 
 interface TaskCardProps {
   task: any
+  projects?: any[]
+  allTasks?: any[]
   onClick?: () => void
   onDelete?: (id: string) => void
   stageColor?: string
   isDragging?: boolean
 }
 
-export function TaskCard({ task, onClick, onDelete, stageColor, isDragging }: TaskCardProps) {
+export function TaskCard({ task, projects, allTasks, onClick, onDelete, stageColor, isDragging }: TaskCardProps) {
   const role = ROLE_STYLE[task.agentRole ?? '']
   const dotColor = PRIORITY_DOT[task.priority ?? ''] ?? null
+  const project = projects?.find((p: any) => p.id === task.projectId)
+  const subtaskCount = allTasks?.filter((t: any) => t.parentTaskId === task.id).length ?? 0
+  const doneCount = allTasks?.filter((t: any) => t.parentTaskId === task.id && t.stage === 'done').length ?? 0
 
   return (
     <div
@@ -60,14 +65,27 @@ export function TaskCard({ task, onClick, onDelete, stageColor, isDragging }: Ta
         <div className="text-[11px] text-dim mt-1 ml-3">subtask</div>
       )}
 
-      {(task.agentRole || task.githubPrUrl) && (
-        <div className="flex items-center gap-1.5 mt-2 ml-3">
+      {(task.agentRole || task.githubPrUrl || project || subtaskCount > 0) && (
+        <div className="flex items-center gap-1.5 mt-2 ml-3 flex-wrap">
           {task.agentRole && role && (
             <span
               className="text-[12px] px-1.5 py-0.5 rounded font-medium"
               style={{ backgroundColor: role.bg, color: role.text }}
             >
               {task.agentRole}
+            </span>
+          )}
+          {project && (
+            <span className="text-[11px] px-1.5 py-0.5 rounded bg-surface-2 text-muted border border-border">
+              {project.name}
+            </span>
+          )}
+          {subtaskCount > 0 && (
+            <span
+              className="text-[11px] px-1.5 py-0.5 rounded bg-surface-2 border border-border"
+              style={{ color: doneCount === subtaskCount ? '#3fb950' : '#6a7a8e' }}
+            >
+              {doneCount}/{subtaskCount}
             </span>
           )}
           {task.githubPrUrl && (

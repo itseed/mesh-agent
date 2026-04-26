@@ -9,10 +9,11 @@ const STAGES = ['backlog', 'in_progress', 'review', 'done'] as const
 
 interface KanbanBoardProps {
   initialTasks: any[]
+  projects: any[]
   onRefresh: () => void
 }
 
-export function KanbanBoard({ initialTasks, onRefresh }: KanbanBoardProps) {
+export function KanbanBoard({ initialTasks, projects, onRefresh }: KanbanBoardProps) {
   const [tasks, setTasks] = useState(initialTasks)
   const [selectedTask, setSelectedTask] = useState<any | null>(null)
 
@@ -55,6 +56,8 @@ export function KanbanBoard({ initialTasks, onRefresh }: KanbanBoardProps) {
               key={stage}
               stage={stage}
               tasks={byStage(stage)}
+              projects={projects}
+              allTasks={tasks}
               onDelete={handleDelete}
               onSelect={setSelectedTask}
             />

@@ -11,11 +11,13 @@ const STAGE_META: Record<string, { label: string; color: string; bg: string; bor
 interface KanbanColumnProps {
   stage: string
   tasks: any[]
+  projects: any[]
+  allTasks: any[]
   onDelete?: (id: string) => void
   onSelect?: (task: any) => void
 }
 
-export function KanbanColumn({ stage, tasks, onDelete, onSelect }: KanbanColumnProps) {
+export function KanbanColumn({ stage, tasks, projects, allTasks, onDelete, onSelect }: KanbanColumnProps) {
   const meta = STAGE_META[stage] ?? { label: stage, color: '#6a7a8e', bg: 'transparent', border: 'transparent' }
 
   return (
@@ -57,6 +59,8 @@ export function KanbanColumn({ stage, tasks, onDelete, onSelect }: KanbanColumnP
                   >
                     <TaskCard
                       task={task}
+                      projects={projects}
+                      allTasks={allTasks}
                       onDelete={onDelete}
                       onClick={() => onSelect?.(task)}
                       stageColor={meta.color}

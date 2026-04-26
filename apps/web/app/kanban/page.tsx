@@ -121,7 +121,7 @@ export default function KanbanPage() {
           ) : error ? (
             <p className="text-danger text-[14px]">✕ {error}</p>
           ) : (
-            <KanbanBoard initialTasks={tasks} onRefresh={refresh} />
+            <KanbanBoard initialTasks={tasks} projects={projects} onRefresh={refresh} />
           )}
         </div>
 
