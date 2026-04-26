@@ -29,6 +29,13 @@
       "when": 1745686400000,
       "tag": "0003_task_comments_source",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1745772800000,
+      "tag": "0004_output_log_base_branch",
+      "breakpoints": true
     }
   ]
 }
