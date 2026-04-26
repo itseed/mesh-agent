@@ -96,11 +96,11 @@ export async function chatRoutes(fastify: FastifyInstance) {
     let projectId = body.projectId
     if (!workingDir || !projectId) {
       const all = await fastify.db.select().from(projects)
-      const active = all.find((p) => p.isActive) ?? null
-      if (active) {
-        projectId = projectId ?? active.id
+      const fallback = all[0] ?? null
+      if (fallback) {
+        projectId = projectId ?? fallback.id
         if (!workingDir) {
-          const firstPath = Object.values(active.paths ?? {})[0]
+          const firstPath = Object.values(fallback.paths ?? {})[0]
           workingDir = firstPath ?? '/tmp'
         }
       }
