@@ -431,15 +431,20 @@ export function TaskDetailPanel({ task, allTasks, onClose, onUpdate, onDelete }:
                   className={
                     c.source === 'lead'
                       ? 'border-l-2 border-accent/60 bg-accent/5 rounded-r px-3 py-2'
-                      : 'bg-surface-2 rounded px-3 py-2'
+                      : c.source === 'agent'
+                      ? 'rounded border border-accent/20 bg-canvas/50 px-3 py-2'
+                      : 'bg-surface-2 rounded border border-border px-3 py-2'
                   }
                 >
                   {c.source === 'lead' && (
                     <div className="text-[11px] text-accent font-semibold mb-1 uppercase tracking-wide">Lead AI</div>
                   )}
+                  {c.source === 'agent' && (
+                    <div className="text-[11px] text-accent font-medium mb-1.5">🤖 Agent Summary</div>
+                  )}
                   <div className="text-[13px] text-text whitespace-pre-wrap">{c.body}</div>
                   {c.createdAt && (
-                    <div className="text-[11px] text-dim mt-1">{new Date(c.createdAt).toLocaleString()}</div>
+                    <div className="text-[11px] text-dim mt-2">{new Date(c.createdAt).toLocaleString()}</div>
                   )}
                 </div>
               ))}

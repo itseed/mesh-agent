@@ -486,6 +486,16 @@ function ChatBubble({ m }: { m: ChatMessage }) {
         </div>
         <div className="bg-surface-2 border border-border text-text rounded-2xl rounded-bl-sm px-3 py-2">
           <p className="text-[13.5px] whitespace-pre-wrap leading-relaxed">{m.content}</p>
+          {m.role === 'agent' && m.content.includes('PR: https://') && (
+            <a
+              href={m.content.match(/PR: (https:\/\/[^\s]+)/)?.[1]}
+              target="_blank"
+              rel="noreferrer"
+              className="text-[12px] text-accent underline mt-1 block"
+            >
+              → ดู Pull Request
+            </a>
+          )}
         </div>
       </div>
     </div>

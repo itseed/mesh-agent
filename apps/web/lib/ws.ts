@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from 'react'
 
 const WS_BASE = process.env.NEXT_PUBLIC_WS_URL ?? 'ws://localhost:3001'
+const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
 
 export interface AgentOutputEvent {
   channel?: string
@@ -14,29 +15,50 @@ export interface AgentOutputEvent {
 
 export function useAgentOutput(sessionId: string | null) {
   const [lines, setLines] = useState<string[]>([])
-  const [status, setStatus] = useState<string | null>(null)
+  const [status, setStatus] = useState<string>('')
   const wsRef = useRef<WebSocket | null>(null)
 
   useEffect(() => {
     if (!sessionId) {
       setLines([])
-      setStatus(null)
+      setStatus('')
       return
     }
+
     const ws = new WebSocket(`${WS_BASE}/ws?sessionId=${sessionId}`)
     wsRef.current = ws
+
+    let gotOutput = false
 
     ws.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data) as AgentOutputEvent
-        if (data.line) setLines((prev) => [...prev, data.line as string])
-        if (data.type === 'status' && data.status) setStatus(data.status)
-        if (data.type === 'end') setStatus('completed')
+        if (data.type === 'line' || data.line) {
+          gotOutput = true
+          setLines(prev => [...prev, data.line as string])
+        } else if (data.type === 'status' && data.status) {
+          setStatus(data.status)
+        } else if (data.type === 'end') {
+          setStatus(data.metrics?.success ? 'completed' : 'errored')
+        }
       } catch {}
     }
 
     ws.onclose = () => {
       wsRef.current = null
+      if (!gotOutput) {
+        fetch(`${API_BASE}/agents/sessions/${sessionId}`, { credentials: 'include' })
+          .then(r => r.json())
+          .then(session => {
+            if (session.outputLog) {
+              setLines(session.outputLog.split('\n'))
+              setStatus(session.status ?? '')
+            } else {
+              setStatus(session.status ?? 'unknown')
+            }
+          })
+          .catch(() => {})
+      }
     }
 
     return () => {
