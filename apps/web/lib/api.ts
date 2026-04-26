@@ -190,6 +190,10 @@ export const api = {
         method: 'POST',
         body: JSON.stringify({ repos, projectId }),
       }),
+    githubBranches: (repo: string) =>
+      request<{ name: string; protected: boolean }[]>(
+        `/settings/github/branches?repo=${encodeURIComponent(repo)}`
+      ),
   },
   chat: {
     history: () => request<any[]>('/chat/history'),

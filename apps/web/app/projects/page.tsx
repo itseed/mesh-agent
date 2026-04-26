@@ -414,6 +414,8 @@ export default function ProjectsPage() {
   const [showCreate, setShowCreate] = useState(false)
   const [cName, setCName] = useState('')
   const [cBranch, setCBranch] = useState('main')
+  const [cBranches, setCBranches] = useState<string[]>([])
+  const [loadingBranches, setLoadingBranches] = useState(false)
   const [cRepos, setCRepos] = useState<string[]>([])
   const [cPaths, setCPaths] = useState<PathEntry[]>([{ key: '', value: '' }])
   const [creating, setCreating] = useState(false)
@@ -422,6 +424,7 @@ export default function ProjectsPage() {
   const [editProject, setEditProject] = useState<any | null>(null)
   const [eName, setEName] = useState('')
   const [eBranch, setEBranch] = useState('main')
+  const [eBranches, setEBranches] = useState<string[]>([])
   const [eRepos, setERepos] = useState<string[]>([])
   const [ePaths, setEPaths] = useState<PathEntry[]>([{ key: '', value: '' }])
   const [saving, setSaving] = useState(false)
@@ -459,6 +462,26 @@ export default function ProjectsPage() {
     })
     setCPaths(suggested.length > 0 ? suggested : [{ key: '', value: '' }])
   }, [cRepos, reposBaseDir])
+
+  useEffect(() => {
+    if (cRepos.length === 0) { setCBranches([]); return }
+    setLoadingBranches(true)
+    api.settings.githubBranches(cRepos[0])
+      .then(bs => {
+        const names = bs.map(b => b.name)
+        setCBranches(names)
+        if (names.length > 0 && !names.includes(cBranch)) setCBranch(names[0])
+      })
+      .catch(() => setCBranches([]))
+      .finally(() => setLoadingBranches(false))
+  }, [cRepos])
+
+  useEffect(() => {
+    if (eRepos.length === 0) { setEBranches([]); return }
+    api.settings.githubBranches(eRepos[0])
+      .then(bs => setEBranches(bs.map(b => b.name)))
+      .catch(() => setEBranches([]))
+  }, [eRepos])
 
   function selectProject(project: any) {
     setSelected(project)
@@ -623,10 +646,19 @@ export default function ProjectsPage() {
                 onChange={e => setCName(e.target.value)}
                 className={INPUT_CLS} autoFocus required />
               <div>
-                <div className="text-[12px] text-muted uppercase tracking-wider mb-1">Base branch</div>
-                <input type="text" placeholder="main" value={cBranch}
+                <div className="text-[12px] text-muted uppercase tracking-wider mb-1">Base Branch</div>
+                <p className="text-[11px] text-dim mb-2">branch ที่ agent จะ fork และ PR เข้า</p>
+                <input
+                  type="text"
+                  list="c-branches-list"
+                  placeholder={loadingBranches ? 'Loading…' : 'main'}
+                  value={cBranch}
                   onChange={e => setCBranch(e.target.value)}
-                  className={INPUT_CLS} />
+                  className={`${INPUT_CLS} font-mono`}
+                />
+                <datalist id="c-branches-list">
+                  {cBranches.map(b => <option key={b} value={b} />)}
+                </datalist>
               </div>
               <div>
                 <div className="text-[12px] text-muted uppercase tracking-wider mb-1">GitHub Repos</div>
@@ -654,10 +686,18 @@ export default function ProjectsPage() {
                 onChange={e => setEName(e.target.value)}
                 className={INPUT_CLS} autoFocus required />
               <div>
-                <div className="text-[12px] text-muted uppercase tracking-wider mb-1">Base branch</div>
-                <input type="text" placeholder="main" value={eBranch}
+                <div className="text-[12px] text-muted uppercase tracking-wider mb-1">Base Branch</div>
+                <input
+                  type="text"
+                  list="e-branches-list"
+                  placeholder="main"
+                  value={eBranch}
                   onChange={e => setEBranch(e.target.value)}
-                  className={INPUT_CLS} />
+                  className={`${INPUT_CLS} font-mono`}
+                />
+                <datalist id="e-branches-list">
+                  {eBranches.map(b => <option key={b} value={b} />)}
+                </datalist>
               </div>
               <div>
                 <div className="text-[12px] text-muted uppercase tracking-wider mb-1">GitHub Repos</div>
