@@ -10,6 +10,13 @@ const csv = (raw: string | undefined) =>
     .map((s) => s.trim())
     .filter(Boolean)
 
+// Empty strings from .env should be treated as "not set"
+const optStr = (minLen?: number) =>
+  z.preprocess(
+    (v) => (!v ? undefined : v),
+    minLen ? z.string().min(minLen).optional() : z.string().optional(),
+  )
+
 const envSchema = z.object({
   DATABASE_URL: z.string().url(),
   DB_POOL_MAX: z.coerce.number().int().positive().default(10),
@@ -22,12 +29,12 @@ const envSchema = z.object({
   PORT: z.coerce.number().default(3001),
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   ORCHESTRATOR_URL: z.string().url().default('http://localhost:3002'),
-  GITHUB_TOKEN: z.string().optional(),
-  GITHUB_WEBHOOK_SECRET: z.string().min(16).optional(),
-  GITHUB_OAUTH_CLIENT_ID: z.string().optional(),
-  GITHUB_OAUTH_CLIENT_SECRET: z.string().optional(),
-  GITHUB_OAUTH_REDIRECT_URI: z.string().url().optional(),
-  WEB_BASE_URL: z.string().url().optional(),
+  GITHUB_TOKEN: optStr(),
+  GITHUB_WEBHOOK_SECRET: optStr(16),
+  GITHUB_OAUTH_CLIENT_ID: optStr(),
+  GITHUB_OAUTH_CLIENT_SECRET: optStr(),
+  GITHUB_OAUTH_REDIRECT_URI: z.preprocess((v) => (!v ? undefined : v), z.string().url().optional()),
+  WEB_BASE_URL: z.preprocess((v) => (!v ? undefined : v), z.string().url().optional()),
   CORS_ALLOWED_ORIGINS: z
     .string()
     .optional()
@@ -36,7 +43,7 @@ const envSchema = z.object({
   RATE_LIMIT_WINDOW: z.string().default('1 minute'),
   AUTH_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(10),
   AUTH_RATE_LIMIT_WINDOW: z.string().default('1 minute'),
-  COOKIE_DOMAIN: z.string().optional(),
+  COOKIE_DOMAIN: optStr(),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
 })
 
