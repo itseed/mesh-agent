@@ -334,6 +334,13 @@ function DetailsTab({ project, onEdit, onDelete }: {
         )}
       </div>
 
+      <div className="flex items-center gap-2 mt-1">
+        <span className="text-[11px] font-medium text-muted uppercase tracking-wider">Base branch</span>
+        <span className="text-[12px] font-mono bg-canvas border border-border px-1.5 py-0.5 rounded text-muted">
+          {project.baseBranch ?? 'main'}
+        </span>
+      </div>
+
       <div className="flex gap-2 pt-2 border-t border-border">
         <button onClick={onEdit}
           className="text-[13px] border border-border text-muted px-3 py-1.5 rounded hover:text-text hover:border-border-hi transition-all">
@@ -406,6 +413,7 @@ export default function ProjectsPage() {
   // create state
   const [showCreate, setShowCreate] = useState(false)
   const [cName, setCName] = useState('')
+  const [cBranch, setCBranch] = useState('main')
   const [cRepos, setCRepos] = useState<string[]>([])
   const [cPaths, setCPaths] = useState<PathEntry[]>([{ key: '', value: '' }])
   const [creating, setCreating] = useState(false)
@@ -413,6 +421,7 @@ export default function ProjectsPage() {
   // edit state
   const [editProject, setEditProject] = useState<any | null>(null)
   const [eName, setEName] = useState('')
+  const [eBranch, setEBranch] = useState('main')
   const [eRepos, setERepos] = useState<string[]>([])
   const [ePaths, setEPaths] = useState<PathEntry[]>([{ key: '', value: '' }])
   const [saving, setSaving] = useState(false)
@@ -464,8 +473,9 @@ export default function ProjectsPage() {
     try {
       const created = await api.projects.create({
         name: cName.trim(), paths: buildPathsMap(cPaths), githubRepos: cRepos,
+        baseBranch: cBranch.trim() || 'main',
       })
-      setCName(''); setCRepos([]); setCPaths([{ key: '', value: '' }])
+      setCName(''); setCBranch('main'); setCRepos([]); setCPaths([{ key: '', value: '' }])
       setShowCreate(false)
       await fetchProjects()
       if (created?.id) setSelected(created)
@@ -479,6 +489,7 @@ export default function ProjectsPage() {
   function openEdit(project: any) {
     setEditProject(project)
     setEName(project.name)
+    setEBranch(project.baseBranch ?? 'main')
     setERepos(project.githubRepos ?? [])
     setEPaths(pathsToEntries(project.paths))
   }
@@ -491,6 +502,7 @@ export default function ProjectsPage() {
     try {
       await api.projects.update(editProject.id, {
         name: eName.trim(), paths: buildPathsMap(ePaths), githubRepos: eRepos,
+        baseBranch: eBranch.trim() || 'main',
       })
       setEditProject(null)
       fetchProjects()
@@ -611,6 +623,12 @@ export default function ProjectsPage() {
                 onChange={e => setCName(e.target.value)}
                 className={INPUT_CLS} autoFocus required />
               <div>
+                <div className="text-[12px] text-muted uppercase tracking-wider mb-1">Base branch</div>
+                <input type="text" placeholder="main" value={cBranch}
+                  onChange={e => setCBranch(e.target.value)}
+                  className={INPUT_CLS} />
+              </div>
+              <div>
                 <div className="text-[12px] text-muted uppercase tracking-wider mb-1">GitHub Repos</div>
                 <p className="text-[11px] text-dim mb-2">repos ที่ agent จะมี access (optional)</p>
                 <RepoPicker selected={cRepos} onChange={setCRepos} />
@@ -635,6 +653,12 @@ export default function ProjectsPage() {
               <input type="text" placeholder="Project name" value={eName}
                 onChange={e => setEName(e.target.value)}
                 className={INPUT_CLS} autoFocus required />
+              <div>
+                <div className="text-[12px] text-muted uppercase tracking-wider mb-1">Base branch</div>
+                <input type="text" placeholder="main" value={eBranch}
+                  onChange={e => setEBranch(e.target.value)}
+                  className={INPUT_CLS} />
+              </div>
               <div>
                 <div className="text-[12px] text-muted uppercase tracking-wider mb-1">GitHub Repos</div>
                 <p className="text-[11px] text-dim mb-2">repos ที่ agent จะมี access (optional)</p>
