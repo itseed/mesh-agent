@@ -216,4 +216,15 @@ export async function agentRoutes(fastify: FastifyInstance) {
       ),
     }
   })
+
+  fastify.get('/agents/sessions/:id', { preHandler }, async (request, reply) => {
+    const { id } = request.params as { id: string }
+    const [session] = await fastify.db
+      .select()
+      .from(agentSessions)
+      .where(eq(agentSessions.id, id))
+      .limit(1)
+    if (!session) return reply.status(404).send({ error: 'Session not found' })
+    return session
+  })
 }

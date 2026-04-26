@@ -75,6 +75,7 @@ export const agentSessions = pgTable(
     pid: integer('pid'),
     exitCode: integer('exit_code'),
     error: text('error'),
+    outputLog: text('output_log'),
     createdBy: text('created_by'),
     startedAt: timestamp('started_at'),
     endedAt: timestamp('ended_at'),

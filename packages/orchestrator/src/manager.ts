@@ -26,6 +26,7 @@ interface ManagerOptions {
 export class SessionManager {
   private sessions = new Map<string, AgentSession>()
   private timers = new Map<string, NodeJS.Timeout>()
+  private outputBuffer = new Map<string, string[]>()
 
   constructor(private readonly opts: ManagerOptions) {}
 
@@ -75,6 +76,10 @@ export class SessionManager {
     session.on('output', (line) => {
       streamer.publishLine(session.id, line)
       this.resetIdleTimer(session.id)
+      const buf = this.outputBuffer.get(session.id) ?? []
+      buf.push(line)
+      if (buf.length > 200) buf.shift()
+      this.outputBuffer.set(session.id, buf)
     })
 
     session.on('status', async (status) => {
@@ -107,6 +112,13 @@ export class SessionManager {
         })
       } catch (err) {
         logger.warn({ err, sessionId: session.id }, 'Failed to persist session end')
+      }
+      const outputLog = (this.outputBuffer.get(session.id) ?? []).join('\n')
+      this.outputBuffer.delete(session.id)
+      try {
+        await store.update(session.id, { outputLog } as any)
+      } catch (err) {
+        logger.warn({ err }, 'Failed to save output log')
       }
       if (session.taskId) {
         const stage = metrics.success ? 'done' : 'in_progress'
