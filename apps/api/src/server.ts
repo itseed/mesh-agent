@@ -8,6 +8,7 @@ import { env, isProd, isTest } from './env.js'
 import { loggerOptions } from './lib/logger.js'
 import dbPlugin from './plugins/db.js'
 import redisPlugin from './plugins/redis.js'
+import minioPlugin from './plugins/minio.js'
 import { authRoutes } from './routes/auth.js'
 import { taskRoutes } from './routes/tasks.js'
 import { projectRoutes } from './routes/projects.js'
@@ -81,6 +82,7 @@ export async function buildServer() {
 
   await fastify.register(dbPlugin)
   await fastify.register(redisPlugin)
+  await fastify.register(minioPlugin)
   await fastify.register(authRoutes)
   await fastify.register(taskRoutes)
   await fastify.register(projectRoutes)

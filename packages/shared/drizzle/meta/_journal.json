@@ -15,6 +15,20 @@
       "when": 1777200000000,
       "tag": "0001_security_and_persistence",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1745600000000,
+      "tag": "0002_tasks_phase1",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1745686400000,
+      "tag": "0003_task_comments_source",
+      "breakpoints": true
     }
   ]
 }

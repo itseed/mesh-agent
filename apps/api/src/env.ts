@@ -45,6 +45,13 @@ const envSchema = z.object({
   AUTH_RATE_LIMIT_WINDOW: z.string().default('1 minute'),
   COOKIE_DOMAIN: optStr(),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
+  MINIO_ENDPOINT: optStr(),
+  MINIO_PORT: z.coerce.number().int().positive().default(9000),
+  MINIO_ACCESS_KEY: optStr(),
+  MINIO_SECRET_KEY: optStr(),
+  MINIO_USE_SSL: z.preprocess((v) => v === 'true' || v === '1', z.boolean()).default(false),
+  MINIO_BUCKET: z.string().default('mesh-agent'),
+  ANTHROPIC_API_KEY: optStr(),
 })
 
 const parsed = envSchema.parse(process.env)

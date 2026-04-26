@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, boolean, jsonb, integer, index } from 'drizzle-orm/pg-core'
+import { pgTable, text, timestamp, boolean, jsonb, integer, index, serial } from 'drizzle-orm/pg-core'
 
 export const users = pgTable('users', {
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
@@ -19,19 +19,34 @@ export const projects = pgTable('projects', {
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 
-export const tasks = pgTable('tasks', {
-  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
-  title: text('title').notNull(),
-  description: text('description'),
-  stage: text('stage', {
-    enum: ['backlog', 'in_progress', 'review', 'done'],
-  }).notNull().default('backlog'),
-  agentRole: text('agent_role'),
-  projectId: text('project_id').references(() => projects.id),
-  githubPrUrl: text('github_pr_url'),
-  createdAt: timestamp('created_at').notNull().defaultNow(),
-  updatedAt: timestamp('updated_at').notNull().defaultNow(),
-})
+export const tasks = pgTable(
+  'tasks',
+  {
+    id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+    title: text('title').notNull(),
+    description: text('description'),
+    stage: text('stage', {
+      enum: ['backlog', 'in_progress', 'review', 'done'],
+    }).notNull().default('backlog'),
+    status: text('status', {
+      enum: ['open', 'in_progress', 'blocked', 'done', 'cancelled'],
+    }).notNull().default('open'),
+    priority: text('priority', {
+      enum: ['low', 'medium', 'high', 'urgent'],
+    }).notNull().default('medium'),
+    agentRole: text('agent_role'),
+    projectId: text('project_id').references(() => projects.id),
+    parentTaskId: text('parent_task_id'),
+    githubPrUrl: text('github_pr_url'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (t) => ({
+    projectIdx: index('tasks_project_idx').on(t.projectId),
+    stageIdx: index('tasks_stage_idx').on(t.stage),
+    parentIdx: index('tasks_parent_idx').on(t.parentTaskId),
+  }),
+)
 
 export const agentRoles = pgTable('agent_roles', {
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
@@ -101,5 +116,54 @@ export const auditLog = pgTable(
   (t) => ({
     userIdx: index('audit_log_user_idx').on(t.userId),
     createdAtIdx: index('audit_log_created_at_idx').on(t.createdAt),
+  }),
+)
+
+export const taskAttachments = pgTable(
+  'task_attachments',
+  {
+    id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+    taskId: text('task_id').notNull().references(() => tasks.id, { onDelete: 'cascade' }),
+    fileName: text('file_name').notNull(),
+    fileSize: integer('file_size').notNull(),
+    mimeType: text('mime_type').notNull(),
+    storageKey: text('storage_key').notNull(),
+    uploadedBy: text('uploaded_by'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (t) => ({
+    taskIdx: index('task_attachments_task_idx').on(t.taskId),
+  }),
+)
+
+export const taskComments = pgTable(
+  'task_comments',
+  {
+    id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+    taskId: text('task_id').notNull().references(() => tasks.id, { onDelete: 'cascade' }),
+    authorId: text('author_id'),
+    source: text('source', { enum: ['user', 'lead', 'agent'] }).notNull().default('user'),
+    body: text('body').notNull(),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (t) => ({
+    taskIdx: index('task_comments_task_idx').on(t.taskId),
+  }),
+)
+
+export const taskActivities = pgTable(
+  'task_activities',
+  {
+    id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+    taskId: text('task_id').notNull().references(() => tasks.id, { onDelete: 'cascade' }),
+    actorId: text('actor_id'),
+    type: text('type').notNull(),
+    payload: jsonb('payload').$type<Record<string, unknown>>(),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (t) => ({
+    taskIdx: index('task_activities_task_idx').on(t.taskId),
+    createdAtIdx: index('task_activities_created_at_idx').on(t.createdAt),
   }),
 )
