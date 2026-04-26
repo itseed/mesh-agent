@@ -32,7 +32,7 @@ function PathRows({
 }) {
   return (
     <div>
-      <div className="flex items-center justify-between mb-2">
+      <div className="flex items-center justify-between mb-1">
         <span className="text-[12px] text-muted uppercase tracking-wider">Paths</span>
         <button type="button"
           onClick={() => onChange([...rows, { key: '', value: '' }])}
@@ -40,12 +40,13 @@ function PathRows({
           + add row
         </button>
       </div>
+      <p className="text-[11px] text-dim mb-2">working directory ของแต่ละ agent role — เช่น <span className="font-mono text-muted">frontend → /Users/.../project/web</span></p>
       {rows.map((p, i) => (
         <div key={i} className="flex gap-1.5 mb-1.5">
-          <input type="text" placeholder="role" value={p.key}
+          <input type="text" placeholder="เช่น frontend" value={p.key}
             onChange={e => onChange(rows.map((x, idx) => idx === i ? { ...x, key: e.target.value } : x))}
             className={`${INPUT_CLS} flex-[0_0_35%]`} />
-          <input type="text" placeholder="/path/to/dir" value={p.value}
+          <input type="text" placeholder="/Users/me/project/web" value={p.value}
             onChange={e => onChange(rows.map((x, idx) => idx === i ? { ...x, value: e.target.value } : x))}
             className={`${INPUT_CLS} flex-1`} />
           {rows.length > 1 && (
@@ -587,7 +588,8 @@ export default function ProjectsPage() {
                 onChange={e => setCName(e.target.value)}
                 className={INPUT_CLS} autoFocus required />
               <div>
-                <div className="text-[12px] text-muted uppercase tracking-wider mb-2">GitHub Repos</div>
+                <div className="text-[12px] text-muted uppercase tracking-wider mb-1">GitHub Repos</div>
+                <p className="text-[11px] text-dim mb-2">repos ที่ agent จะมี access (optional)</p>
                 <RepoPicker selected={cRepos} onChange={setCRepos} />
               </div>
               <PathRows rows={cPaths} onChange={setCPaths} />
@@ -611,7 +613,8 @@ export default function ProjectsPage() {
                 onChange={e => setEName(e.target.value)}
                 className={INPUT_CLS} autoFocus required />
               <div>
-                <div className="text-[12px] text-muted uppercase tracking-wider mb-2">GitHub Repos</div>
+                <div className="text-[12px] text-muted uppercase tracking-wider mb-1">GitHub Repos</div>
+                <p className="text-[11px] text-dim mb-2">repos ที่ agent จะมี access (optional)</p>
                 <RepoPicker selected={eRepos} onChange={setERepos} />
               </div>
               <PathRows rows={ePaths} onChange={setEPaths} />
