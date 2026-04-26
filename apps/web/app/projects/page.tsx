@@ -288,9 +288,11 @@ function DetailsTab({ project, onEdit, onDelete }: {
         )}
       </div>
 
-      {Object.keys(paths).length > 0 && (
-        <div>
-          <div className="text-[11px] font-medium text-muted uppercase tracking-wider mb-2">Paths</div>
+      <div>
+        <div className="text-[11px] font-medium text-muted uppercase tracking-wider mb-2">Paths</div>
+        {Object.keys(paths).length === 0 ? (
+          <p className="text-[13px] text-dim">No paths configured. Edit project to add paths.</p>
+        ) : (
           <div className="bg-canvas rounded-lg border border-border overflow-hidden">
             {Object.entries(paths).map(([role, dir], i, arr) => (
               <div key={role} className={`flex items-center gap-3 px-3 py-2 ${i < arr.length - 1 ? 'border-b border-border' : ''}`}>
@@ -299,8 +301,8 @@ function DetailsTab({ project, onEdit, onDelete }: {
               </div>
             ))}
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
       <div className="flex gap-2 pt-2 border-t border-border">
         <button onClick={onEdit}

@@ -106,7 +106,7 @@ export default function OverviewPage() {
                   </div>
                   <div className="text-[13px] text-muted mt-1.5">Active project</div>
                   {activeProject?.githubRepos?.length > 0 && (
-                    <div className="text-[12px] text-dim mt-1">{activeProject.githubRepos.length} repos</div>
+                    <div className="text-[12px] text-dim mt-1">{activeProject.githubRepos.length} repo{activeProject.githubRepos.length !== 1 ? 's' : ''}</div>
                   )}
                 </div>
 
@@ -169,7 +169,7 @@ export default function OverviewPage() {
                             </div>
                             <span className="text-[14px] font-medium" style={{ color: STAGE_COLOR[stage] }}>{count}</span>
                           </div>
-                          <div className="h-0.5 bg-border rounded-full overflow-hidden">
+                          <div className="h-1.5 bg-border rounded-full overflow-hidden">
                             <div
                               className="h-full rounded-full transition-all duration-500"
                               style={{ width: `${pct}%`, backgroundColor: STAGE_DOT[stage] }}
@@ -196,7 +196,7 @@ export default function OverviewPage() {
                               </div>
                               <span className="text-[14px] font-medium" style={{ color: PRIORITY_DOT[priority] }}>{count}</span>
                             </div>
-                            <div className="h-0.5 bg-border rounded-full overflow-hidden">
+                            <div className="h-1.5 bg-border rounded-full overflow-hidden">
                               <div
                                 className="h-full rounded-full transition-all duration-500"
                                 style={{ width: `${pct}%`, backgroundColor: PRIORITY_DOT[priority] }}

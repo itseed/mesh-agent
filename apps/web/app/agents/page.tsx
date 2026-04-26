@@ -5,15 +5,36 @@ import { AgentGrid } from '@/components/agents/AgentGrid'
 import { AuthGuard } from '@/components/layout/AuthGuard'
 import { api } from '@/lib/api'
 
+const HIST_STATUS_STYLE: Record<string, { color: string; label: string }> = {
+  completed: { color: '#3fb950', label: 'done' },
+  errored:   { color: '#f87171', label: 'error' },
+  killed:    { color: '#6a7a8e', label: 'stopped' },
+  running:   { color: '#f0883e', label: 'running' },
+  pending:   { color: '#fbbf24', label: 'pending' },
+}
+
+function relTime(iso: string) {
+  const d = Date.now() - new Date(iso).getTime()
+  if (d < 60000) return 'just now'
+  if (d < 3600000) return Math.floor(d / 60000) + 'm ago'
+  if (d < 86400000) return Math.floor(d / 3600000) + 'h ago'
+  return Math.floor(d / 86400000) + 'd ago'
+}
+
 export default function AgentsPage() {
   const [agents, setAgents] = useState<any[]>([])
+  const [history, setHistory] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
   const fetchAgents = useCallback(async () => {
     try {
-      const data = await api.agents.list()
+      const [data, hist] = await Promise.all([
+        api.agents.list(),
+        api.agents.history(20),
+      ])
       setAgents(data)
+      setHistory(hist)
       setError('')
     } catch (e: any) {
       setError(e.message)
@@ -31,6 +52,31 @@ export default function AgentsPage() {
   const running = agents.filter(
     (a) => a.status === 'running' || a.status === 'pending',
   ).length
+
+  const historySection = history.length > 0 && (
+    <div className="mt-8">
+      <div className="text-[12px] font-medium text-muted uppercase tracking-wider mb-3">Recent Sessions</div>
+      <div className="flex flex-col gap-1.5">
+        {history.map((s: any) => {
+          const st = HIST_STATUS_STYLE[s.status] ?? { color: '#6a7a8e', label: s.status }
+          return (
+            <div key={s.id} className="flex items-center gap-3 px-3 py-2.5 bg-surface border border-border rounded-lg hover:border-border-hi transition-colors">
+              <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: st.color }} />
+              <span className="text-[12px] font-mono bg-surface-2 border border-border px-1.5 py-0.5 rounded text-muted shrink-0">{s.role}</span>
+              <span className="text-[13px] text-text truncate flex-1">
+                {s.prompt?.slice(0, 80)}{s.prompt?.length > 80 ? '…' : ''}
+              </span>
+              <span className="text-[12px] shrink-0 font-medium" style={{ color: st.color }}>{st.label}</span>
+              {s.durationMs && (
+                <span className="text-[12px] text-dim shrink-0">{(s.durationMs / 1000).toFixed(1)}s</span>
+              )}
+              <span className="text-[12px] text-dim shrink-0">{relTime(s.createdAt)}</span>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
 
   return (
     <AuthGuard>
@@ -61,8 +107,16 @@ export default function AgentsPage() {
             <p className="text-muted text-[14px]"><span className="cursor-blink">▋</span> Loading…</p>
           ) : error ? (
             <p className="text-danger text-[14px]">✕ {error}</p>
+          ) : agents.length === 0 ? (
+            <>
+              <p className="text-muted text-[14px]">No agents running.</p>
+              {historySection}
+            </>
           ) : (
-            <AgentGrid agents={agents} />
+            <>
+              <AgentGrid agents={agents} />
+              {historySection}
+            </>
           )}
         </div>
       </AppShell>
