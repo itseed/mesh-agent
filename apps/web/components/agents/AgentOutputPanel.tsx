@@ -1,4 +1,5 @@
 'use client'
+import { useState, useRef, useEffect } from 'react'
 import { useAgentOutput } from '@/lib/ws'
 
 const ROLE_COLOR: Record<string, string> = {
@@ -11,6 +12,15 @@ const ROLE_COLOR: Record<string, string> = {
   reviewer: '#f87171',
 }
 
+function lineColor(line: string): string {
+  const l = line.toLowerCase()
+  if (/error|fail|fatal|exception|✕|✗/.test(l)) return '#f87171'
+  if (/warn|warning/.test(l)) return '#fb923c'
+  if (/success|done|complete|✓|✔|passed/.test(l)) return '#3fb950'
+  if (/^\s*>|^\s*\$|^running|^building/.test(l)) return '#60a5fa'
+  return ''
+}
+
 interface AgentOutputPanelProps {
   sessionId: string
   role: string
@@ -20,6 +30,12 @@ interface AgentOutputPanelProps {
 export function AgentOutputPanel({ sessionId, role, onClose }: AgentOutputPanelProps) {
   const { lines, status } = useAgentOutput(sessionId)
   const roleColor = ROLE_COLOR[role] ?? '#6a7a8e'
+  const bottomRef = useRef<HTMLDivElement>(null)
+  const [copied, setCopied] = useState(false)
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [lines])
 
   return (
     <div
@@ -57,20 +73,45 @@ export function AgentOutputPanel({ sessionId, role, onClose }: AgentOutputPanelP
               Waiting for output<span className="cursor-blink">▋</span>
             </span>
           ) : (
-            lines.map((line: string, i: number) => (
-              <div key={i} className="py-0.5 border-b border-border/30 last:border-0">
-                {line}
-              </div>
-            ))
+            lines.map((line: string, i: number) => {
+              const color = lineColor(line)
+              return (
+                <div
+                  key={i}
+                  className="py-0.5 whitespace-pre-wrap break-all"
+                  style={color ? { color } : {}}
+                >
+                  {line || ' '}
+                </div>
+              )
+            })
           )}
+          <div ref={bottomRef} />
         </div>
 
         <div className="px-4 py-2 border-t border-border text-[12px] text-dim flex items-center justify-between">
-          <span>
-            {lines.length} lines
-            {status && <> · <span className="text-muted">{status}</span></>}
-          </span>
-          <span>session: {sessionId.slice(0, 8)}…</span>
+          <div className="flex items-center gap-1.5">
+            {status === 'running' && (
+              <span className="relative inline-flex w-1.5 h-1.5">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-success opacity-60" />
+                <span className="relative inline-flex w-1.5 h-1.5 rounded-full bg-success" />
+              </span>
+            )}
+            <span>{lines.length} lines{status && <> · <span className="text-muted">{status}</span></>}</span>
+          </div>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => {
+                navigator.clipboard.writeText(lines.join('\n'))
+                setCopied(true)
+                setTimeout(() => setCopied(false), 1500)
+              }}
+              className="text-[12px] text-dim hover:text-muted transition-colors"
+            >
+              {copied ? '✓ copied' : 'copy'}
+            </button>
+            <span>session: {sessionId.slice(0, 8)}…</span>
+          </div>
         </div>
       </div>
     </div>
