@@ -332,11 +332,6 @@ function ProjectDetail({ project, onEdit, onDelete }: {
       <div className="px-6 py-4 border-b border-border shrink-0">
         <div className="flex items-center gap-2">
           <h2 className="text-[16px] font-semibold text-text">{project.name}</h2>
-          {project.isActive && (
-            <span className="text-[11px] bg-success/15 text-success border border-success/20 px-1.5 py-0.5 rounded-full font-medium">
-              active
-            </span>
-          )}
         </div>
       </div>
       <div className="flex px-6 pt-3 border-b border-border shrink-0">
@@ -379,8 +374,6 @@ export default function ProjectsPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [selected, setSelected] = useState<any | null>(null)
-  const [activating, setActivating] = useState<string | null>(null)
-
   // create state
   const [showCreate, setShowCreate] = useState(false)
   const [cName, setCName] = useState('')
@@ -414,18 +407,9 @@ export default function ProjectsPage() {
 
   useEffect(() => { fetchProjects() }, [fetchProjects])
 
-  async function selectProject(project: any) {
+  function selectProject(project: any) {
     setSelected(project)
     setConfirmDelete(null)
-    if (!project.isActive) {
-      setActivating(project.id)
-      try {
-        await api.projects.activate(project.id)
-        await fetchProjects()
-      } catch { /* ignore */ } finally {
-        setActivating(null)
-      }
-    }
   }
 
   async function handleCreate(e: React.FormEvent) {
@@ -526,11 +510,6 @@ export default function ProjectsPage() {
                 >
                   <div className="flex items-center gap-1.5">
                     <span className="text-[14px] font-medium truncate flex-1">{project.name}</span>
-                    {activating === project.id
-                      ? <span className="text-[11px] text-muted shrink-0">…</span>
-                      : project.isActive
-                        ? <span className="w-1.5 h-1.5 rounded-full bg-success shrink-0" />
-                        : null}
                   </div>
                   <div className="text-[12px] mt-0.5 opacity-70">
                     {project.githubRepos?.length ?? 0} repo{project.githubRepos?.length !== 1 ? 's' : ''}

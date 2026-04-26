@@ -79,6 +79,8 @@ export function CommandBar() {
   const [message, setMessage] = useState('')
   const [attachments, setAttachments] = useState<Attachment[]>([])
   const [textFiles, setTextFiles] = useState<TextFile[]>([])
+  const [projects, setProjects] = useState<any[]>([])
+  const [selectedProjectId, setSelectedProjectId] = useState<string>('')
   const [sending, setSending] = useState(false)
   const [error, setError] = useState('')
   const [unread, setUnread] = useState(0)
@@ -89,12 +91,19 @@ export function CommandBar() {
 
   const loadHistory = useCallback(async () => {
     try {
-      const list = await api.chat.history()
+      const [list, projectList] = await Promise.all([
+        api.chat.history(),
+        api.projects.list(),
+      ])
       setHistory(list)
+      setProjects(projectList)
+      if (!selectedProjectId && projectList.length > 0) {
+        setSelectedProjectId(projectList[0].id)
+      }
     } catch {
       /* ignore */
     }
-  }, [])
+  }, [selectedProjectId])
 
   useEffect(() => {
     if (open) {
@@ -178,6 +187,7 @@ export function CommandBar() {
         mimeType: a.mimeType,
         data: a.data,
       })),
+      projectId: selectedProjectId || undefined,
     }
     try {
       await api.chat.send(payload)
@@ -281,6 +291,23 @@ export function CommandBar() {
               history.map((m) => <ChatBubble key={m.id} m={m} />)
             )}
           </div>
+
+          {/* Project selector */}
+          {projects.length > 0 && (
+            <div className="px-3 pt-2 pb-0 border-t border-border flex items-center gap-2">
+              <span className="text-[11px] text-dim shrink-0">Project:</span>
+              <select
+                value={selectedProjectId}
+                onChange={e => setSelectedProjectId(e.target.value)}
+                className="flex-1 bg-canvas border border-border text-text text-[12px] rounded px-2 py-1 focus:border-accent/60 min-w-0"
+              >
+                <option value="">— ไม่ระบุ —</option>
+                {projects.map((p: any) => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
 
           {/* Attachments preview */}
           {(attachments.length > 0 || textFiles.length > 0) && (
