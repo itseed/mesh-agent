@@ -118,10 +118,24 @@ export async function chatRoutes(fastify: FastifyInstance) {
         ? `\n\nแนบรูป ${body.images.length} ไฟล์: ${body.images.map((i) => i.name).join(', ')}`
         : ''
 
+    // Include recent chat history as context so agents can reference prior results
+    const rawHistory = await fastify.redis.lrange(HISTORY_KEY, -20, -1)
+    const recentHistory = rawHistory
+      .map((s: string) => JSON.parse(s) as ChatMessage)
+      .filter((m) => m.role !== 'user' || m.content !== body.message) // exclude current message (not yet in history at parse time)
+      .map((m) => {
+        const label = m.role === 'user' ? 'User' : m.role === 'lead' ? 'Lead' : `Agent [${m.meta?.agentRole ?? m.role}]`
+        return `${label}: ${m.content}`
+      })
+      .join('\n\n')
+    const contextBlock = recentHistory
+      ? `\n\n## บริบทจาก conversation ก่อนหน้า\n${recentHistory}\n\n## คำสั่งปัจจุบัน`
+      : ''
+
     const branchSuffix = Date.now().toString(36)
     const gitInstructions = buildGitInstructions(baseBranch, branchSuffix)
 
-    const fullPrompt = `${body.message}${imageNote}${gitInstructions}`
+    const fullPrompt = `${contextBlock}\n${body.message}${imageNote}${gitInstructions}`
 
     const dispatched: ChatMessage[] = []
     for (const slug of targetSlugs) {
