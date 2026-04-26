@@ -362,7 +362,7 @@ export function CommandBar() {
           )}
 
           {/* Composer */}
-          <div className="px-3 py-3 border-t border-border flex items-end gap-2">
+          <div className="px-3 pt-3 pb-1 border-t border-border flex items-end gap-2">
             <input
               ref={fileInputRef}
               type="file"
@@ -395,9 +395,43 @@ export function CommandBar() {
                   send()
                 }
               }}
-              rows={1}
-              className="flex-1 bg-canvas border border-border rounded px-3 py-2 text-[14px] text-text placeholder-dim resize-none focus:border-accent/60 max-h-32"
-              style={{ minHeight: 38 }}
+              onPaste={async (e) => {
+                const items = Array.from(e.clipboardData?.items ?? [])
+                const imageItems = items.filter((i) => i.type.startsWith('image/'))
+                if (imageItems.length === 0) return
+                e.preventDefault()
+                setError('')
+                for (const item of imageItems) {
+                  if (attachments.length >= MAX_ATTACHMENTS) {
+                    setError(`แนบรูปได้สูงสุด ${MAX_ATTACHMENTS} ไฟล์`)
+                    break
+                  }
+                  const file = item.getAsFile()
+                  if (!file) continue
+                  if (file.size > MAX_FILE_BYTES) {
+                    setError('รูปที่ paste ใหญ่เกิน 4MB')
+                    continue
+                  }
+                  try {
+                    const { data, preview } = await readAsBase64(file)
+                    setAttachments((prev) => [
+                      ...prev,
+                      {
+                        id: `paste-${Date.now()}`,
+                        name: `paste-${Date.now()}.png`,
+                        mimeType: file.type || 'image/png',
+                        data,
+                        preview,
+                      },
+                    ])
+                  } catch {
+                    setError('paste รูปไม่สำเร็จ')
+                  }
+                }
+              }}
+              rows={3}
+              className="flex-1 bg-canvas border border-border rounded px-3 py-2.5 text-[14px] text-text placeholder-dim resize-none focus:border-accent/60 max-h-48"
+              style={{ minHeight: 80 }}
             />
             <button
               onClick={send}
@@ -407,6 +441,9 @@ export function CommandBar() {
               {sending ? '…' : 'ส่ง'}
             </button>
           </div>
+          <p className="text-[11px] text-dim text-center pb-2">
+            Enter ส่ง · Shift+Enter ขึ้นบรรทัดใหม่ · วางรูปได้เลย
+          </p>
         </div>
       )}
     </>
