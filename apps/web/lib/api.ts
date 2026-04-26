@@ -21,10 +21,10 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 export const api = {
   auth: {
-    login: (email: string, password: string) =>
+    login: (email: string, password: string, remember = false) =>
       request<{ user: { id: string; email: string; role: 'admin' | 'member' | 'viewer' } }>(
         '/auth/login',
-        { method: 'POST', body: JSON.stringify({ email, password }) },
+        { method: 'POST', body: JSON.stringify({ email, password, remember }) },
       ),
     logout: () => request<void>('/auth/logout', { method: 'POST' }),
     me: () =>

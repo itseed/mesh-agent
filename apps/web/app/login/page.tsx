@@ -8,6 +8,8 @@ export default function LoginPage() {
   const router = useRouter()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
+  const [remember, setRemember] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
@@ -16,7 +18,7 @@ export default function LoginPage() {
     setLoading(true)
     setError('')
     try {
-      await login(email, password)
+      await login(email, password, remember)
       router.push('/overview')
     } catch (err: any) {
       setError(err?.message ?? 'Invalid credentials')
@@ -25,7 +27,7 @@ export default function LoginPage() {
     }
   }
 
-  const inputCls = 'w-full bg-canvas/60 border border-border text-text text-[15px] rounded px-4 py-2.5 placeholder-dim transition-all focus:border-accent/60 focus:bg-canvas'
+  const inputCls = 'w-full bg-canvas/60 border border-border-hi text-text text-[15px] rounded px-4 py-2.5 placeholder-dim transition-all focus:border-accent/60 focus:bg-canvas'
 
   return (
     <div className="min-h-screen flex items-center justify-center relative overflow-hidden">
@@ -41,14 +43,13 @@ export default function LoginPage() {
       <div className="relative z-10 w-full max-w-[340px] px-4 fade-up">
         {/* Logo */}
         <div className="flex flex-col items-center mb-8">
-          <img src="/icon.svg" alt="MeshAgent" className="w-12 h-12 mb-3" />
+          <img src="/icon.svg" alt="MeshAgent" className="w-16 h-16 mb-3" />
           <div className="text-[17px] font-semibold text-text tracking-tight">MeshAgent</div>
           <div className="text-[13px] text-muted mt-1">AI Dev Team Orchestration</div>
         </div>
 
         {/* Form */}
         <div className="bg-surface/80 border border-border rounded-xl p-6 backdrop-blur-sm">
-          <div className="text-[13px] font-medium text-muted mb-4 uppercase tracking-wider">Sign in</div>
           <form onSubmit={handleSubmit} className="flex flex-col gap-3">
             <input
               type="email"
@@ -59,15 +60,45 @@ export default function LoginPage() {
               required
               autoComplete="email"
             />
-            <input
-              type="password"
-              placeholder="Password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className={inputCls}
-              required
-              autoComplete="current-password"
-            />
+            <div className="relative">
+              <input
+                type={showPassword ? 'text' : 'password'}
+                placeholder="Password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className={`${inputCls} pr-10`}
+                required
+                autoComplete="current-password"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(p => !p)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-dim hover:text-muted transition-colors"
+                tabIndex={-1}
+                aria-label={showPassword ? 'ซ่อนรหัสผ่าน' : 'แสดงรหัสผ่าน'}
+              >
+                {showPassword ? (
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
+                    <line x1="1" y1="1" x2="23" y2="23" />
+                  </svg>
+                ) : (
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                    <circle cx="12" cy="12" r="3" />
+                  </svg>
+                )}
+              </button>
+            </div>
+            <label className="flex items-center gap-2 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={remember}
+                onChange={e => setRemember(e.target.checked)}
+                className="w-3.5 h-3.5 accent-accent"
+              />
+              <span className="text-[13px] text-muted">จำการเข้าสู่ระบบ (30 วัน)</span>
+            </label>
             {error && (
               <p className="text-danger text-[14px] flex items-center gap-1.5">
                 <span>✕</span> {error}
