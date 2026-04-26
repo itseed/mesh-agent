@@ -61,6 +61,9 @@ export const api = {
     list: () => request<any[]>('/projects'),
     create: (data: any) => request<any>('/projects', { method: 'POST', body: JSON.stringify(data) }),
     activate: (id: string) => request<any>(`/projects/${id}/activate`, { method: 'PATCH' }),
+    update: (id: string, data: any) =>
+      request<any>(`/projects/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+    delete: (id: string) => request<void>(`/projects/${id}`, { method: 'DELETE' }),
   },
   agents: {
     list: () => request<any[]>('/agents'),
