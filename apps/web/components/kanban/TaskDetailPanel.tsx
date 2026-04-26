@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { api } from '@/lib/api'
 
 const PRIORITY_COLORS: Record<string, string> = {
@@ -47,7 +47,7 @@ interface TaskDetailPanelProps {
   onDelete: (id: string) => void
 }
 
-type Tab = 'overview' | 'comments' | 'subtasks' | 'activity'
+type Tab = 'overview' | 'comments' | 'subtasks' | 'activity' | 'attachments'
 
 export function TaskDetailPanel({ task, allTasks, onClose, onUpdate, onDelete }: TaskDetailPanelProps) {
   const [tab, setTab] = useState<Tab>('overview')
@@ -64,6 +64,10 @@ export function TaskDetailPanel({ task, allTasks, onClose, onUpdate, onDelete }:
   const [showSubtaskForm, setShowSubtaskForm] = useState(false)
   const [subtaskTitle, setSubtaskTitle] = useState('')
   const [subtaskRole, setSubtaskRole] = useState('')
+  const [attachments, setAttachments] = useState<any[]>([])
+  const [uploading, setUploading] = useState(false)
+  const [uploadError, setUploadError] = useState('')
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     setLocalTask(task)
@@ -88,6 +92,9 @@ export function TaskDetailPanel({ task, allTasks, onClose, onUpdate, onDelete }:
     }
     if (tab === 'comments') {
       api.tasks.comments(task.id).then(setComments).catch(() => {})
+    }
+    if (tab === 'attachments') {
+      api.tasks.attachments(task.id).then(setAttachments).catch(() => {})
     }
   }, [tab, task.id])
 
@@ -161,13 +168,46 @@ export function TaskDetailPanel({ task, allTasks, onClose, onUpdate, onDelete }:
     } catch {}
   }
 
+  async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setUploading(true)
+    setUploadError('')
+    try {
+      const { uploadUrl } = await api.tasks.createAttachment(task.id, {
+        fileName: file.name,
+        fileSize: file.size,
+        mimeType: file.type || 'application/octet-stream',
+      })
+      await fetch(uploadUrl, {
+        method: 'PUT',
+        body: file,
+        headers: { 'Content-Type': file.type || 'application/octet-stream' },
+      })
+      const fresh = await api.tasks.attachments(task.id)
+      setAttachments(fresh)
+    } catch (err: any) {
+      setUploadError(err?.message ?? 'Upload ไม่สำเร็จ')
+    } finally {
+      setUploading(false)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    }
+  }
+
   const leadComment = comments.find((c: any) => c.source === 'lead')
   let plan: any = null
   if (leadComment) {
     try { plan = JSON.parse(leadComment.body) } catch {}
   }
 
-  const TABS: Tab[] = ['overview', 'comments', 'subtasks', 'activity']
+  const TABS: Tab[] = ['overview', 'comments', 'subtasks', 'activity', 'attachments']
+  const TAB_LABEL: Record<Tab, string> = {
+    overview: 'Overview',
+    comments: 'Comments',
+    subtasks: 'Subtasks',
+    activity: 'Activity',
+    attachments: 'Files',
+  }
 
   return (
     <>
@@ -231,11 +271,11 @@ export function TaskDetailPanel({ task, allTasks, onClose, onUpdate, onDelete }:
             <button
               key={t}
               onClick={() => setTab(t)}
-              className={`text-[13px] px-4 py-2 border-b-2 capitalize transition-colors ${
+              className={`text-[13px] px-4 py-2 border-b-2 transition-colors ${
                 tab === t ? 'border-accent text-text' : 'border-transparent text-muted hover:text-text'
               }`}
             >
-              {t}
+              {TAB_LABEL[t]}
             </button>
           ))}
         </div>
@@ -492,6 +532,57 @@ export function TaskDetailPanel({ task, allTasks, onClose, onUpdate, onDelete }:
                   </div>
                 </div>
               ))}
+            </div>
+          )}
+
+          {/* ── Attachments ── */}
+          {tab === 'attachments' && (
+            <div className="flex flex-col gap-3">
+              <div className="flex items-center justify-between">
+                <span className="text-[12px] text-muted uppercase tracking-wide">Files</span>
+                <div>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    hidden
+                    onChange={handleUpload}
+                  />
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={uploading}
+                    className="text-[13px] bg-accent/10 hover:bg-accent/20 border border-accent/20 text-accent px-3 py-1.5 rounded transition-all disabled:opacity-50"
+                  >
+                    {uploading ? 'Uploading…' : '+ Upload file'}
+                  </button>
+                </div>
+              </div>
+
+              {uploadError && (
+                <p className="text-danger text-[12px]">✕ {uploadError}</p>
+              )}
+
+              {attachments.length === 0 ? (
+                <p className="text-[13px] text-dim py-4 text-center">ยังไม่มีไฟล์แนบ</p>
+              ) : (
+                <div className="flex flex-col gap-1.5">
+                  {attachments.map((a: any) => (
+                    <div key={a.id} className="flex items-center gap-3 p-2.5 bg-canvas border border-border rounded-lg">
+                      <span className="text-[18px] shrink-0">
+                        {a.mimeType?.startsWith('image/') ? '🖼️'
+                          : a.mimeType === 'application/pdf' ? '📄'
+                          : '📎'}
+                      </span>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-[13px] text-text truncate">{a.fileName}</div>
+                        <div className="text-[11px] text-dim">
+                          {a.fileSize ? `${(a.fileSize / 1024).toFixed(1)} KB` : ''}
+                          {a.mimeType ? ` · ${a.mimeType.split('/')[1]}` : ''}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </div>
