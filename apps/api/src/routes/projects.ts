@@ -1,7 +1,7 @@
 import { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 import { eq } from 'drizzle-orm'
-import { projects } from '@meshagent/shared'
+import { projects, tasks } from '@meshagent/shared'
 import { resolveGitHubClient } from '../lib/github-client.js'
 
 const createProjectSchema = z.object({
@@ -91,6 +91,7 @@ export async function projectRoutes(fastify: FastifyInstance) {
     const { id } = request.params as { id: string }
     const existing = await fastify.db.select().from(projects).where(eq(projects.id, id)).limit(1)
     if (!existing.length) return reply.status(404).send({ error: 'Not found' })
+    await fastify.db.delete(tasks).where(eq(tasks.projectId, id))
     await fastify.db.delete(projects).where(eq(projects.id, id))
     return reply.status(204).send()
   })
