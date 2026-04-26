@@ -93,6 +93,12 @@ services:
       AUTH_RATE_LIMIT_MAX: ${AUTH_RATE_LIMIT_MAX:-10}
       AUTH_RATE_LIMIT_WINDOW: ${AUTH_RATE_LIMIT_WINDOW:-1 minute}
       LOG_LEVEL: ${LOG_LEVEL:-info}
+      MINIO_ENDPOINT: minio
+      MINIO_PORT: 9000
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
+      MINIO_USE_SSL: 'false'
+      MINIO_BUCKET: ${MINIO_BUCKET:-mesh-agent}
       PORT: 3001
       NODE_ENV: production
     depends_on:
@@ -102,6 +108,8 @@ services:
         condition: service_healthy
       orchestrator:
         condition: service_started
+      minio:
+        condition: service_healthy
     deploy:
       resources:
         limits:
@@ -150,9 +158,29 @@ services:
              while :; do certbot renew --webroot -w /var/www/certbot --quiet;
              sleep 12h & wait $${!}; done"
 
+  minio:
+    image: minio/minio:latest
+    restart: unless-stopped
+    command: server /data --console-address ':9001'
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY}
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:9000/minio/health/live']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+
 volumes:
   db_data:
   redis_data:
   certbot_certs:
   certbot_www:
   claude_config:
+  minio_data:

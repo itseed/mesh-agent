@@ -17,7 +17,7 @@ DEST="${1:-/var/backups/meshagent}"
 RETENTION_DAYS="${BACKUP_RETENTION_DAYS:-14}"
 TIMESTAMP="$(date -u +%Y%m%dT%H%M%SZ)"
 COMPOSE_FILE="${ROOT}/docker-compose.prod.yml"
-SERVICE="${BACKUP_DB_SERVICE:-postgres}"
+SERVICE="${BACKUP_DB_SERVICE:-db}"
 
 mkdir -p "${DEST}"
 

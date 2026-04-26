@@ -29,8 +29,7 @@ cd "$DEPLOY_DIR"
 source .env
 
 # Substitute DOMAIN in nginx config
-envsubst '${DOMAIN}' < nginx/meshagent.conf > /tmp/meshagent.conf.rendered
-cp /tmp/meshagent.conf.rendered nginx/meshagent.conf.rendered
+envsubst '${DOMAIN}' < nginx/meshagent.conf.template > nginx/meshagent.conf
 
 docker compose -f "$COMPOSE_FILE" build --parallel
 docker compose -f "$COMPOSE_FILE" up -d
