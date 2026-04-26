@@ -220,6 +220,25 @@ export async function taskRoutes(fastify: FastifyInstance) {
       .orderBy(taskAttachments.createdAt)
   })
 
+  fastify.get('/tasks/:id/attachments/:attachmentId/url', { preHandler }, async (request, reply) => {
+    const { id, attachmentId } = request.params as { id: string; attachmentId: string }
+    const [att] = await fastify.db
+      .select()
+      .from(taskAttachments)
+      .where(and(eq(taskAttachments.id, attachmentId), eq(taskAttachments.taskId, id)))
+      .limit(1)
+    if (!att) return reply.status(404).send({ error: 'Attachment not found' })
+
+    if (!fastify.minio) return reply.status(503).send({ error: 'Storage not configured' })
+
+    try {
+      const url = await fastify.minio.presignedGetObject(fastify.minioBucket, att.storageKey, 3600)
+      return { url }
+    } catch {
+      return reply.status(503).send({ error: 'Storage not configured' })
+    }
+  })
+
   // POST /tasks/:id/analyze — trigger AI analysis
   fastify.post('/tasks/:id/analyze', { preHandler }, async (request, reply) => {
     const { id } = request.params as { id: string }
