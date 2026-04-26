@@ -18,6 +18,7 @@ const TOKEN_TTL = '7d'
 const loginSchema = z.object({
   email: z.string().email(),
   password: z.string().min(1),
+  remember: z.boolean().optional().default(false),
 })
 
 const inviteSchema = z.object({
@@ -82,7 +83,8 @@ export async function authRoutes(fastify: FastifyInstance) {
         { expiresIn: TOKEN_TTL },
       )
 
-      reply.setCookie(COOKIE_NAME, token, cookieOptions(60 * 60 * 24 * 7))
+      const maxAge = body.remember ? 60 * 60 * 24 * 30 : 60 * 60 * 24 * 7
+      reply.setCookie(COOKIE_NAME, token, cookieOptions(maxAge))
       await touchLastLogin(fastify, user.id)
       await logAudit(fastify, request, { action: 'auth.login.success', target: user.id })
 
