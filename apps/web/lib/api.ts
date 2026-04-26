@@ -100,6 +100,7 @@ export const api = {
       taskId?: string
     }) => request<any>('/agents', { method: 'POST', body: JSON.stringify(data) }),
     stop: (id: string) => request<void>(`/agents/${id}`, { method: 'DELETE' }),
+    session: (id: string) => request<any>(`/agents/sessions/${id}`),
     listRoles: () =>
       request<
         Array<{

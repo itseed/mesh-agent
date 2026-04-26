@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
 import { api } from '@/lib/api'
+import { SubtaskDetailModal } from './SubtaskDetailModal'
 
 const PRIORITY_COLORS: Record<string, string> = {
   urgent: 'text-red-400',
@@ -67,6 +68,7 @@ export function TaskDetailPanel({ task, allTasks, onClose, onUpdate, onDelete }:
   const [attachments, setAttachments] = useState<any[]>([])
   const [uploading, setUploading] = useState(false)
   const [uploadError, setUploadError] = useState('')
+  const [selectedSubtask, setSelectedSubtask] = useState<any | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -453,7 +455,7 @@ export function TaskDetailPanel({ task, allTasks, onClose, onUpdate, onDelete }:
               {subtasks.map((st: any) => {
                 const role = ROLE_STYLE[st.agentRole ?? '']
                 return (
-                  <div key={st.id} className="flex items-center gap-2 px-3 py-2 bg-surface-2 rounded border border-border">
+                  <div key={st.id} className="flex items-center gap-2 px-3 py-2 bg-surface-2 rounded border border-border cursor-pointer hover:border-border-hi transition-colors" onClick={() => setSelectedSubtask(st)}>
                     <span
                       className="text-[11px] px-1.5 py-0.5 rounded font-medium shrink-0"
                       style={{
@@ -609,6 +611,13 @@ export function TaskDetailPanel({ task, allTasks, onClose, onUpdate, onDelete }:
           </div>
         )}
       </div>
+
+      {selectedSubtask && (
+        <SubtaskDetailModal
+          subtask={selectedSubtask}
+          onClose={() => setSelectedSubtask(null)}
+        />
+      )}
     </>
   )
 }

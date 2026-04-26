@@ -30,6 +30,7 @@ export default function AgentsPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [outputPanel, setOutputPanel] = useState<{ id: string; role: string } | null>(null)
+  const [sessionDetail, setSessionDetail] = useState<{ id: string; role: string } | null>(null)
 
   const fetchAgents = useCallback(async () => {
     try {
@@ -68,7 +69,7 @@ export default function AgentsPage() {
         {history.map((s: any) => {
           const st = HIST_STATUS_STYLE[s.status] ?? { color: '#6a7a8e', label: s.status }
           return (
-            <div key={s.id} className="flex items-center gap-3 px-3 py-2.5 bg-surface border border-border rounded-lg hover:border-border-hi transition-colors">
+            <div key={s.id} className="flex items-center gap-3 px-3 py-2.5 bg-surface border border-border rounded-lg hover:border-border-hi transition-colors cursor-pointer" onClick={() => setSessionDetail({ id: s.id, role: s.role })}>
               <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: st.color }} />
               <span className="text-[12px] font-mono bg-surface-2 border border-border px-1.5 py-0.5 rounded text-muted shrink-0">{s.role}</span>
               <span className="text-[13px] text-text truncate flex-1">
@@ -129,11 +130,11 @@ export default function AgentsPage() {
             </>
           )}
         </div>
-      {outputPanel && (
+      {(outputPanel || sessionDetail) && (
         <AgentOutputPanel
-          sessionId={outputPanel.id}
-          role={outputPanel.role}
-          onClose={() => setOutputPanel(null)}
+          sessionId={(outputPanel ?? sessionDetail)!.id}
+          role={(outputPanel ?? sessionDetail)!.role}
+          onClose={() => { setOutputPanel(null); setSessionDetail(null) }}
         />
       )}
     </AppShell>
