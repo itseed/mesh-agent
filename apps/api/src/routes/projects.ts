@@ -25,20 +25,25 @@ export async function projectRoutes(fastify: FastifyInstance) {
 
   fastify.patch('/projects/:id/activate', { preHandler }, async (request, reply) => {
     const { id } = request.params as { id: string }
-    // deactivate all first (single active project)
-    await fastify.db.update(projects).set({ isActive: false })
-    const [project] = await fastify.db
-      .update(projects)
-      .set({ isActive: true })
-      .where(eq(projects.id, id))
-      .returning()
+    let project: typeof projects.$inferSelect | undefined
+    await fastify.db.transaction(async (tx) => {
+      await tx.update(projects).set({ isActive: false }).where(eq(projects.isActive, true))
+      const [updated] = await tx
+        .update(projects)
+        .set({ isActive: true })
+        .where(eq(projects.id, id))
+        .returning()
+      project = updated
+    })
     if (!project) return reply.status(404).send({ error: 'Project not found' })
     return project
   })
 
   fastify.delete('/projects/:id', { preHandler }, async (request, reply) => {
     const { id } = request.params as { id: string }
+    const existing = await fastify.db.select().from(projects).where(eq(projects.id, id)).limit(1)
+    if (!existing.length) return reply.status(404).send({ error: 'Not found' })
     await fastify.db.delete(projects).where(eq(projects.id, id))
-    reply.status(204)
+    return reply.status(204).send()
   })
 }
