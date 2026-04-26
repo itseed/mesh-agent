@@ -215,15 +215,15 @@ export function CommandBar() {
       {!open && (
         <button
           onClick={() => setOpen(true)}
-          className="fixed bottom-5 right-5 z-30 bg-accent/90 hover:bg-accent text-canvas font-semibold rounded-full shadow-lg flex items-center gap-2 px-4 py-2.5 transition-colors"
+          className="fixed bottom-5 right-5 z-30 flex items-center gap-2 px-4 py-2.5 rounded-full font-semibold transition-all duration-200 bg-[#0d1117]/90 backdrop-blur-sm border border-[#facc15]/30 text-[#facc15] hover:border-[#facc15]/60 hover:shadow-[0_0_24px_rgba(250,204,21,0.25)] shadow-[0_0_12px_rgba(250,204,21,0.12),0_4px_16px_rgba(0,0,0,0.4)]"
           title="เปิดแชทกับ Lead"
         >
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-            <path d="M2.678 11.894a1 1 0 0 1 .287.801 11 11 0 0 1-.398 2 12 12 0 0 0 1.927-.587c.16-.066.338-.077.512-.012A8 8 0 0 0 8 14.5c4.18 0 7-2.782 7-6.187C15 4.91 12.18 2.125 8 2.125c-4.179 0-7 2.785-7 6.188 0 1.297.49 2.503 1.355 3.504a1 1 0 0 1 .323.077z" />
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="opacity-80">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
           </svg>
-          <span>⚡ Lead</span>
+          <span>Lead</span>
           {unread > 0 && (
-            <span className="bg-canvas text-accent text-[12px] font-bold rounded-full px-1.5 min-w-[20px] text-center">
+            <span className="bg-[#facc15] text-[#0d1117] text-[11px] font-bold rounded-full px-1.5 min-w-[18px] text-center leading-5">
               {unread}
             </span>
           )}
