@@ -12,14 +12,14 @@ interface KanbanColumnProps {
   stage: string
   tasks: any[]
   onDelete?: (id: string) => void
+  onSelect?: (task: any) => void
 }
 
-export function KanbanColumn({ stage, tasks, onDelete }: KanbanColumnProps) {
+export function KanbanColumn({ stage, tasks, onDelete, onSelect }: KanbanColumnProps) {
   const meta = STAGE_META[stage] ?? { label: stage, color: '#6a7a8e', bg: 'transparent', border: 'transparent' }
 
   return (
     <div className="flex flex-col min-w-[230px] flex-1">
-      {/* Column header */}
       <div
         className="flex items-center justify-between mb-3 px-2 py-2 rounded-t border-b"
         style={{ borderColor: meta.border, backgroundColor: meta.bg }}
@@ -53,12 +53,15 @@ export function KanbanColumn({ stage, tasks, onDelete }: KanbanColumnProps) {
                     ref={provided.innerRef}
                     {...provided.draggableProps}
                     {...provided.dragHandleProps}
-                    style={{
-                      ...provided.draggableProps.style,
-                      opacity: snapshot.isDragging ? 0.9 : 1,
-                    }}
+                    style={provided.draggableProps.style}
                   >
-                    <TaskCard task={task} onDelete={onDelete} stageColor={meta.color} />
+                    <TaskCard
+                      task={task}
+                      onDelete={onDelete}
+                      onClick={() => onSelect?.(task)}
+                      stageColor={meta.color}
+                      isDragging={snapshot.isDragging}
+                    />
                   </div>
                 )}
               </Draggable>

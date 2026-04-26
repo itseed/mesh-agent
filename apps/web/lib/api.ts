@@ -47,15 +47,29 @@ export const api = {
     deleteUser: (id: string) => request<void>(`/auth/users/${id}`, { method: 'DELETE' }),
   },
   tasks: {
-    list: () => request<any[]>('/tasks'),
-    create: (data: { title: string; stage?: string; agentRole?: string; projectId?: string }) =>
-      request<any>('/tasks', { method: 'POST', body: JSON.stringify(data) }),
+    list: (params?: { projectId?: string; stage?: string; status?: string }) => {
+      const qs = new URLSearchParams()
+      if (params?.projectId) qs.set('projectId', params.projectId)
+      if (params?.stage) qs.set('stage', params.stage)
+      if (params?.status) qs.set('status', params.status)
+      const q = qs.toString()
+      return request<any[]>(`/tasks${q ? '?' + q : ''}`)
+    },
+    get: (id: string) => request<any>(`/tasks/${id}`),
+    create: (data: any) => request<any>('/tasks', { method: 'POST', body: JSON.stringify(data) }),
+    update: (id: string, data: any) => request<any>(`/tasks/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
     updateStage: (id: string, stage: string) =>
-      request<any>(`/tasks/${id}/stage`, {
-        method: 'PATCH',
-        body: JSON.stringify({ stage }),
-      }),
+      request<any>(`/tasks/${id}/stage`, { method: 'PATCH', body: JSON.stringify({ stage }) }),
     delete: (id: string) => request<void>(`/tasks/${id}`, { method: 'DELETE' }),
+    analyze: (id: string) => request<any>(`/tasks/${id}/analyze`, { method: 'POST' }),
+    approve: (id: string) => request<any>(`/tasks/${id}/approve`, { method: 'POST' }),
+    comments: (id: string) => request<any[]>(`/tasks/${id}/comments`),
+    addComment: (id: string, body: string) =>
+      request<any>(`/tasks/${id}/comments`, { method: 'POST', body: JSON.stringify({ body }) }),
+    activities: (id: string) => request<any[]>(`/tasks/${id}/activities`),
+    subtasks: (id: string, allTasks: any[]) => allTasks.filter((t: any) => t.parentTaskId === id),
+    createSubtask: (id: string, data: any) =>
+      request<any>(`/tasks/${id}/subtasks`, { method: 'POST', body: JSON.stringify(data) }),
   },
   projects: {
     list: () => request<any[]>('/projects'),

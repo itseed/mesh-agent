@@ -8,22 +8,44 @@ const ROLE_STYLE: Record<string, { bg: string; text: string }> = {
   reviewer: { bg: 'rgba(248,113,113,0.1)', text: '#f87171' },
 }
 
-interface TaskCardProps {
-  task: { id: string; title: string; agentRole?: string | null; githubPrUrl?: string | null }
-  onDelete?: (id: string) => void
-  stageColor?: string
+const PRIORITY_DOT: Record<string, string> = {
+  urgent: '#f87171',
+  high:   '#fb923c',
+  medium: '#fbbf24',
+  low:    '#374556',
 }
 
-export function TaskCard({ task, onDelete, stageColor }: TaskCardProps) {
+interface TaskCardProps {
+  task: any
+  onClick?: () => void
+  onDelete?: (id: string) => void
+  stageColor?: string
+  isDragging?: boolean
+}
+
+export function TaskCard({ task, onClick, onDelete, stageColor, isDragging }: TaskCardProps) {
   const role = ROLE_STYLE[task.agentRole ?? '']
+  const dotColor = PRIORITY_DOT[task.priority ?? ''] ?? null
 
   return (
     <div
-      className="bg-surface border border-border rounded-lg p-3 text-[14px] group hover:border-border-hi transition-all cursor-grab active:cursor-grabbing"
-      style={stageColor ? { borderLeftColor: `${stageColor}40`, borderLeftWidth: 2 } : {}}
+      onClick={onClick}
+      className="bg-surface border border-border rounded-lg p-3 text-[14px] group hover:border-border-hi transition-all cursor-pointer"
+      style={{
+        ...(stageColor ? { borderLeftColor: `${stageColor}40`, borderLeftWidth: 2 } : {}),
+        opacity: isDragging ? 0.9 : 1,
+      }}
     >
       <div className="flex items-start justify-between gap-2">
-        <span className="text-text leading-snug">{task.title}</span>
+        <div className="flex items-start gap-1.5 flex-1 min-w-0">
+          {dotColor && (
+            <span
+              className="w-1.5 h-1.5 rounded-full shrink-0 mt-1.5"
+              style={{ backgroundColor: dotColor }}
+            />
+          )}
+          <span className="text-text leading-snug">{task.title}</span>
+        </div>
         {onDelete && (
           <button
             onClick={(e) => { e.stopPropagation(); onDelete(task.id) }}
@@ -33,8 +55,13 @@ export function TaskCard({ task, onDelete, stageColor }: TaskCardProps) {
           </button>
         )}
       </div>
+
+      {task.parentTaskId && (
+        <div className="text-[11px] text-dim mt-1 ml-3">subtask</div>
+      )}
+
       {(task.agentRole || task.githubPrUrl) && (
-        <div className="flex items-center gap-1.5 mt-2">
+        <div className="flex items-center gap-1.5 mt-2 ml-3">
           {task.agentRole && role && (
             <span
               className="text-[12px] px-1.5 py-0.5 rounded font-medium"
