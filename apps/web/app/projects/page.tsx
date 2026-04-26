@@ -646,6 +646,11 @@ export default function ProjectsPage() {
                 onChange={e => setCName(e.target.value)}
                 className={INPUT_CLS} autoFocus required />
               <div>
+                <div className="text-[12px] text-muted uppercase tracking-wider mb-1">GitHub Repos</div>
+                <p className="text-[11px] text-dim mb-2">repos ที่ agent จะมี access (optional)</p>
+                <RepoPicker selected={cRepos} onChange={setCRepos} />
+              </div>
+              <div>
                 <div className="text-[12px] text-muted uppercase tracking-wider mb-1">Base Branch</div>
                 <p className="text-[11px] text-dim mb-2">branch ที่ agent จะ fork และ PR เข้า</p>
                 <input
@@ -659,11 +664,6 @@ export default function ProjectsPage() {
                 <datalist id="c-branches-list">
                   {cBranches.map(b => <option key={b} value={b} />)}
                 </datalist>
-              </div>
-              <div>
-                <div className="text-[12px] text-muted uppercase tracking-wider mb-1">GitHub Repos</div>
-                <p className="text-[11px] text-dim mb-2">repos ที่ agent จะมี access (optional)</p>
-                <RepoPicker selected={cRepos} onChange={setCRepos} />
               </div>
               <PathRows rows={cPaths} onChange={setCPaths} baseDir={reposBaseDir} />
               <div className="flex gap-2 justify-end pt-1">
@@ -686,6 +686,11 @@ export default function ProjectsPage() {
                 onChange={e => setEName(e.target.value)}
                 className={INPUT_CLS} autoFocus required />
               <div>
+                <div className="text-[12px] text-muted uppercase tracking-wider mb-1">GitHub Repos</div>
+                <p className="text-[11px] text-dim mb-2">repos ที่ agent จะมี access (optional)</p>
+                <RepoPicker selected={eRepos} onChange={setERepos} />
+              </div>
+              <div>
                 <div className="text-[12px] text-muted uppercase tracking-wider mb-1">Base Branch</div>
                 <input
                   type="text"
@@ -698,11 +703,6 @@ export default function ProjectsPage() {
                 <datalist id="e-branches-list">
                   {eBranches.map(b => <option key={b} value={b} />)}
                 </datalist>
-              </div>
-              <div>
-                <div className="text-[12px] text-muted uppercase tracking-wider mb-1">GitHub Repos</div>
-                <p className="text-[11px] text-dim mb-2">repos ที่ agent จะมี access (optional)</p>
-                <RepoPicker selected={eRepos} onChange={setERepos} />
               </div>
               <PathRows rows={ePaths} onChange={setEPaths} baseDir={reposBaseDir} />
               <div className="flex gap-2 justify-end pt-1">
