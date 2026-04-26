@@ -128,6 +128,28 @@ export class SessionManager {
           logger.warn({ err, taskId: session.taskId }, 'Failed to update task stage')
         }
       }
+      // Notify API of completion
+      try {
+        const { API_URL, INTERNAL_SECRET } = await import('./env.js').then(m => m.env)
+        await fetch(`${API_URL}/internal/agent-complete`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-internal-secret': INTERNAL_SECRET,
+          },
+          body: JSON.stringify({
+            sessionId: session.id,
+            taskId: session.taskId,
+            projectId: session.projectId,
+            role: String(session.role),
+            success: metrics.success,
+            outputLog,
+            exitCode: metrics.exitCode ?? null,
+          }),
+        })
+      } catch (err) {
+        logger.warn({ err }, 'Failed to notify API of session completion')
+      }
       streamer.publishEvent(session.id, { type: 'end', metrics })
       this.clearIdleTimer(session.id)
     })

@@ -29,6 +29,8 @@ const envSchema = z.object({
   PORT: z.coerce.number().default(3001),
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   ORCHESTRATOR_URL: z.string().url().default('http://localhost:3002'),
+  INTERNAL_SECRET: z.string().default('dev-internal-secret'),
+  API_URL: z.string().url().default('http://localhost:3001'),
   GITHUB_TOKEN: optStr(),
   GITHUB_WEBHOOK_SECRET: optStr(16),
   GITHUB_OAUTH_CLIENT_ID: optStr(),

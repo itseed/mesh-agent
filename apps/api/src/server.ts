@@ -18,6 +18,7 @@ import { githubRoutes } from './routes/github.js'
 import { settingsRoutes } from './routes/settings.js'
 import { chatRoutes } from './routes/chat.js'
 import { metricsRoutes } from './routes/metrics.js'
+import { internalRoutes } from './routes/internal.js'
 
 declare module 'fastify' {
   interface FastifyInstance {
@@ -92,6 +93,7 @@ export async function buildServer() {
   await fastify.register(settingsRoutes)
   await fastify.register(chatRoutes)
   await fastify.register(metricsRoutes)
+  await fastify.register(internalRoutes)
 
   fastify.get('/health', async () => ({ status: 'ok' }))
 

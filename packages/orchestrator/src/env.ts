@@ -13,6 +13,8 @@ const envSchema = z.object({
   MAX_CONCURRENT_SESSIONS: z.coerce.number().int().positive().default(8),
   SESSION_IDLE_TIMEOUT_MS: z.coerce.number().int().nonnegative().default(60 * 60 * 1000),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
+  API_URL: z.string().url().default('http://localhost:3001'),
+  INTERNAL_SECRET: z.string().default('dev-internal-secret'),
 })
 
 export const env = envSchema.parse(process.env)
