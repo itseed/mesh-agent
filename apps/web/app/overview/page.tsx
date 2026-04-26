@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, Fragment } from 'react'
 import Link from 'next/link'
 import { AppShell } from '@/components/layout/AppShell'
 import { AuthGuard } from '@/components/layout/AuthGuard'
@@ -25,6 +25,13 @@ const PRIORITY_DOT: Record<string, string> = {
   medium: '#fbbf24',
   low: '#374556',
 }
+
+const STEPS = [
+  { num: '1', label: 'สร้าง Project', desc: 'เพิ่ม GitHub repos + กำหนด paths', href: '/projects', color: '#58a6ff' },
+  { num: '2', label: 'สร้าง Task', desc: 'อธิบายงานที่ต้องการ + ระบุ priority', href: '/kanban', color: '#d2a8ff' },
+  { num: '3', label: 'AI วิเคราะห์', desc: 'Lead แตก task เป็น subtasks ให้', href: '/kanban', color: '#f0883e' },
+  { num: '4', label: 'Agents ทำงาน', desc: 'แต่ละ agent รับ subtask ไปทำ', href: '/agents', color: '#3fb950' },
+]
 
 function relativeTime(iso: string) {
   const diff = Date.now() - new Date(iso).getTime()
@@ -94,6 +101,32 @@ export default function OverviewPage() {
             <p className="text-muted text-[14px]"><span className="cursor-blink">▋</span> Loading…</p>
           ) : (
             <>
+              {/* Workflow Guide */}
+              <div className="mb-6 bg-surface border border-border rounded-xl p-4">
+                <div className="text-[11px] font-medium text-muted uppercase tracking-wider mb-3">Workflow</div>
+                <div className="flex flex-col lg:flex-row gap-3 lg:items-center">
+                  {STEPS.map((step, i) => (
+                    <Fragment key={step.num}>
+                      <a href={step.href} className="flex items-center gap-3 hover:opacity-80 transition-opacity">
+                        <span
+                          className="w-7 h-7 rounded-full flex items-center justify-center text-[12px] font-bold shrink-0"
+                          style={{ backgroundColor: step.color + '20', color: step.color, border: '1px solid ' + step.color + '40' }}
+                        >
+                          {step.num}
+                        </span>
+                        <div>
+                          <div className="text-[13px] font-semibold text-text">{step.label}</div>
+                          <div className="text-[12px] text-muted">{step.desc}</div>
+                        </div>
+                      </a>
+                      {i < STEPS.length - 1 && (
+                        <span className="hidden lg:block text-dim text-[16px]">→</span>
+                      )}
+                    </Fragment>
+                  ))}
+                </div>
+              </div>
+
               {/* Row 1: 5 stat cards */}
               <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-6">
                 {/* Active Project */}

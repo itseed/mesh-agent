@@ -120,6 +120,11 @@ export default function KanbanPage() {
             <p className="text-muted text-[14px]"><span className="cursor-blink">▋</span> Loading…</p>
           ) : error ? (
             <p className="text-danger text-[14px]">✕ {error}</p>
+          ) : tasks.filter((t) => !t.parentTaskId).length === 0 ? (
+            <div className="text-center py-12">
+              <p className="text-[14px] text-muted mb-1">ยังไม่มี task</p>
+              <p className="text-[13px] text-dim">กดปุ่ม + New task เพื่อเริ่ม หรือพิมพ์ใน Lead chat ว่า &quot;สร้าง task ใหม่&quot;</p>
+            </div>
           ) : (
             <KanbanBoard initialTasks={tasks} projects={projects} onRefresh={refresh} />
           )}

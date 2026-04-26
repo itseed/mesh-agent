@@ -179,7 +179,7 @@ export function CommandBar() {
           <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
             <path d="M2.678 11.894a1 1 0 0 1 .287.801 11 11 0 0 1-.398 2 12 12 0 0 0 1.927-.587c.16-.066.338-.077.512-.012A8 8 0 0 0 8 14.5c4.18 0 7-2.782 7-6.187C15 4.91 12.18 2.125 8 2.125c-4.179 0-7 2.785-7 6.188 0 1.297.49 2.503 1.355 3.504a1 1 0 0 1 .323.077z" />
           </svg>
-          <span>คุยกับ Lead</span>
+          <span>⚡ Lead</span>
           {unread > 0 && (
             <span className="bg-canvas text-accent text-[12px] font-bold rounded-full px-1.5 min-w-[20px] text-center">
               {unread}
@@ -200,7 +200,7 @@ export function CommandBar() {
               />
               <div>
                 <div className="text-[14px] font-semibold text-text">Lead</div>
-                <div className="text-[11px] text-muted">กระจายงานให้ทีม agent</div>
+                <div className="text-[11px] text-muted">สั่งงาน · วิเคราะห์ · Dispatch agents</div>
               </div>
             </div>
             <div className="flex items-center gap-1">
@@ -228,15 +228,22 @@ export function CommandBar() {
             style={{ maxHeight: 'calc(70vh - 200px)' }}
           >
             {history.length === 0 ? (
-              <div className="flex-1 flex items-center justify-center text-center px-6">
-                <div>
-                  <div className="text-muted text-[13px] mb-1">
-                    บอก Lead ว่าต้องการอะไร
-                  </div>
-                  <div className="text-dim text-[12px]">
-                    Lead จะวิเคราะห์และกระจายงานให้ frontend / backend / qa ฯลฯ
-                  </div>
-                </div>
+              <div className="flex flex-col gap-2 px-1 pb-1 pt-1">
+                <p className="text-[12px] text-muted px-3">ลองพิมพ์:</p>
+                {[
+                  'วิเคราะห์งานใน backlog และเสนอแผน',
+                  'สร้าง task: setup CI/CD pipeline',
+                  'รายงานสถานะทุก agent ที่รันอยู่',
+                  'dispatch frontend agent ไปทำ task ล่าสุด',
+                ].map((s) => (
+                  <button
+                    key={s}
+                    onClick={() => setMessage(s)}
+                    className="text-left text-[12px] text-accent hover:text-text bg-canvas border border-border hover:border-border-hi px-3 py-2 rounded-lg transition-all truncate"
+                  >
+                    {s}
+                  </button>
+                ))}
               </div>
             ) : (
               history.map((m) => <ChatBubble key={m.id} m={m} />)
