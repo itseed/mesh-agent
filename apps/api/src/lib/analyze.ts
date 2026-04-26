@@ -12,9 +12,8 @@ export interface AnalyzePlan {
   subtasks: SubtaskPlan[]
 }
 
-const CLAUDE_CMD = process.env.CLAUDE_CMD ?? 'claude'
-
 export async function analyzeTask(title: string, description?: string | null): Promise<AnalyzePlan> {
+  const CLAUDE_CMD = process.env.CLAUDE_CMD ?? 'claude'
   const prompt = [
     'You are the Lead of a software development team.',
     'Analyze the following task and break it down into concrete subtasks for your team.',

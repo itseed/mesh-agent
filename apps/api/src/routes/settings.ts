@@ -1,5 +1,6 @@
 import { FastifyInstance } from 'fastify'
 import { z } from 'zod'
+import { execFileSync } from 'node:child_process'
 import { Octokit } from '@octokit/rest'
 import { eq } from 'drizzle-orm'
 import { projects } from '@meshagent/shared'
@@ -38,6 +39,15 @@ export async function settingsRoutes(fastify: FastifyInstance) {
         user = null
       }
     }
+
+    const cliCmdOverride = await fastify.redis.get('settings:claude:cmd')
+    const effectiveCmd = cliCmdOverride ?? process.env.CLAUDE_CMD ?? 'claude'
+    const cliSource = cliCmdOverride
+      ? 'override'
+      : process.env.CLAUDE_CMD && process.env.CLAUDE_CMD !== 'claude'
+        ? 'env'
+        : 'default'
+
     return {
       github: {
         connected: !!user,
@@ -45,6 +55,37 @@ export async function settingsRoutes(fastify: FastifyInstance) {
         oauthEnabled: !!env.GITHUB_OAUTH_CLIENT_ID,
         user,
       },
+      cli: {
+        cmd: effectiveCmd,
+        source: cliSource,
+      },
+    }
+  })
+
+  fastify.post('/settings/claude/cmd', { preHandler }, async (request, reply) => {
+    const { cmd } = z.object({ cmd: z.string().min(1).max(512) }).parse(request.body)
+    await fastify.redis.set('settings:claude:cmd', cmd)
+    await logAudit(fastify, request, { action: 'settings.claude.cmd.saved', target: cmd })
+    return { ok: true }
+  })
+
+  fastify.delete('/settings/claude/cmd', { preHandler }, async (_, reply) => {
+    await fastify.redis.del('settings:claude:cmd')
+    return { ok: true }
+  })
+
+  fastify.get('/settings/claude/test', { preHandler }, async () => {
+    const override = await fastify.redis.get('settings:claude:cmd')
+    const cmd = override ?? process.env.CLAUDE_CMD ?? 'claude'
+    try {
+      const out = execFileSync(cmd, ['--version'], {
+        encoding: 'utf8',
+        timeout: 10_000,
+        env: { ...process.env },
+      }).trim()
+      return { ok: true, version: out, cmd }
+    } catch (err: any) {
+      return { ok: false, error: err?.message ?? 'CLI not found', cmd }
     }
   })
 
