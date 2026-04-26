@@ -110,19 +110,22 @@ export default function OverviewPage() {
   const [projects, setProjects] = useState<any[]>([])
   const [tasks, setTasks] = useState<any[]>([])
   const [agents, setAgents] = useState<any[]>([])
+  const [metrics, setMetrics] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
   const fetchData = useCallback(async () => {
     try {
-      const [p, t, a] = await Promise.all([
+      const [p, t, a, m] = await Promise.all([
         api.projects.list(),
         api.tasks.list(),
         api.agents.list(),
+        api.agents.metrics(24 * 7),
       ])
       setProjects(p)
       setTasks(t)
       setAgents(a)
+      setMetrics(m)
       setError('')
     } catch (e: any) {
       setError(e.message)
@@ -149,6 +152,16 @@ export default function OverviewPage() {
 
   const byStage = (s: string) => tasks.filter((t: any) => t.stage === s).length
   const byPriority = (p: string) => tasks.filter((t: any) => t.priority === p).length
+
+  const totalSessions = metrics?.totals?.count ?? 0
+  const successSessions = metrics?.totals?.successCount ?? 0
+  const successRate = totalSessions > 0 ? Math.round((successSessions / totalSessions) * 100) : 0
+  const perRole: Array<{ role: string; count: number; successCount: number; avgDurationMs: number }> =
+    metrics?.perRole ?? []
+  const topRole = [...perRole].sort((a, b) => b.count - a.count)[0] ?? null
+  const totalAvgMs = perRole.length > 0
+    ? Math.round(perRole.reduce((s, r) => s + r.avgDurationMs * r.count, 0) / Math.max(totalSessions, 1))
+    : 0
 
   return (
     <AuthGuard>
@@ -242,6 +255,72 @@ export default function OverviewPage() {
                   )}
                 </div>
               </div>
+
+              {/* Claude Usage */}
+              {metrics && (
+                <div className="bg-surface border border-border rounded-xl p-4 mb-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="text-[12px] font-medium text-muted uppercase tracking-wider">Claude Usage — 7 days</div>
+                    {totalSessions > 0 && (
+                      <span className="text-[12px] text-dim">{successRate}% success rate</span>
+                    )}
+                  </div>
+
+                  {totalSessions === 0 ? (
+                    <p className="text-[13px] text-dim">ยังไม่มี session — dispatch agent เพื่อเริ่ม</p>
+                  ) : (
+                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+                      <div>
+                        <div className="text-[22px] font-semibold text-text leading-none">{totalSessions}</div>
+                        <div className="text-[12px] text-muted mt-1">Sessions run</div>
+                      </div>
+                      <div>
+                        <div className="text-[22px] font-semibold leading-none" style={{ color: '#3fb950' }}>{successSessions}</div>
+                        <div className="text-[12px] text-muted mt-1">Completed</div>
+                      </div>
+                      <div>
+                        <div className="text-[22px] font-semibold text-text leading-none">
+                          {totalAvgMs > 60000
+                            ? `${(totalAvgMs / 60000).toFixed(1)}m`
+                            : `${(totalAvgMs / 1000).toFixed(0)}s`}
+                        </div>
+                        <div className="text-[12px] text-muted mt-1">Avg duration</div>
+                      </div>
+                      <div>
+                        <div className="text-[22px] font-semibold text-text leading-none truncate">
+                          {topRole ? topRole.role : '—'}
+                        </div>
+                        <div className="text-[12px] text-muted mt-1">Most active</div>
+                      </div>
+                    </div>
+                  )}
+
+                  {perRole.length > 0 && (
+                    <div className="flex flex-col gap-2 border-t border-border pt-3">
+                      {[...perRole].sort((a, b) => b.count - a.count).map((r) => {
+                        const pct = totalSessions > 0 ? Math.round((r.count / totalSessions) * 100) : 0
+                        return (
+                          <div key={r.role}>
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-[12px] text-muted font-mono">{r.role}</span>
+                              <div className="flex items-center gap-2">
+                                <span className="text-[12px] text-dim">{r.count} sessions</span>
+                                <span className="text-[11px] text-dim w-8 text-right">{pct}%</span>
+                              </div>
+                            </div>
+                            <div className="h-1.5 bg-border rounded-full overflow-hidden">
+                              <div
+                                className="h-full rounded-full transition-all duration-500 bg-accent/60"
+                                style={{ width: `${pct}%` }}
+                              />
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Row 2: Pipeline (3) + Recent activity (2) */}
               <div className="grid grid-cols-1 lg:grid-cols-5 gap-3 mb-4">
