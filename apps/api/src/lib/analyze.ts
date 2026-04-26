@@ -1,5 +1,4 @@
-import Anthropic from '@anthropic-ai/sdk'
-import { env } from '../env.js'
+import { execFileSync } from 'node:child_process'
 
 export interface SubtaskPlan {
   title: string
@@ -13,27 +12,43 @@ export interface AnalyzePlan {
   subtasks: SubtaskPlan[]
 }
 
-export async function analyzeTask(title: string, description?: string | null): Promise<AnalyzePlan> {
-  if (!env.ANTHROPIC_API_KEY) throw new Error('ANTHROPIC_API_KEY not configured')
-  const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY })
+const CLAUDE_CMD = process.env.CLAUDE_CMD ?? 'claude'
 
+export async function analyzeTask(title: string, description?: string | null): Promise<AnalyzePlan> {
   const prompt = [
-    'You are a Lead of a software development team. Analyze the following task and break it down into concrete subtasks.',
-    'Return ONLY valid JSON matching this schema:',
-    '{ "summary": "brief overview", "subtasks": [{ "title": "...", "description": "...", "agentRole": "frontend|backend|mobile|devops|designer|qa|reviewer", "priority": "low|medium|high|urgent" }] }',
+    'You are the Lead of a software development team.',
+    'Analyze the following task and break it down into concrete subtasks for your team.',
+    'Output ONLY a single valid JSON object — no markdown, no explanation, no extra text.',
+    'Schema: { "summary": "one sentence overview", "subtasks": [{ "title": "...", "description": "...", "agentRole": "frontend|backend|mobile|devops|designer|qa|reviewer", "priority": "low|medium|high|urgent" }] }',
     '',
     `Task: ${title}`,
     description ? `Description: ${description}` : '',
   ].join('\n')
 
-  const message = await client.messages.create({
-    model: 'claude-opus-4-7',
-    max_tokens: 2048,
-    messages: [{ role: 'user', content: prompt }],
-  })
+  let stdout: string
+  try {
+    stdout = execFileSync(CLAUDE_CMD, ['--output-format', 'json', '-p', prompt], {
+      encoding: 'utf8',
+      timeout: 120_000,
+      env: { ...process.env },
+    })
+  } catch (err: any) {
+    const msg = err?.stderr ?? err?.message ?? 'Claude CLI failed'
+    throw new Error(msg)
+  }
 
-  const text = (message.content[0] as any).text as string
+  // claude --output-format json returns: { result: "...", ... }
+  let text = stdout.trim()
+  try {
+    const parsed = JSON.parse(text)
+    if (typeof parsed.result === 'string') text = parsed.result
+  } catch {}
+
   const jsonMatch = text.match(/\{[\s\S]*\}/)
-  if (!jsonMatch) throw new Error('Claude did not return valid JSON')
-  return JSON.parse(jsonMatch[0]) as AnalyzePlan
+  if (!jsonMatch) throw new Error('Claude CLI did not return valid JSON plan')
+  try {
+    return JSON.parse(jsonMatch[0]) as AnalyzePlan
+  } catch {
+    throw new Error('Failed to parse plan JSON from Claude output')
+  }
 }

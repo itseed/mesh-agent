@@ -51,7 +51,7 @@ const envSchema = z.object({
   MINIO_SECRET_KEY: optStr(),
   MINIO_USE_SSL: z.preprocess((v) => v === 'true' || v === '1', z.boolean()).default(false),
   MINIO_BUCKET: z.string().default('mesh-agent'),
-  ANTHROPIC_API_KEY: optStr(),
+  CLAUDE_CMD: z.string().default('claude'),
 })
 
 const parsed = envSchema.parse(process.env)
