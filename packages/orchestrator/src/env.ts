@@ -7,7 +7,7 @@ config({ path: resolve(process.cwd(), '../../.env') })
 const envSchema = z.object({
   REDIS_URL: z.string().url(),
   DATABASE_URL: z.string().url().optional(),
-  PORT: z.coerce.number().default(3002),
+  ORCHESTRATOR_PORT: z.coerce.number().default(3002),
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   CLAUDE_CMD: z.string().default('claude'),
   MAX_CONCURRENT_SESSIONS: z.coerce.number().int().positive().default(8),

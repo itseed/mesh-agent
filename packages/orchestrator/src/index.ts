@@ -4,7 +4,7 @@ import { env } from './env.js'
 const server = await buildServer()
 
 try {
-  await server.listen({ port: env.PORT, host: '0.0.0.0' })
+  await server.listen({ port: env.ORCHESTRATOR_PORT, host: '0.0.0.0' })
 } catch (err) {
   server.log.error(err)
   process.exit(1)
