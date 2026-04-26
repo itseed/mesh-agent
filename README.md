@@ -56,6 +56,17 @@ graph TB
 
 ---
 
+## Screenshots
+
+| | |
+|---|---|
+| ![Overview](docs/screenshots/overview.png) | ![Kanban](docs/screenshots/kanban.png) |
+| **Overview** — ภาพรวม projects, pipeline, recent activity | **Kanban** — Backlog → In Progress → Review → Done พร้อม filter by project |
+| ![Agents](docs/screenshots/agents.png) | ![Settings](docs/screenshots/settings.png) |
+| **Agents** — monitoring ทุก agent role พร้อม live output | **Settings** — Claude CLI path, GitHub OAuth, Repos base directory |
+
+---
+
 ## Features
 
 | Feature | Description |
@@ -230,15 +241,14 @@ cd packages/shared
 DATABASE_URL=postgresql://meshagent:meshagent@localhost:5432/meshagent pnpm db:migrate
 cd ../..
 
-# 6. Start services
-pnpm dev:api        # API server → http://localhost:3001
-# terminal อื่น:
-pnpm --filter web dev   # Web app → http://localhost:3000
-# terminal อื่น:
-pnpm --filter @meshagent/orchestrator dev  # Orchestrator → http://localhost:3002
+# 6. Start all services (single command)
+pnpm dev
+# api → http://localhost:3001  |  orchestrator → http://localhost:3002  |  web → http://localhost:3000
 ```
 
 เปิด [http://localhost:3000](http://localhost:3000) แล้ว login ด้วย `AUTH_EMAIL` และ `AUTH_PASSWORD` ที่ตั้งใน `.env`
+
+![Login](docs/screenshots/login.png)
 
 ---
 
