@@ -161,6 +161,33 @@ export async function githubRoutes(fastify: FastifyInstance) {
     }
   })
 
+  // GET /github/repos?q=searchterm&page=1 — list/search repos for authenticated user
+  fastify.get('/github/repos', { preHandler }, async (request, reply) => {
+    const { q, page } = request.query as { q?: string; page?: string }
+    const pageNum = Math.max(1, parseInt(page ?? '1', 10) || 1)
+    const gh = await resolveGitHubClient(fastify.redis)
+
+    try {
+      const raw = q
+        ? (await gh.search.repos({ q: `${q} user:@me`, per_page: 20, page: pageNum })).data.items
+        : (await gh.repos.listForAuthenticatedUser({ per_page: 30, page: pageNum, sort: 'updated' })).data
+
+      return (raw as any[]).map((r) => ({
+        id: r.id,
+        fullName: r.full_name,
+        name: r.name,
+        description: r.description ?? null,
+        private: r.private,
+        url: r.html_url,
+      }))
+    } catch (e: any) {
+      if (e.status === 401 || e.status === 403) {
+        return reply.status(503).send({ error: 'GITHUB_TOKEN not configured or unauthorized' })
+      }
+      throw e
+    }
+  })
+
   fastify.post('/github/webhook', async (request, reply) => {
     const secret = env.GITHUB_WEBHOOK_SECRET
     if (!secret) {
