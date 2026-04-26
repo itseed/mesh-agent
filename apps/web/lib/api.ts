@@ -64,6 +64,7 @@ export const api = {
     update: (id: string, data: any) =>
       request<any>(`/projects/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
     delete: (id: string) => request<void>(`/projects/${id}`, { method: 'DELETE' }),
+    github: (id: string) => request<any>(`/projects/${id}/github`),
   },
   agents: {
     list: () => request<any[]>('/agents'),

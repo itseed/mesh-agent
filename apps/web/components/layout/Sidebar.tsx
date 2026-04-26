@@ -43,19 +43,6 @@ const NAV = [
     ),
   },
   {
-    href: '/github',
-    label: 'GitHub',
-    icon: (
-      <svg width="15" height="15" viewBox="0 0 15 15" fill="currentColor">
-        <circle cx="4.5" cy="3" r="1.5"/>
-        <circle cx="4.5" cy="12" r="1.5"/>
-        <circle cx="10.5" cy="5.5" r="1.5"/>
-        <path d="M4.5 4.5v6" stroke="currentColor" strokeWidth="1.3" fill="none"/>
-        <path d="M4.5 4.5C4.5 8 10.5 7 10.5 5.5" stroke="currentColor" strokeWidth="1.3" fill="none" strokeLinecap="round"/>
-      </svg>
-    ),
-  },
-  {
     href: '/projects',
     label: 'Projects',
     icon: (
