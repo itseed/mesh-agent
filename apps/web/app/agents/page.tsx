@@ -117,12 +117,6 @@ export default function AgentsPage() {
             <p className="text-danger text-[14px]">✕ {error}</p>
           ) : (
             <>
-              {agents.length === 0 && (
-                <div className="mb-4">
-                  <p className="text-[14px] text-muted">ยังไม่มี agent ทำงานอยู่</p>
-                  <p className="text-[13px] text-dim mt-1">เปิด task ใน Kanban → กด Analyze → Approve แผน เพื่อเริ่ม dispatch agents</p>
-                </div>
-              )}
               <AgentGrid
                 agents={agents}
                 roles={roles}

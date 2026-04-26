@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { api } from '@/lib/api'
 
 const ROLE_COLOR: Record<string, string> = {
@@ -63,6 +63,12 @@ export function AgentRolePanel({
   const [showPrompt, setShowPrompt] = useState(false)
   const [dispatchProject, setDispatchProject] = useState('')
   const [dispatchPrompt, setDispatchPrompt] = useState('')
+
+  useEffect(() => {
+    if (projects.length > 0 && !dispatchProject) {
+      setDispatchProject(projects[0].id)
+    }
+  }, [projects])
   const [dispatchDir, setDispatchDir] = useState('')
   const [dispatching, setDispatching] = useState(false)
   const [stopping, setStopping] = useState(false)
@@ -231,7 +237,7 @@ export function AgentRolePanel({
                 disabled={isRunning}
                 className="w-full bg-canvas border border-border text-text text-[13px] rounded px-3 py-2 disabled:opacity-40"
               >
-                <option value="">No project</option>
+                <option value="">— ไม่ระบุ —</option>
                 {projects.map((p) => (
                   <option key={p.id} value={p.id}>{p.name}</option>
                 ))}

@@ -19,6 +19,19 @@ const ROLE_STYLE: Record<string, { bg: string; text: string }> = {
   reviewer: { bg: 'rgba(248,113,113,0.1)', text: '#f87171' },
 }
 
+const PRIORITY_BG: Record<string, string> = {
+  urgent: 'rgba(248,113,113,0.15)',
+  high:   'rgba(251,146,60,0.15)',
+  medium: 'rgba(251,191,36,0.15)',
+  low:    'rgba(55,69,86,0.3)',
+}
+const PRIORITY_TEXT: Record<string, string> = {
+  urgent: '#f87171',
+  high:   '#fb923c',
+  medium: '#fbbf24',
+  low:    '#6a7a8e',
+}
+
 const STAGE_COLORS: Record<string, string> = {
   backlog: '#6a7a8e',
   in_progress: '#f0883e',
@@ -256,31 +269,61 @@ export function TaskDetailPanel({ task, allTasks, onClose, onUpdate, onDelete }:
                 )}
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="flex flex-col gap-3">
                 <div>
-                  <div className="text-[12px] text-muted uppercase tracking-wide mb-1">Agent Role</div>
-                  <select
-                    value={localTask.agentRole ?? ''}
-                    onChange={(e) => updateField('agentRole', e.target.value)}
-                    className="w-full bg-canvas border border-border text-text text-[13px] rounded px-2 py-1.5"
-                  >
-                    <option value="">—</option>
-                    {Object.keys(ROLE_STYLE).map((r) => (
-                      <option key={r} value={r}>{r}</option>
+                  <div className="text-[12px] text-muted uppercase tracking-wide mb-1.5">Agent Role</div>
+                  <div className="flex flex-wrap gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => updateField('agentRole', '')}
+                      className={`text-[12px] px-2 py-1 rounded border transition-all ${
+                        !localTask.agentRole
+                          ? 'bg-surface-2 border-border-hi text-text'
+                          : 'border-border text-dim hover:border-border-hi hover:text-muted'
+                      }`}
+                    >
+                      —
+                    </button>
+                    {Object.entries(ROLE_STYLE).map(([r, style]) => (
+                      <button
+                        key={r}
+                        type="button"
+                        onClick={() => updateField('agentRole', r)}
+                        className={`text-[12px] px-2 py-1 rounded border font-medium transition-all ${
+                          localTask.agentRole === r
+                            ? 'border-transparent'
+                            : 'border-border bg-transparent text-dim hover:border-border-hi'
+                        }`}
+                        style={localTask.agentRole === r
+                          ? { backgroundColor: style.bg, color: style.text, borderColor: style.text + '40' }
+                          : {}}
+                      >
+                        {r}
+                      </button>
                     ))}
-                  </select>
+                  </div>
                 </div>
                 <div>
-                  <div className="text-[12px] text-muted uppercase tracking-wide mb-1">Priority</div>
-                  <select
-                    value={localTask.priority ?? 'medium'}
-                    onChange={(e) => updateField('priority', e.target.value)}
-                    className="w-full bg-canvas border border-border text-text text-[13px] rounded px-2 py-1.5"
-                  >
-                    {['low', 'medium', 'high', 'urgent'].map((p) => (
-                      <option key={p} value={p}>{p}</option>
+                  <div className="text-[12px] text-muted uppercase tracking-wide mb-1.5">Priority</div>
+                  <div className="flex gap-1.5">
+                    {(['low', 'medium', 'high', 'urgent'] as const).map((p) => (
+                      <button
+                        key={p}
+                        type="button"
+                        onClick={() => updateField('priority', p)}
+                        className={`flex-1 text-[12px] px-2 py-1 rounded border font-medium capitalize transition-all ${
+                          localTask.priority === p
+                            ? 'border-transparent'
+                            : 'border-border bg-transparent text-dim hover:border-border-hi'
+                        }`}
+                        style={localTask.priority === p
+                          ? { backgroundColor: PRIORITY_BG[p], color: PRIORITY_TEXT[p], borderColor: PRIORITY_TEXT[p] + '40' }
+                          : {}}
+                      >
+                        {p}
+                      </button>
                     ))}
-                  </select>
+                  </div>
                 </div>
               </div>
 
