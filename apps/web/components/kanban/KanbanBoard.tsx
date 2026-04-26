@@ -71,6 +71,7 @@ export function KanbanBoard({ initialTasks, projects, onRefresh }: KanbanBoardPr
           allTasks={tasks}
           onClose={() => setSelectedTask(null)}
           onUpdate={onRefresh}
+          onDelete={async (id) => { await api.tasks.delete(id); onRefresh() }}
         />
       )}
     </>

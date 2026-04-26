@@ -31,11 +31,12 @@ interface TaskDetailPanelProps {
   allTasks: any[]
   onClose: () => void
   onUpdate: () => void
+  onDelete: (id: string) => void
 }
 
 type Tab = 'overview' | 'comments' | 'subtasks' | 'activity'
 
-export function TaskDetailPanel({ task, allTasks, onClose, onUpdate }: TaskDetailPanelProps) {
+export function TaskDetailPanel({ task, allTasks, onClose, onUpdate, onDelete }: TaskDetailPanelProps) {
   const [tab, setTab] = useState<Tab>('overview')
   const [comments, setComments] = useState<any[]>([])
   const [activities, setActivities] = useState<any[]>([])
@@ -46,6 +47,7 @@ export function TaskDetailPanel({ task, allTasks, onClose, onUpdate }: TaskDetai
   const [editingDesc, setEditingDesc] = useState(false)
   const [localTask, setLocalTask] = useState(task)
   const [descValue, setDescValue] = useState(task.description ?? '')
+  const [confirmDelete, setConfirmDelete] = useState(false)
   const [showSubtaskForm, setShowSubtaskForm] = useState(false)
   const [subtaskTitle, setSubtaskTitle] = useState('')
   const [subtaskRole, setSubtaskRole] = useState('')
@@ -158,7 +160,7 @@ export function TaskDetailPanel({ task, allTasks, onClose, onUpdate }: TaskDetai
     <>
       <div className="fixed inset-0 bg-black/30 z-30" onClick={onClose} />
 
-      <div className="fixed right-0 top-0 h-full w-[480px] bg-surface border-l border-border-hi z-40 flex flex-col transition-transform duration-200">
+      <div className="fixed right-0 top-0 h-screen w-[480px] bg-surface border-l border-border-hi z-40 flex flex-col transition-transform duration-200">
         {/* Header */}
         <div className="flex items-start gap-3 p-4 border-b border-border shrink-0">
           <div className="flex-1 min-w-0">
@@ -182,6 +184,31 @@ export function TaskDetailPanel({ task, allTasks, onClose, onUpdate }: TaskDetai
             </div>
             <h2 className="text-[15px] font-semibold text-text leading-snug">{localTask.title}</h2>
           </div>
+          {confirmDelete ? (
+            <div className="flex items-center gap-2 shrink-0">
+              <span className="text-[12px] text-danger">ลบ?</span>
+              <button
+                onClick={async () => { await onDelete(task.id); onClose() }}
+                className="text-[12px] text-danger border border-danger/30 px-2 py-1 rounded hover:bg-danger/10 transition-colors"
+              >
+                ยืนยัน
+              </button>
+              <button
+                onClick={() => setConfirmDelete(false)}
+                className="text-[12px] text-muted hover:text-text transition-colors"
+              >
+                ยกเลิก
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => setConfirmDelete(true)}
+              className="text-dim hover:text-danger text-[13px] transition-colors shrink-0"
+              title="Delete task"
+            >
+              🗑
+            </button>
+          )}
           <button onClick={onClose} className="text-muted hover:text-text text-[18px] leading-none mt-0.5 shrink-0">✕</button>
         </div>
 
