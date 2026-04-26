@@ -5,9 +5,10 @@ import { projects, tasks } from '@meshagent/shared'
 import { resolveGitHubClient } from '../lib/github-client.js'
 
 const createProjectSchema = z.object({
-  name: z.string().min(1),
+  name: z.string().min(1).max(255),
   paths: z.record(z.string()).default({}),
   githubRepos: z.array(z.string()).default([]),
+  baseBranch: z.string().min(1).max(255).default('main'),
 })
 
 export async function projectRoutes(fastify: FastifyInstance) {
@@ -22,6 +23,18 @@ export async function projectRoutes(fastify: FastifyInstance) {
     const [project] = await fastify.db.insert(projects).values(body).returning()
     reply.status(201)
     return project
+  })
+
+  fastify.patch('/projects/:id', { preHandler }, async (request, reply) => {
+    const { id } = request.params as { id: string }
+    const body = createProjectSchema.partial().parse(request.body)
+    const [updated] = await fastify.db
+      .update(projects)
+      .set(body)
+      .where(eq(projects.id, id))
+      .returning()
+    if (!updated) return reply.status(404).send({ error: 'Not found' })
+    return updated
   })
 
   fastify.patch('/projects/:id/activate', { preHandler }, async (request, reply) => {

@@ -15,6 +15,7 @@ export const projects = pgTable('projects', {
   name: text('name').notNull().unique(),
   paths: jsonb('paths').notNull().$type<Record<string, string>>().default({}),
   githubRepos: jsonb('github_repos').notNull().$type<string[]>().default([]),
+  baseBranch: text('base_branch').notNull().default('main'),
   isActive: boolean('is_active').notNull().default(false),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })

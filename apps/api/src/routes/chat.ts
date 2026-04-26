@@ -1,5 +1,6 @@
 import { FastifyInstance } from 'fastify'
 import { z } from 'zod'
+import { eq } from 'drizzle-orm'
 import { tasks, projects } from '@meshagent/shared'
 import { env } from '../env.js'
 import { detectRolesFromMessage, ensureBuiltinRoles, findRoleBySlug } from '../lib/roles.js'
@@ -94,16 +95,22 @@ export async function chatRoutes(fastify: FastifyInstance) {
 
     let workingDir = body.workingDir
     let projectId = body.projectId
+    let baseBranch = 'main'
+
     if (!workingDir || !projectId) {
       const all = await fastify.db.select().from(projects)
       const fallback = all[0] ?? null
       if (fallback) {
         projectId = projectId ?? fallback.id
+        baseBranch = fallback.baseBranch ?? 'main'
         if (!workingDir) {
           const firstPath = Object.values(fallback.paths ?? {})[0]
           workingDir = firstPath ?? '/tmp'
         }
       }
+    } else {
+      const [proj] = await fastify.db.select().from(projects).where(eq(projects.id, projectId)).limit(1)
+      if (proj) baseBranch = proj.baseBranch ?? 'main'
     }
     workingDir = workingDir ?? '/tmp'
 
@@ -136,7 +143,33 @@ export async function chatRoutes(fastify: FastifyInstance) {
       body.images && body.images.length > 0
         ? `\n\nแนบรูป ${body.images.length} ไฟล์: ${body.images.map((i) => i.name).join(', ')}`
         : ''
-    const fullPrompt = `${body.message}${imageNote}`
+
+    const branchSuffix = Date.now().toString(36)
+    const gitInstructions = `
+
+## Git Workflow (REQUIRED — ทำทุกครั้ง)
+Base branch: \`${baseBranch}\`
+
+**ก่อนเริ่มงาน:**
+\`\`\`bash
+git fetch origin
+git checkout ${baseBranch}
+git pull origin ${baseBranch}
+git checkout -b task/\${ROLE}-${branchSuffix}
+\`\`\`
+(แทน \${ROLE} ด้วย role ของตัวเอง เช่น frontend, backend)
+
+**ระหว่างทำงาน:** commit บ่อยๆ
+
+**เมื่องานเสร็จ:**
+\`\`\`bash
+git push -u origin HEAD
+gh pr create --base ${baseBranch} --title "<สรุปงานที่ทำ>" --body "<รายละเอียด>"
+\`\`\`
+
+**สำคัญ:** แจ้ง PR URL กลับมาในรายงานสุดท้ายด้วย`
+
+    const fullPrompt = `${body.message}${imageNote}${gitInstructions}`
 
     const dispatched: ChatMessage[] = []
     for (const slug of targetSlugs) {
@@ -144,6 +177,16 @@ export async function chatRoutes(fastify: FastifyInstance) {
       if (!role) {
         fastify.log.warn({ slug }, 'Skipping unknown role from detection')
         continue
+      }
+
+      // resolve working dir per role from project paths
+      let agentWorkingDir = workingDir
+      if (projectId) {
+        const [proj] = await fastify.db.select().from(projects).where(eq(projects.id, projectId)).limit(1)
+        if (proj) {
+          const paths = proj.paths as Record<string, string> ?? {}
+          agentWorkingDir = paths[slug] ?? Object.values(paths)[0] ?? workingDir
+        }
       }
 
       const [task] = await fastify.db
@@ -157,7 +200,7 @@ export async function chatRoutes(fastify: FastifyInstance) {
         })
         .returning()
 
-      const result = await dispatchAgent(slug, workingDir, fullPrompt, {
+      const result = await dispatchAgent(slug, agentWorkingDir, fullPrompt, {
         projectId: projectId ?? null,
         taskId: task?.id ?? null,
         createdBy: userId,
