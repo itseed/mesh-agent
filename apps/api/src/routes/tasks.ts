@@ -6,6 +6,12 @@ import { logAudit } from '../lib/audit.js'
 import { analyzeTask, type AnalyzePlan } from '../lib/analyze.js'
 import { dispatchAgent, buildGitInstructions } from '../lib/dispatch.js'
 
+const TASKS_CHANNEL = 'tasks:events'
+
+async function publishTaskEvent(fastify: FastifyInstance, type: string, payload: Record<string, unknown>) {
+  await fastify.redis.publish(TASKS_CHANNEL, JSON.stringify({ type, ...payload }))
+}
+
 const STAGES = ['backlog', 'in_progress', 'review', 'done'] as const
 const STATUSES = ['open', 'in_progress', 'blocked', 'done', 'cancelled'] as const
 const PRIORITIES = ['low', 'medium', 'high', 'urgent'] as const
@@ -71,6 +77,7 @@ export async function taskRoutes(fastify: FastifyInstance) {
     const body = createTaskSchema.parse(request.body)
     const [task] = await fastify.db.insert(tasks).values(body).returning()
     await logAudit(fastify, request, { action: 'task.created', target: task.id })
+    await publishTaskEvent(fastify, 'task.created', { taskId: task.id, projectId: task.projectId })
     reply.status(201)
     return task
   })
@@ -85,6 +92,7 @@ export async function taskRoutes(fastify: FastifyInstance) {
       .returning()
     if (!task) return reply.status(404).send({ error: 'Task not found' })
     await logAudit(fastify, request, { action: 'task.updated', target: id, metadata: body as Record<string, unknown> })
+    await publishTaskEvent(fastify, 'task.updated', { taskId: id, projectId: task.projectId, stage: task.stage })
     return task
   })
 
@@ -102,6 +110,7 @@ export async function taskRoutes(fastify: FastifyInstance) {
       target: id,
       metadata: { stage },
     })
+    await publishTaskEvent(fastify, 'task.stage', { taskId: id, projectId: task.projectId, stage })
     return task
   })
 
@@ -110,6 +119,7 @@ export async function taskRoutes(fastify: FastifyInstance) {
     const result = await fastify.db.delete(tasks).where(eq(tasks.id, id)).returning()
     if (result.length === 0) return reply.status(404).send({ error: 'Task not found' })
     await logAudit(fastify, request, { action: 'task.deleted', target: id })
+    await publishTaskEvent(fastify, 'task.deleted', { taskId: id })
     reply.status(204).send()
   })
 

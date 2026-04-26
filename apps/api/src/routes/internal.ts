@@ -7,6 +7,7 @@ import { env } from '../env.js'
 const HISTORY_KEY = 'chat:lead:history'
 const HISTORY_LIMIT = 200
 const CHAT_CHANNEL = 'chat:events'
+const TASKS_CHANNEL = 'tasks:events'
 
 const bodySchema = z.object({
   sessionId: z.string(),
@@ -79,6 +80,8 @@ export async function internalRoutes(fastify: FastifyInstance) {
         authorId: null,
       })
 
+      await fastify.redis.publish(TASKS_CHANNEL, JSON.stringify({ type: 'task.stage', taskId, stage, projectId }))
+
       // 2. Check parent task — if all subtasks done → mark parent done
       const [task] = await fastify.db.select().from(tasks).where(eq(tasks.id, taskId)).limit(1)
       if (task?.parentTaskId) {
@@ -97,6 +100,7 @@ export async function internalRoutes(fastify: FastifyInstance) {
             .update(tasks)
             .set({ stage: 'done', updatedAt: new Date() })
             .where(eq(tasks.id, task.parentTaskId))
+          await fastify.redis.publish(TASKS_CHANNEL, JSON.stringify({ type: 'task.stage', taskId: task.parentTaskId, stage: 'done', projectId }))
         }
       }
     }

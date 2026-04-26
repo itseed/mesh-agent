@@ -69,6 +69,22 @@ export function useAgentOutput(sessionId: string | null) {
   return { lines, status }
 }
 
+export function useTaskEvents(onEvent: (event: { type: string; taskId?: string; projectId?: string; stage?: string }) => void) {
+  const cbRef = useRef(onEvent)
+  cbRef.current = onEvent
+
+  useEffect(() => {
+    const ws = new WebSocket(`${WS_BASE}/ws?channels=tasks`)
+    ws.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data)
+        if (data.type?.startsWith('task.')) cbRef.current(data)
+      } catch {}
+    }
+    return () => { ws.close() }
+  }, [])
+}
+
 export function useChatStream(onMessage: (msg: any) => void) {
   const wsRef = useRef<WebSocket | null>(null)
 

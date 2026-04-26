@@ -50,6 +50,7 @@ export async function wsHandler(fastify: FastifyInstance) {
         const trimmed = c.trim()
         if (trimmed === 'chat') subscriptions.add('chat:events')
         if (trimmed === 'github') subscriptions.add('github:events')
+        if (trimmed === 'tasks') subscriptions.add('tasks:events')
       }
     }
 

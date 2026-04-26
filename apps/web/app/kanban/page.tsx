@@ -4,6 +4,7 @@ import { AppShell } from '@/components/layout/AppShell'
 import { KanbanBoard } from '@/components/kanban/KanbanBoard'
 import { AuthGuard } from '@/components/layout/AuthGuard'
 import { api } from '@/lib/api'
+import { useTaskEvents } from '@/lib/ws'
 
 export default function KanbanPage() {
   const [tasks, setTasks] = useState<any[]>([])
@@ -44,6 +45,8 @@ export default function KanbanPage() {
   const refresh = useCallback(() => {
     fetchTasks(activeProjectId)
   }, [fetchTasks, activeProjectId])
+
+  useTaskEvents(useCallback(() => { fetchTasks(activeProjectId) }, [fetchTasks, activeProjectId]))
 
   async function createTask(e: React.FormEvent) {
     e.preventDefault()
