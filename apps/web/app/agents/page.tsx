@@ -2,6 +2,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { AppShell } from '@/components/layout/AppShell'
 import { AgentGrid } from '@/components/agents/AgentGrid'
+import { AgentOutputPanel } from '@/components/agents/AgentOutputPanel'
 import { AuthGuard } from '@/components/layout/AuthGuard'
 import { api } from '@/lib/api'
 
@@ -25,19 +26,23 @@ export default function AgentsPage() {
   const [agents, setAgents] = useState<any[]>([])
   const [history, setHistory] = useState<any[]>([])
   const [roles, setRoles] = useState<any[]>([])
+  const [projects, setProjects] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [outputPanel, setOutputPanel] = useState<{ id: string; role: string } | null>(null)
 
   const fetchAgents = useCallback(async () => {
     try {
-      const [data, hist, roleList] = await Promise.all([
+      const [data, hist, roleList, projectList] = await Promise.all([
         api.agents.list(),
         api.agents.history(20),
         api.agents.listRoles(),
+        api.projects.list(),
       ])
       setAgents(data)
       setHistory(hist)
       setRoles(roleList)
+      setProjects(projectList)
       setError('')
     } catch (e: any) {
       setError(e.message)
@@ -118,12 +123,26 @@ export default function AgentsPage() {
                   <p className="text-[13px] text-dim mt-1">เปิด task ใน Kanban → กด Analyze → Approve แผน เพื่อเริ่ม dispatch agents</p>
                 </div>
               )}
-              <AgentGrid agents={agents} roles={roles} />
+              <AgentGrid
+                agents={agents}
+                roles={roles}
+                history={history}
+                projects={projects}
+                onRefresh={fetchAgents}
+                onViewOutput={(id, role) => setOutputPanel({ id, role })}
+              />
               {historySection}
             </>
           )}
         </div>
-      </AppShell>
+      {outputPanel && (
+        <AgentOutputPanel
+          sessionId={outputPanel.id}
+          role={outputPanel.role}
+          onClose={() => setOutputPanel(null)}
+        />
+      )}
+    </AppShell>
     </AuthGuard>
   )
 }

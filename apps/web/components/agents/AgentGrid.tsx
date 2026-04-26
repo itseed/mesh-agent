@@ -1,6 +1,7 @@
 'use client'
 import { useState } from 'react'
 import { AgentOutputPanel } from './AgentOutputPanel'
+import { AgentRolePanel } from './AgentRolePanel'
 
 const ROLE_COLOR: Record<string, string> = {
   frontend: '#22d3ee',
@@ -16,12 +17,16 @@ const ROLE_COLOR: Record<string, string> = {
 interface AgentGridProps {
   agents: { id: string; role: string; status: string }[]
   roles: any[]
+  history: any[]
+  projects: any[]
+  onRefresh: () => void
+  onViewOutput: (sessionId: string, role: string) => void
 }
 
 function RoleCard({ role, session, onClick }: {
   role: any
   session: { id: string; role: string; status: string } | null
-  onClick?: () => void
+  onClick: () => void
 }) {
   const color = ROLE_COLOR[role.slug] ?? '#6a7a8e'
   const isRunning = !!session
@@ -31,10 +36,10 @@ function RoleCard({ role, session, onClick }: {
     <div
       onClick={onClick}
       className={[
-        'bg-surface border rounded-xl p-4 flex flex-col gap-3 transition-all',
+        'bg-surface border rounded-xl p-4 flex flex-col gap-3 transition-all cursor-pointer',
         isRunning
-          ? 'border-success/30 shadow-[0_0_0_1px_rgba(63,185,80,0.1)] cursor-pointer hover:border-success/50'
-          : 'border-border cursor-default',
+          ? 'border-success/30 shadow-[0_0_0_1px_rgba(63,185,80,0.1)] hover:border-success/50'
+          : 'border-border hover:border-border-hi',
       ].join(' ')}
     >
       {/* Header */}
@@ -84,8 +89,9 @@ function RoleCard({ role, session, onClick }: {
   )
 }
 
-export function AgentGrid({ agents, roles }: AgentGridProps) {
+export function AgentGrid({ agents, roles, history, projects, onRefresh, onViewOutput }: AgentGridProps) {
   const [selected, setSelected] = useState<{ id: string; role: string } | null>(null)
+  const [selectedRole, setSelectedRole] = useState<any | null>(null)
 
   if (roles.length === 0) {
     return (
@@ -109,7 +115,7 @@ export function AgentGrid({ agents, roles }: AgentGridProps) {
               key={role.slug}
               role={role}
               session={session ?? null}
-              onClick={session ? () => setSelected({ id: session.id, role: session.role }) : undefined}
+              onClick={() => setSelectedRole(role)}
             />
           )
         })}
@@ -119,6 +125,22 @@ export function AgentGrid({ agents, roles }: AgentGridProps) {
           sessionId={selected.id}
           role={selected.role}
           onClose={() => setSelected(null)}
+        />
+      )}
+      {selectedRole && (
+        <AgentRolePanel
+          role={selectedRole}
+          session={agents.find(
+            (a) => a.role === selectedRole.slug && (a.status === 'running' || a.status === 'pending')
+          ) ?? null}
+          history={history}
+          projects={projects}
+          onClose={() => setSelectedRole(null)}
+          onDispatched={() => { setSelectedRole(null); onRefresh() }}
+          onViewOutput={(sid, r) => {
+            setSelectedRole(null)
+            onViewOutput(sid, r)
+          }}
         />
       )}
     </>
