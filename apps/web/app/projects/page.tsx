@@ -20,15 +20,26 @@ function buildPathsMap(entries: PathEntry[]) {
   )
 }
 
+function guessRole(repoName: string): string {
+  const n = repoName.toLowerCase()
+  if (/web|front|ui|next|react/.test(n)) return 'frontend'
+  if (/api|back|server|service/.test(n)) return 'backend'
+  if (/mobile|app|ios|android|rn/.test(n)) return 'mobile'
+  if (/infra|ops|deploy|docker|k8s/.test(n)) return 'devops'
+  return repoName
+}
+
 const INPUT_CLS = 'bg-canvas border border-border text-text text-[14px] rounded px-2.5 py-1.5 placeholder-dim w-full'
 
 /* ── PathRows (module-level component) ── */
 function PathRows({
   rows,
   onChange,
+  baseDir,
 }: {
   rows: PathEntry[]
   onChange: (next: PathEntry[]) => void
+  baseDir?: string | null
 }) {
   return (
     <div>
@@ -46,9 +57,27 @@ function PathRows({
           <input type="text" placeholder="เช่น frontend" value={p.key}
             onChange={e => onChange(rows.map((x, idx) => idx === i ? { ...x, key: e.target.value } : x))}
             className={`${INPUT_CLS} flex-[0_0_35%]`} />
-          <input type="text" placeholder="/Users/me/project/web" value={p.value}
-            onChange={e => onChange(rows.map((x, idx) => idx === i ? { ...x, value: e.target.value } : x))}
-            className={`${INPUT_CLS} flex-1`} />
+          {baseDir ? (
+            <div className="flex items-center flex-1 bg-canvas border border-border rounded overflow-hidden">
+              <span className="text-[13px] text-dim font-mono px-2 py-1.5 border-r border-border shrink-0 whitespace-nowrap">
+                {baseDir}/
+              </span>
+              <input
+                type="text"
+                placeholder="folder-name"
+                value={p.value.startsWith(baseDir + '/') ? p.value.slice(baseDir.length + 1) : p.value}
+                onChange={e => {
+                  const full = e.target.value.startsWith('/') ? e.target.value : `${baseDir}/${e.target.value}`
+                  onChange(rows.map((x, idx) => idx === i ? { ...x, value: full } : x))
+                }}
+                className="flex-1 bg-transparent text-text text-[13px] px-2 py-1.5 outline-none font-mono"
+              />
+            </div>
+          ) : (
+            <input type="text" placeholder="/Users/me/project/web" value={p.value}
+              onChange={e => onChange(rows.map((x, idx) => idx === i ? { ...x, value: e.target.value } : x))}
+              className={`${INPUT_CLS} flex-1`} />
+          )}
           {rows.length > 1 && (
             <button type="button"
               onClick={() => onChange(rows.filter((_, idx) => idx !== i))}
@@ -392,6 +421,8 @@ export default function ProjectsPage() {
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
   const [deleting, setDeleting] = useState(false)
 
+  const [reposBaseDir, setReposBaseDir] = useState<string | null>(null)
+
   const fetchProjects = useCallback(async () => {
     try {
       const data = await api.projects.list()
@@ -406,6 +437,19 @@ export default function ProjectsPage() {
   }, [])
 
   useEffect(() => { fetchProjects() }, [fetchProjects])
+
+  useEffect(() => {
+    api.settings.get().then(s => setReposBaseDir(s.reposBaseDir ?? null)).catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    if (!reposBaseDir || cRepos.length === 0) return
+    const suggested = cRepos.map(r => {
+      const folderName = r.split('/')[1] ?? r
+      return { key: guessRole(folderName), value: `${reposBaseDir}/${folderName}` }
+    })
+    setCPaths(suggested.length > 0 ? suggested : [{ key: '', value: '' }])
+  }, [cRepos, reposBaseDir])
 
   function selectProject(project: any) {
     setSelected(project)
@@ -571,7 +615,7 @@ export default function ProjectsPage() {
                 <p className="text-[11px] text-dim mb-2">repos ที่ agent จะมี access (optional)</p>
                 <RepoPicker selected={cRepos} onChange={setCRepos} />
               </div>
-              <PathRows rows={cPaths} onChange={setCPaths} />
+              <PathRows rows={cPaths} onChange={setCPaths} baseDir={reposBaseDir} />
               <div className="flex gap-2 justify-end pt-1">
                 <button type="button" onClick={() => setShowCreate(false)}
                   className="text-muted text-[14px] px-3 py-1.5 hover:text-text transition-colors">Cancel</button>
@@ -596,7 +640,7 @@ export default function ProjectsPage() {
                 <p className="text-[11px] text-dim mb-2">repos ที่ agent จะมี access (optional)</p>
                 <RepoPicker selected={eRepos} onChange={setERepos} />
               </div>
-              <PathRows rows={ePaths} onChange={setEPaths} />
+              <PathRows rows={ePaths} onChange={setEPaths} baseDir={reposBaseDir} />
               <div className="flex gap-2 justify-end pt-1">
                 <button type="button" onClick={() => setEditProject(null)}
                   className="text-muted text-[14px] px-3 py-1.5 hover:text-text transition-colors">Cancel</button>

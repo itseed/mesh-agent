@@ -146,6 +146,7 @@ export const api = {
           user: { login: string; avatarUrl?: string } | null
         }
         cli?: { cmd: string; source: string }
+        reposBaseDir?: string | null
       }>('/settings'),
     saveCliCmd: (cmd: string) =>
       request<{ ok: boolean }>('/settings/claude/cmd', {
@@ -156,6 +157,13 @@ export const api = {
       request<{ ok: boolean }>('/settings/claude/cmd', { method: 'DELETE' }),
     testCli: () =>
       request<{ ok: boolean; version?: string; error?: string; cmd: string }>('/settings/claude/test'),
+    saveReposBaseDir: (dir: string) =>
+      request<{ ok: boolean }>('/settings/repos-base-dir', {
+        method: 'POST',
+        body: JSON.stringify({ dir }),
+      }),
+    resetReposBaseDir: () =>
+      request<{ ok: boolean }>('/settings/repos-base-dir', { method: 'DELETE' }),
     saveToken: (ghToken: string) =>
       request<{ ok: boolean; user: { login: string; avatarUrl?: string } }>(
         '/settings/github/token',

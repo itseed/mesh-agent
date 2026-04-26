@@ -49,6 +49,9 @@ function SettingsPageInner() {
   const [cliTestResult, setCliTestResult] = useState<{ ok: boolean; version?: string; error?: string; cmd: string } | null>(null)
   const [cliInfo, setCliInfo] = useState('')
   const [cliError, setCliError] = useState('')
+  const [reposBaseDir, setReposBaseDir] = useState('')
+  const [savedBaseDir, setSavedBaseDir] = useState<string | null>(null)
+  const [savingBaseDir, setSavingBaseDir] = useState(false)
 
   const refresh = useCallback(async () => {
     try {
@@ -60,6 +63,8 @@ function SettingsPageInner() {
       setStatus(s.github)
       setCliCmd(s.cli?.cmd ?? 'claude')
       setCliSource(s.cli?.source ?? 'default')
+      setSavedBaseDir(s.reposBaseDir ?? null)
+      setReposBaseDir(s.reposBaseDir ?? '')
       setRoles(r)
       setError('')
     } catch (e: any) {
@@ -107,6 +112,23 @@ function SettingsPageInner() {
       window.location.href = url
     } catch (e: any) {
       setError(e.message)
+    }
+  }
+
+  async function saveBaseDir() {
+    setSavingBaseDir(true)
+    try {
+      if (reposBaseDir.trim()) {
+        await api.settings.saveReposBaseDir(reposBaseDir.trim())
+        setSavedBaseDir(reposBaseDir.trim())
+      } else {
+        await api.settings.resetReposBaseDir()
+        setSavedBaseDir(null)
+      }
+    } catch (e: any) {
+      setCliError(e.message)
+    } finally {
+      setSavingBaseDir(false)
     }
   }
 
@@ -278,6 +300,43 @@ function SettingsPageInner() {
                 <p className="text-[12px] text-dim mt-1">
                   หลังเปลี่ยน path ต้อง restart orchestrator เพื่อให้ agent sessions ใช้ค่าใหม่
                 </p>
+              </div>
+
+              {/* Repos Base Directory */}
+              <div className="pt-4 border-t border-border">
+                <h3 className="text-[13px] font-semibold text-text mb-0.5">Repos Base Directory</h3>
+                <p className="text-[12px] text-dim mb-3">
+                  root directory ที่ clone repos ไว้ — ใช้ auto-fill path เมื่อสร้าง project เช่น <span className="font-mono text-muted">/home/ubuntu/repos</span>
+                </p>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={reposBaseDir}
+                    onChange={e => setReposBaseDir(e.target.value)}
+                    placeholder="/home/ubuntu/repos"
+                    className="flex-1 bg-canvas border border-border text-text text-[13px] rounded px-3 py-1.5 placeholder-dim font-mono"
+                  />
+                  <button
+                    type="button"
+                    onClick={saveBaseDir}
+                    disabled={savingBaseDir}
+                    className="text-[13px] bg-accent/15 hover:bg-accent/25 border border-accent/25 text-accent px-3 py-1.5 rounded transition-all disabled:opacity-50"
+                  >
+                    {savingBaseDir ? '…' : 'Save'}
+                  </button>
+                  {savedBaseDir && (
+                    <button
+                      type="button"
+                      onClick={async () => { await api.settings.resetReposBaseDir(); setSavedBaseDir(null); setReposBaseDir('') }}
+                      className="text-[13px] text-muted hover:text-danger px-2 py-1.5 rounded transition-colors"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+                {savedBaseDir && (
+                  <p className="text-[12px] text-success mt-1.5">✓ {savedBaseDir}</p>
+                )}
               </div>
 
               {cliInfo && <p className="text-success text-[12px] mt-3 bg-success/5 border border-success/20 rounded px-3 py-2">✓ {cliInfo}</p>}
