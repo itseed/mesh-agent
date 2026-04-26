@@ -184,7 +184,7 @@ function SettingsPageInner() {
   return (
     <AuthGuard>
       <AppShell>
-        <div className="p-6 pb-32 fade-up max-w-3xl">
+        <div className="p-6 pb-32 fade-up max-w-4xl">
           <div className="mb-4">
             <h1 className="text-[15px] font-semibold text-text tracking-tight">ตั้งค่า</h1>
             <p className="text-[13px] text-muted mt-0.5">Claude CLI · Agent Skills · GitHub</p>
