@@ -41,6 +41,71 @@ function relativeTime(iso: string) {
   return `${Math.floor(diff / 86400000)}d ago`
 }
 
+function DonutChart({ segments }: {
+  segments: { label: string; count: number; color: string }[]
+}) {
+  const total = segments.reduce((s, x) => s + x.count, 0)
+  const r = 40
+  const cx = 60
+  const cy = 60
+  const circumference = 2 * Math.PI * r
+
+  let offset = 0
+  const arcs = segments.map((seg) => {
+    const pct = total > 0 ? seg.count / total : 0
+    const dash = pct * circumference
+    const arc = { ...seg, dash, gap: circumference - dash, offset, pct }
+    offset += dash
+    return arc
+  })
+
+  return (
+    <div className="flex items-center gap-6">
+      <div className="shrink-0">
+        <svg width="120" height="120" viewBox="0 0 120 120">
+          {total === 0 ? (
+            <circle cx={cx} cy={cy} r={r} fill="none" stroke="var(--color-border)" strokeWidth="12" />
+          ) : (
+            arcs.map((arc) => (
+              arc.count === 0 ? null : (
+                <circle
+                  key={arc.label}
+                  cx={cx} cy={cy} r={r}
+                  fill="none"
+                  stroke={arc.color}
+                  strokeWidth="12"
+                  strokeDasharray={`${arc.dash} ${arc.gap}`}
+                  strokeDashoffset={-arc.offset}
+                  style={{ transform: 'rotate(-90deg)', transformOrigin: `${cx}px ${cy}px` }}
+                />
+              )
+            ))
+          )}
+          <text x={cx} y={cy - 6} textAnchor="middle" style={{ fontSize: 20, fontWeight: 600, fill: 'var(--color-text)' }}>
+            {total}
+          </text>
+          <text x={cx} y={cy + 10} textAnchor="middle" style={{ fontSize: 10, fill: 'var(--color-muted)' }}>
+            tasks
+          </text>
+        </svg>
+      </div>
+      <div className="flex flex-col gap-2 flex-1 min-w-0">
+        {segments.map((seg) => {
+          const pct = total > 0 ? Math.round((seg.count / total) * 100) : 0
+          return (
+            <div key={seg.label} className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: seg.color }} />
+              <span className="text-[12px] text-muted capitalize flex-1">{seg.label.replace('_', ' ')}</span>
+              <span className="text-[13px] font-medium" style={{ color: seg.color }}>{seg.count}</span>
+              <span className="text-[11px] text-dim w-8 text-right">{pct}%</span>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 export default function OverviewPage() {
   const [projects, setProjects] = useState<any[]>([])
   const [tasks, setTasks] = useState<any[]>([])
@@ -68,7 +133,6 @@ export default function OverviewPage() {
 
   useEffect(() => { fetchData() }, [fetchData])
 
-  const activeProject = projects.find((p: any) => p.isActive)
   const running = agents.filter((a: any) => a.status === 'running').length
   const inProgress = tasks.filter((t: any) => t.stage === 'in_progress').length
   const done = tasks.filter((t: any) => t.stage === 'done').length
@@ -92,7 +156,7 @@ export default function OverviewPage() {
         <div className="p-6 pb-24 fade-up">
           <div className="mb-7">
             <h1 className="text-[15px] font-semibold text-text tracking-tight">Overview</h1>
-            <p className="text-[13px] text-muted mt-0.5">System status at a glance</p>
+            <p className="text-[13px] text-muted mt-0.5">ภาพรวมระบบ — projects, tasks, agents</p>
           </div>
 
           {error && <p className="text-danger text-[14px] mb-4">✕ {error}</p>}
@@ -129,17 +193,14 @@ export default function OverviewPage() {
 
               {/* Row 1: 5 stat cards */}
               <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-6">
-                {/* Active Project */}
+                {/* Projects */}
                 <div className="bg-surface border border-border rounded-lg p-4">
-                  <div className="text-[20px] font-semibold text-text leading-none truncate">
-                    {activeProject
-                      ? activeProject.name
-                      : <span className="text-dim text-[16px]">None</span>
-                    }
-                  </div>
-                  <div className="text-[13px] text-muted mt-1.5">Active project</div>
-                  {activeProject?.githubRepos?.length > 0 && (
-                    <div className="text-[12px] text-dim mt-1">{activeProject.githubRepos.length} repo{activeProject.githubRepos.length !== 1 ? 's' : ''}</div>
+                  <div className="text-2xl font-semibold text-text leading-none">{projects.length}</div>
+                  <div className="text-[13px] text-muted mt-1.5">Projects</div>
+                  {projects.length > 0 && (
+                    <div className="text-[12px] text-dim mt-1">
+                      {projects.reduce((sum: number, p: any) => sum + (p.githubRepos?.length ?? 0), 0)} repos linked
+                    </div>
                   )}
                 </div>
 
@@ -186,35 +247,18 @@ export default function OverviewPage() {
               <div className="grid grid-cols-1 lg:grid-cols-5 gap-3 mb-4">
                 {/* Task Pipeline */}
                 <div className="lg:col-span-3 bg-surface border border-border rounded-lg p-4">
-                  <div className="text-[12px] font-medium text-muted uppercase tracking-wider mb-3">Task Pipeline</div>
+                  <div className="text-[12px] font-medium text-muted uppercase tracking-wider mb-4">Task Pipeline</div>
 
-                  {/* Stage breakdown */}
-                  <div className="flex flex-col gap-2.5 mb-4">
-                    {(['backlog', 'in_progress', 'review', 'done'] as const).map((stage) => {
-                      const count = byStage(stage)
-                      const pct = tasks.length > 0 ? Math.round((count / tasks.length) * 100) : 0
-                      return (
-                        <div key={stage}>
-                          <div className="flex items-center justify-between mb-1">
-                            <div className="flex items-center gap-1.5">
-                              <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: STAGE_DOT[stage] }} />
-                              <span className="text-[13px] text-muted capitalize">{stage.replace('_', ' ')}</span>
-                            </div>
-                            <span className="text-[14px] font-medium" style={{ color: STAGE_COLOR[stage] }}>{count}</span>
-                          </div>
-                          <div className="h-1.5 bg-border rounded-full overflow-hidden">
-                            <div
-                              className="h-full rounded-full transition-all duration-500"
-                              style={{ width: `${pct}%`, backgroundColor: STAGE_DOT[stage] }}
-                            />
-                          </div>
-                        </div>
-                      )
-                    })}
-                  </div>
+                  <DonutChart
+                    segments={[
+                      { label: 'backlog',     count: byStage('backlog'),     color: '#6a7a8e' },
+                      { label: 'in_progress', count: byStage('in_progress'), color: '#f0883e' },
+                      { label: 'review',      count: byStage('review'),      color: '#d2a8ff' },
+                      { label: 'done',        count: byStage('done'),        color: '#3fb950' },
+                    ]}
+                  />
 
-                  {/* Priority breakdown */}
-                  <div className="border-t border-border pt-3">
+                  <div className="border-t border-border pt-3 mt-4">
                     <div className="text-[12px] font-medium text-muted uppercase tracking-wider mb-2.5">By Priority</div>
                     <div className="flex flex-col gap-2">
                       {(['urgent', 'high', 'medium', 'low'] as const).map((priority) => {
@@ -227,9 +271,12 @@ export default function OverviewPage() {
                                 <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: PRIORITY_DOT[priority] }} />
                                 <span className="text-[13px] text-muted capitalize">{priority}</span>
                               </div>
-                              <span className="text-[14px] font-medium" style={{ color: PRIORITY_DOT[priority] }}>{count}</span>
+                              <div className="flex items-center gap-2">
+                                <span className="text-[13px] font-medium" style={{ color: PRIORITY_DOT[priority] }}>{count}</span>
+                                <span className="text-[11px] text-dim w-8 text-right">{pct}%</span>
+                              </div>
                             </div>
-                            <div className="h-1.5 bg-border rounded-full overflow-hidden">
+                            <div className="h-2 bg-border rounded-full overflow-hidden">
                               <div
                                 className="h-full rounded-full transition-all duration-500"
                                 style={{ width: `${pct}%`, backgroundColor: PRIORITY_DOT[priority] }}
@@ -239,10 +286,6 @@ export default function OverviewPage() {
                         )
                       })}
                     </div>
-                  </div>
-
-                  <div className="mt-3 pt-2 border-t border-border text-[13px] text-muted">
-                    {tasks.length} total tasks
                   </div>
                 </div>
 
