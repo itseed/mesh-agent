@@ -24,17 +24,20 @@ function relTime(iso: string) {
 export default function AgentsPage() {
   const [agents, setAgents] = useState<any[]>([])
   const [history, setHistory] = useState<any[]>([])
+  const [roles, setRoles] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
   const fetchAgents = useCallback(async () => {
     try {
-      const [data, hist] = await Promise.all([
+      const [data, hist, roleList] = await Promise.all([
         api.agents.list(),
         api.agents.history(20),
+        api.agents.listRoles(),
       ])
       setAgents(data)
       setHistory(hist)
+      setRoles(roleList)
       setError('')
     } catch (e: any) {
       setError(e.message)
@@ -107,15 +110,15 @@ export default function AgentsPage() {
             <p className="text-muted text-[14px]"><span className="cursor-blink">▋</span> Loading…</p>
           ) : error ? (
             <p className="text-danger text-[14px]">✕ {error}</p>
-          ) : agents.length === 0 ? (
-            <>
-              <p className="text-[14px] text-muted">ยังไม่มี agent ทำงานอยู่</p>
-              <p className="text-[13px] text-dim mt-1">เปิด task ใน Kanban → กด Analyze → Approve แผน เพื่อเริ่ม dispatch agents</p>
-              {historySection}
-            </>
           ) : (
             <>
-              <AgentGrid agents={agents} />
+              {agents.length === 0 && (
+                <div className="mb-4">
+                  <p className="text-[14px] text-muted">ยังไม่มี agent ทำงานอยู่</p>
+                  <p className="text-[13px] text-dim mt-1">เปิด task ใน Kanban → กด Analyze → Approve แผน เพื่อเริ่ม dispatch agents</p>
+                </div>
+              )}
+              <AgentGrid agents={agents} roles={roles} />
               {historySection}
             </>
           )}
