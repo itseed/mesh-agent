@@ -35,7 +35,7 @@ describe('api client', () => {
     await api.auth.login('a@b.c', 'pw123456')
     const call = fetchMock.mock.calls[0]
     expect(call[1].method).toBe('POST')
-    expect(call[1].body).toBe(JSON.stringify({ email: 'a@b.c', password: 'pw123456' }))
+    expect(call[1].body).toBe(JSON.stringify({ email: 'a@b.c', password: 'pw123456', remember: false }))
     expect(call[1].headers).toMatchObject({ 'Content-Type': 'application/json' })
   })
 
