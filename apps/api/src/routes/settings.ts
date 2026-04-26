@@ -48,6 +48,8 @@ export async function settingsRoutes(fastify: FastifyInstance) {
         ? 'env'
         : 'default'
 
+    const reposBaseDir = (await fastify.redis.get('settings:repos:base-dir')) ?? null
+
     return {
       github: {
         connected: !!user,
@@ -59,6 +61,7 @@ export async function settingsRoutes(fastify: FastifyInstance) {
         cmd: effectiveCmd,
         source: cliSource,
       },
+      reposBaseDir,
     }
   })
 
@@ -71,6 +74,18 @@ export async function settingsRoutes(fastify: FastifyInstance) {
 
   fastify.delete('/settings/claude/cmd', { preHandler }, async (_, reply) => {
     await fastify.redis.del('settings:claude:cmd')
+    return { ok: true }
+  })
+
+  fastify.post('/settings/repos-base-dir', { preHandler }, async (request, reply) => {
+    const { dir } = z.object({ dir: z.string().min(1).max(1024) }).parse(request.body)
+    await fastify.redis.set('settings:repos:base-dir', dir)
+    await logAudit(fastify, request, { action: 'settings.repos.base-dir.saved', target: dir })
+    return { ok: true }
+  })
+
+  fastify.delete('/settings/repos-base-dir', { preHandler }, async (_, reply) => {
+    await fastify.redis.del('settings:repos:base-dir')
     return { ok: true }
   })
 
