@@ -32,8 +32,22 @@ interface Attachment {
   preview: string // data URL
 }
 
+interface TextFile {
+  id: string
+  name: string
+  ext: string
+  content: string
+}
+
 const MAX_ATTACHMENTS = 4
 const MAX_FILE_BYTES = 4 * 1024 * 1024 // 4MB per image
+const MAX_TEXT_FILES = 4
+const MAX_TEXT_BYTES = 50 * 1024 // 50KB per text file
+const TEXT_EXTS = new Set([
+  '.ts', '.tsx', '.js', '.jsx', '.mjs', '.json', '.md', '.py', '.go', '.rs',
+  '.sh', '.yaml', '.yml', '.toml', '.env', '.txt', '.css', '.html', '.sql',
+  '.xml', '.graphql', '.prisma', '.csv',
+])
 
 function readAsBase64(file: File): Promise<{ data: string; preview: string }> {
   return new Promise((resolve, reject) => {
@@ -49,12 +63,22 @@ function readAsBase64(file: File): Promise<{ data: string; preview: string }> {
   })
 }
 
+function readAsText(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(reader.result as string)
+    reader.onerror = () => reject(reader.error)
+    reader.readAsText(file)
+  })
+}
+
 export function CommandBar() {
   const pathname = usePathname()
   const [open, setOpen] = useState(false)
   const [history, setHistory] = useState<ChatMessage[]>([])
   const [message, setMessage] = useState('')
   const [attachments, setAttachments] = useState<Attachment[]>([])
+  const [textFiles, setTextFiles] = useState<TextFile[]>([])
   const [sending, setSending] = useState(false)
   const [error, setError] = useState('')
   const [unread, setUnread] = useState(0)
@@ -102,32 +126,34 @@ export function CommandBar() {
   async function handleFiles(files: FileList | null) {
     if (!files || files.length === 0) return
     setError('')
-    const remaining = MAX_ATTACHMENTS - attachments.length
-    const list = Array.from(files).slice(0, remaining)
-    const next: Attachment[] = []
-    for (const f of list) {
-      if (!f.type.startsWith('image/')) {
-        setError(`${f.name}: รองรับเฉพาะรูปภาพ`)
-        continue
-      }
-      if (f.size > MAX_FILE_BYTES) {
-        setError(`${f.name}: ใหญ่เกิน 4MB`)
-        continue
-      }
-      try {
-        const { data, preview } = await readAsBase64(f)
-        next.push({
-          id: `${Date.now()}-${f.name}`,
-          name: f.name,
-          mimeType: f.type,
-          data,
-          preview,
-        })
-      } catch {
-        setError(`${f.name}: อ่านไฟล์ไม่ได้`)
+    const nextAttachments: Attachment[] = []
+    const nextTextFiles: TextFile[] = []
+    for (const f of Array.from(files)) {
+      const ext = '.' + f.name.split('.').pop()!.toLowerCase()
+      const isImage = f.type.startsWith('image/')
+      const isPdf = f.type === 'application/pdf'
+      const isText = TEXT_EXTS.has(ext) || f.type.startsWith('text/')
+
+      if (isImage || isPdf) {
+        if (attachments.length + nextAttachments.length >= MAX_ATTACHMENTS) continue
+        if (f.size > MAX_FILE_BYTES) { setError(`${f.name}: ใหญ่เกิน 4MB`); continue }
+        try {
+          const { data, preview } = await readAsBase64(f)
+          nextAttachments.push({ id: `${Date.now()}-${f.name}`, name: f.name, mimeType: f.type, data, preview })
+        } catch { setError(`${f.name}: อ่านไฟล์ไม่ได้`) }
+      } else if (isText) {
+        if (textFiles.length + nextTextFiles.length >= MAX_TEXT_FILES) continue
+        if (f.size > MAX_TEXT_BYTES) { setError(`${f.name}: ใหญ่เกิน 50KB`); continue }
+        try {
+          const content = await readAsText(f)
+          nextTextFiles.push({ id: `${Date.now()}-${f.name}`, name: f.name, ext, content })
+        } catch { setError(`${f.name}: อ่านไฟล์ไม่ได้`) }
+      } else {
+        setError(`${f.name}: ไม่รองรับประเภทไฟล์นี้`)
       }
     }
-    setAttachments((prev) => [...prev, ...next])
+    if (nextAttachments.length > 0) setAttachments((prev) => [...prev, ...nextAttachments])
+    if (nextTextFiles.length > 0) setTextFiles((prev) => [...prev, ...nextTextFiles])
   }
 
   function removeAttachment(id: string) {
@@ -135,11 +161,18 @@ export function CommandBar() {
   }
 
   async function send() {
-    if (!message.trim() && attachments.length === 0) return
+    if (!message.trim() && attachments.length === 0 && textFiles.length === 0) return
     setSending(true)
     setError('')
+    const fileBlocks = textFiles.map((f) => {
+      const lang = f.ext.replace('.', '')
+      return `\`\`\`${lang}\n// ${f.name}\n${f.content}\n\`\`\``
+    })
+    const fullMessage = fileBlocks.length > 0
+      ? fileBlocks.join('\n\n') + (message.trim() ? '\n\n' + message.trim() : '')
+      : (message.trim() || '(แนบไฟล์อย่างเดียว)')
     const payload = {
-      message: message.trim() || '(แนบรูปอย่างเดียว)',
+      message: fullMessage,
       images: attachments.map((a) => ({
         name: a.name,
         mimeType: a.mimeType,
@@ -147,11 +180,10 @@ export function CommandBar() {
       })),
     }
     try {
-      // The server publishes the messages via the chat WebSocket stream,
-      // so we don't manually append here — useChatStream will receive them.
       await api.chat.send(payload)
       setMessage('')
       setAttachments([])
+      setTextFiles([])
     } catch (e: any) {
       setError(e.message ?? 'ส่งไม่สำเร็จ')
     } finally {
@@ -251,17 +283,42 @@ export function CommandBar() {
           </div>
 
           {/* Attachments preview */}
-          {attachments.length > 0 && (
-            <div className="px-3 py-2 border-t border-border flex gap-2 overflow-x-auto">
+          {(attachments.length > 0 || textFiles.length > 0) && (
+            <div className="px-3 py-2 border-t border-border flex flex-wrap gap-2">
               {attachments.map((a) => (
                 <div key={a.id} className="relative shrink-0">
-                  <img
-                    src={a.preview}
-                    alt={a.name}
-                    className="w-14 h-14 object-cover rounded border border-border"
-                  />
+                  {a.mimeType === 'application/pdf' ? (
+                    <div className="h-14 flex items-center gap-1.5 bg-canvas border border-border rounded px-2.5 text-[12px] text-muted max-w-[140px]">
+                      <span>📄</span>
+                      <span className="truncate">{a.name}</span>
+                    </div>
+                  ) : (
+                    <img
+                      src={a.preview}
+                      alt={a.name}
+                      className="w-14 h-14 object-cover rounded border border-border"
+                    />
+                  )}
                   <button
                     onClick={() => removeAttachment(a.id)}
+                    className="absolute -top-1 -right-1 bg-canvas border border-border rounded-full w-5 h-5 flex items-center justify-center text-[11px] text-muted hover:text-danger"
+                    title="ลบ"
+                  >
+                    ✕
+                  </button>
+                </div>
+              ))}
+              {textFiles.map((f) => (
+                <div key={f.id} className="relative shrink-0">
+                  <div className="h-14 flex items-center gap-1.5 bg-canvas border border-border rounded px-2.5 text-[12px] text-muted max-w-[160px]">
+                    <span>📝</span>
+                    <div className="min-w-0">
+                      <div className="truncate text-text">{f.name}</div>
+                      <div className="text-dim">{f.content.split('\n').length} lines</div>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setTextFiles((prev) => prev.filter((t) => t.id !== f.id))}
                     className="absolute -top-1 -right-1 bg-canvas border border-border rounded-full w-5 h-5 flex items-center justify-center text-[11px] text-muted hover:text-danger"
                     title="ลบ"
                   >
@@ -282,7 +339,7 @@ export function CommandBar() {
             <input
               ref={fileInputRef}
               type="file"
-              accept="image/*"
+              accept="image/*,.pdf,.ts,.tsx,.js,.jsx,.mjs,.json,.md,.txt,.py,.go,.rs,.sh,.yaml,.yml,.toml,.env,.css,.html,.sql,.xml,.graphql,.prisma,.csv"
               multiple
               hidden
               onChange={(e) => {
@@ -292,9 +349,9 @@ export function CommandBar() {
             />
             <button
               onClick={() => fileInputRef.current?.click()}
-              disabled={attachments.length >= MAX_ATTACHMENTS}
+              disabled={attachments.length >= MAX_ATTACHMENTS && textFiles.length >= MAX_TEXT_FILES}
               className="text-muted hover:text-accent disabled:opacity-30 disabled:cursor-not-allowed transition-colors p-2"
-              title={`แนบรูป (สูงสุด ${MAX_ATTACHMENTS} ไฟล์)`}
+              title="แนบไฟล์ — รูป, PDF, โค้ด"
             >
               <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
                 <path d="M14.5 7.5l-7.42 7.42a4.5 4.5 0 0 1-6.36-6.36L7.5 1.78a3 3 0 1 1 4.24 4.24l-6.78 6.78a1.5 1.5 0 1 1-2.12-2.12L8.7 5.6"
@@ -317,7 +374,7 @@ export function CommandBar() {
             />
             <button
               onClick={send}
-              disabled={sending || (!message.trim() && attachments.length === 0)}
+              disabled={sending || (!message.trim() && attachments.length === 0 && textFiles.length === 0)}
               className="bg-accent/90 hover:bg-accent text-canvas text-[13px] font-semibold px-3 py-2 rounded transition-colors disabled:opacity-40 shrink-0"
             >
               {sending ? '…' : 'ส่ง'}
