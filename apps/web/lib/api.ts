@@ -136,7 +136,17 @@ export const api = {
           oauthEnabled: boolean
           user: { login: string; avatarUrl?: string } | null
         }
+        cli?: { cmd: string; source: string }
       }>('/settings'),
+    saveCliCmd: (cmd: string) =>
+      request<{ ok: boolean }>('/settings/claude/cmd', {
+        method: 'POST',
+        body: JSON.stringify({ cmd }),
+      }),
+    resetCliCmd: () =>
+      request<{ ok: boolean }>('/settings/claude/cmd', { method: 'DELETE' }),
+    testCli: () =>
+      request<{ ok: boolean; version?: string; error?: string; cmd: string }>('/settings/claude/test'),
     saveToken: (ghToken: string) =>
       request<{ ok: boolean; user: { login: string; avatarUrl?: string } }>(
         '/settings/github/token',

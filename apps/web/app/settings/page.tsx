@@ -24,6 +24,8 @@ export default function SettingsPage() {
 
 function SettingsPageInner() {
   const searchParams = useSearchParams()
+  const [activeTab, setActiveTab] = useState<'cli' | 'skills' | 'github'>('cli')
+
   const [status, setStatus] = useState<GhStatus | null>(null)
   const [tokenInput, setTokenInput] = useState('')
   const [saving, setSaving] = useState(false)
@@ -38,6 +40,16 @@ function SettingsPageInner() {
   const [submittingRole, setSubmittingRole] = useState(false)
   const [deletingSlug, setDeletingSlug] = useState<string | null>(null)
 
+  // Claude CLI tab state
+  const [cliCmd, setCliCmd] = useState('claude')
+  const [cliCmdInput, setCliCmdInput] = useState('')
+  const [cliSource, setCliSource] = useState('default')
+  const [cliSaving, setCliSaving] = useState(false)
+  const [cliTesting, setCliTesting] = useState(false)
+  const [cliTestResult, setCliTestResult] = useState<{ ok: boolean; version?: string; error?: string; cmd: string } | null>(null)
+  const [cliInfo, setCliInfo] = useState('')
+  const [cliError, setCliError] = useState('')
+
   const refresh = useCallback(async () => {
     try {
       const [s, , r] = await Promise.all([
@@ -46,6 +58,8 @@ function SettingsPageInner() {
         api.agents.listRoles(),
       ])
       setStatus(s.github)
+      setCliCmd(s.cli?.cmd ?? 'claude')
+      setCliSource(s.cli?.source ?? 'default')
       setRoles(r)
       setError('')
     } catch (e: any) {
@@ -96,6 +110,37 @@ function SettingsPageInner() {
     }
   }
 
+  async function saveCliCmd() {
+    if (!cliCmdInput.trim()) return
+    setCliSaving(true)
+    setCliError('')
+    try {
+      await api.settings.saveCliCmd(cliCmdInput.trim())
+      setCliInfo('บันทึกแล้ว — restart orchestrator เพื่อให้มีผล')
+      setCliCmdInput('')
+      await refresh()
+    } catch (e: any) { setCliError(e.message) }
+    finally { setCliSaving(false) }
+  }
+
+  async function resetCliCmd() {
+    if (!confirm('Reset เป็น default (claude)?')) return
+    await api.settings.resetCliCmd()
+    setCliInfo('Reset แล้ว')
+    await refresh()
+  }
+
+  async function testCli() {
+    setCliTesting(true)
+    setCliTestResult(null)
+    setCliError('')
+    try {
+      const r = await api.settings.testCli()
+      setCliTestResult(r)
+    } catch (e: any) { setCliError(e.message) }
+    finally { setCliTesting(false) }
+  }
+
   async function submitRole(e: React.FormEvent) {
     e.preventDefault()
     setSubmittingRole(true)
@@ -140,9 +185,9 @@ function SettingsPageInner() {
     <AuthGuard>
       <AppShell>
         <div className="p-6 pb-32 fade-up max-w-3xl">
-          <div className="mb-6">
+          <div className="mb-4">
             <h1 className="text-[15px] font-semibold text-text tracking-tight">ตั้งค่า</h1>
-            <p className="text-[13px] text-muted mt-0.5">GitHub connection และ Agent Skills</p>
+            <p className="text-[13px] text-muted mt-0.5">Claude CLI · Agent Skills · GitHub</p>
           </div>
 
           {error && (
@@ -152,7 +197,96 @@ function SettingsPageInner() {
             <p className="text-success text-[13px] mb-3 bg-success/5 border border-success/20 rounded px-3 py-2">✓ {info}</p>
           )}
 
+          {/* Tab bar */}
+          <div className="flex gap-0 mb-6 border-b border-border">
+            {([['cli', 'Claude CLI'], ['skills', 'Agent Skills'], ['github', 'GitHub']] as const).map(([id, label]) => (
+              <button
+                key={id}
+                onClick={() => setActiveTab(id)}
+                className={`px-4 py-2.5 text-[13px] font-medium transition-colors border-b-2 -mb-px ${
+                  activeTab === id
+                    ? 'text-text border-accent'
+                    : 'text-muted border-transparent hover:text-text hover:border-border-hi'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
+          {/* Claude CLI tab */}
+          {activeTab === 'cli' && (
+            <section className="bg-surface border border-border rounded-lg p-5">
+              <div className="mb-4">
+                <h2 className="text-[14px] font-semibold text-text">Claude CLI</h2>
+                <p className="text-[13px] text-muted mt-0.5">path ไปยัง claude binary ที่ใช้รัน agent และ analyze</p>
+              </div>
+
+              <div className="mb-4 p-3 bg-canvas border border-border rounded-lg">
+                <div className="text-[11px] text-muted uppercase tracking-wider mb-1">Current command</div>
+                <div className="flex items-center gap-2">
+                  <code className="text-[14px] text-accent font-mono flex-1">{cliCmd}</code>
+                  <span className="text-[11px] px-1.5 py-0.5 rounded bg-surface-2 border border-border text-dim">{cliSource}</span>
+                </div>
+              </div>
+
+              <div className="mb-4">
+                <button
+                  onClick={testCli}
+                  disabled={cliTesting}
+                  className="text-[13px] bg-surface-2 hover:bg-canvas border border-border text-text px-4 py-2 rounded transition-colors disabled:opacity-40"
+                >
+                  {cliTesting ? '…' : '▶ ทดสอบ CLI'}
+                </button>
+                {cliTestResult && (
+                  <div className={`mt-2 p-3 rounded border text-[12px] font-mono ${
+                    cliTestResult.ok
+                      ? 'bg-success/5 border-success/20 text-success'
+                      : 'bg-danger/5 border-danger/20 text-danger'
+                  }`}>
+                    {cliTestResult.ok ? cliTestResult.version : cliTestResult.error}
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-[12px] text-muted uppercase tracking-wider mb-1.5">เปลี่ยน path</label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={cliCmdInput}
+                    onChange={e => setCliCmdInput(e.target.value)}
+                    placeholder="/usr/local/bin/claude หรือ claude"
+                    className={inputCls}
+                  />
+                  <button
+                    onClick={saveCliCmd}
+                    disabled={cliSaving || !cliCmdInput.trim()}
+                    className="bg-accent/90 hover:bg-accent text-canvas text-[14px] font-semibold px-4 py-2 rounded transition-colors disabled:opacity-40 shrink-0"
+                  >
+                    {cliSaving ? '…' : 'บันทึก'}
+                  </button>
+                </div>
+                {cliSource === 'override' && (
+                  <button onClick={resetCliCmd} className="text-[12px] text-muted hover:text-danger mt-1.5 transition-colors">
+                    Reset เป็น default
+                  </button>
+                )}
+                <p className="text-[12px] text-dim mt-2">
+                  ต้องรัน <code className="font-mono text-muted">claude auth login</code> บน server ก่อน 1 ครั้ง เพื่อ authenticate
+                </p>
+                <p className="text-[12px] text-dim mt-1">
+                  หลังเปลี่ยน path ต้อง restart orchestrator เพื่อให้ agent sessions ใช้ค่าใหม่
+                </p>
+              </div>
+
+              {cliInfo && <p className="text-success text-[12px] mt-3 bg-success/5 border border-success/20 rounded px-3 py-2">✓ {cliInfo}</p>}
+              {cliError && <p className="text-danger text-[12px] mt-3 bg-danger/5 border border-danger/20 rounded px-3 py-2">✕ {cliError}</p>}
+            </section>
+          )}
+
           {/* GitHub connection */}
+          {activeTab === 'github' && (
           <section className="bg-surface border border-border rounded-lg p-5 mb-5">
             <div className="flex items-start justify-between mb-4 gap-3">
               <div>
@@ -237,8 +371,10 @@ function SettingsPageInner() {
               </div>
             )}
           </section>
+          )}
 
           {/* Agent Skills */}
+          {activeTab === 'skills' && (
           <section className="bg-surface border border-border rounded-lg p-5">
             <div className="flex items-start justify-between mb-4">
               <div>
@@ -327,6 +463,7 @@ function SettingsPageInner() {
               ))}
             </div>
           </section>
+          )}
         </div>
 
         {/* Role form modal */}
