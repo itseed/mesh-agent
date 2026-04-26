@@ -33,6 +33,41 @@ const PRIORITY_TEXT: Record<string, string> = {
   low:    '#6a7a8e',
 }
 
+interface ReviewIssue { title: string; severity: 'critical' | 'high' | 'medium' | 'low' }
+
+const SEVERITY_STYLE: Record<string, { bg: string; text: string }> = {
+  critical: { bg: 'rgba(248,113,113,0.15)', text: '#f87171' },
+  high:     { bg: 'rgba(251,146,60,0.15)',  text: '#fb923c' },
+  medium:   { bg: 'rgba(251,191,36,0.15)',  text: '#fbbf24' },
+  low:      { bg: 'rgba(107,114,128,0.15)', text: '#9ca3af' },
+}
+
+function parseReviewIssues(commentBody: string): ReviewIssue[] {
+  const issues: ReviewIssue[] = []
+  const summaryLine =
+    commentBody.match(/\*\*สรุป:\*\*\s*(.+)/)?.[1] ??
+    commentBody.match(/summary:\s*(.+)/i)?.[1] ?? ''
+
+  const groups: Array<{ re: RegExp; severity: ReviewIssue['severity'] }> = [
+    { re: /CRITICAL\s+\d+\s+จุด\s*\(([^)]+)\)/i, severity: 'critical' },
+    { re: /HIGH\s+\d+\s+จุด\s*\(([^)]+)\)/i,     severity: 'high' },
+    { re: /MEDIUM\s+\d+\s+จุด\s*\(([^)]+)\)/i,   severity: 'medium' },
+    { re: /LOW\s+\d+\s+จุด\s*\(([^)]+)\)/i,      severity: 'low' },
+  ]
+  for (const { re, severity } of groups) {
+    const m = summaryLine.match(re)
+    if (m) m[1].split(',').map(s => s.trim()).filter(Boolean).forEach(title => issues.push({ title, severity }))
+  }
+
+  // Fallback: **N. title** numbered items from outputLog excerpt
+  if (issues.length === 0) {
+    for (const m of commentBody.matchAll(/\*\*\d+\.\s*`?([^`*\n]{3,80})`?\*\*/g))
+      issues.push({ title: m[1].trim(), severity: 'medium' })
+  }
+
+  return issues
+}
+
 const STAGE_COLORS: Record<string, string> = {
   backlog: '#6a7a8e',
   in_progress: '#f0883e',
@@ -69,6 +104,10 @@ export function TaskDetailPanel({ task, allTasks, onClose, onUpdate, onDelete }:
   const [uploading, setUploading] = useState(false)
   const [uploadError, setUploadError] = useState('')
   const [selectedSubtask, setSelectedSubtask] = useState<any | null>(null)
+  const [fixCommentId, setFixCommentId] = useState<string | null>(null)
+  const [reviewIssues, setReviewIssues] = useState<ReviewIssue[]>([])
+  const [selectedIssues, setSelectedIssues] = useState<Set<number>>(new Set())
+  const [fixingIssues, setFixingIssues] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -193,6 +232,35 @@ export function TaskDetailPanel({ task, allTasks, onClose, onUpdate, onDelete }:
     } finally {
       setUploading(false)
       if (fileInputRef.current) fileInputRef.current.value = ''
+    }
+  }
+
+  function openFixPanel(commentId: string, issues: ReviewIssue[]) {
+    setFixCommentId(commentId)
+    setReviewIssues(issues)
+    setSelectedIssues(new Set(issues.map((_, i) => i)))
+  }
+
+  function toggleIssue(idx: number) {
+    setSelectedIssues(prev => {
+      const next = new Set(prev)
+      if (next.has(idx)) next.delete(idx); else next.add(idx)
+      return next
+    })
+  }
+
+  async function confirmFix() {
+    if (selectedIssues.size === 0) return
+    setFixingIssues(true)
+    try {
+      const selected = reviewIssues.filter((_, i) => selectedIssues.has(i))
+      await api.tasks.fixIssues(task.id, selected)
+      setFixCommentId(null)
+      setSelectedIssues(new Set())
+      setTab('subtasks')
+      onUpdate()
+    } catch {} finally {
+      setFixingIssues(false)
     }
   }
 
@@ -439,10 +507,83 @@ export function TaskDetailPanel({ task, allTasks, onClose, onUpdate, onDelete }:
                   {c.source === 'lead' && (
                     <div className="text-[11px] text-accent font-semibold mb-1 uppercase tracking-wide">Lead AI</div>
                   )}
-                  {c.source === 'agent' && (
-                    <div className="text-[11px] text-accent font-medium mb-1.5">🤖 Agent Summary</div>
+                  {c.source === 'agent' && (() => {
+                    const issues = parseReviewIssues(c.body)
+                    return (
+                      <>
+                        <div className="flex items-center justify-between mb-1.5">
+                          <div className="text-[11px] text-accent font-medium">🤖 Agent Summary</div>
+                          {issues.length > 0 && fixCommentId !== c.id && (
+                            <button
+                              onClick={() => openFixPanel(c.id, issues)}
+                              className="text-[11px] px-2 py-0.5 rounded border border-orange-400/30 text-orange-300 hover:bg-orange-400/10 transition-colors"
+                            >
+                              🔧 Fix Issues ({issues.length})
+                            </button>
+                          )}
+                        </div>
+                        <div className="text-[13px] text-text whitespace-pre-wrap">{c.body}</div>
+                        {fixCommentId === c.id && (
+                          <div className="mt-3 border border-orange-400/20 rounded-lg p-3 bg-orange-400/5">
+                            <div className="flex items-center justify-between mb-2">
+                              <div className="text-[12px] text-orange-300 font-semibold uppercase tracking-wide">เลือก Issues ที่ต้องการแก้</div>
+                              {issues.length > 1 && (
+                                <button
+                                  onClick={() => setSelectedIssues(selectedIssues.size === issues.length ? new Set() : new Set(issues.map((_, i) => i)))}
+                                  className="text-[11px] text-dim hover:text-muted"
+                                >
+                                  {selectedIssues.size === issues.length ? 'Deselect All' : 'Select All'}
+                                </button>
+                              )}
+                            </div>
+                            <div className="flex flex-col gap-1.5 mb-3">
+                              {issues.map((issue, idx) => (
+                                <label key={idx} className="flex items-center gap-2 cursor-pointer group">
+                                  <input
+                                    type="checkbox"
+                                    checked={selectedIssues.has(idx)}
+                                    onChange={() => toggleIssue(idx)}
+                                    className="shrink-0"
+                                  />
+                                  <span
+                                    className="text-[10px] px-1.5 py-0.5 rounded font-semibold uppercase shrink-0"
+                                    style={SEVERITY_STYLE[issue.severity]}
+                                  >
+                                    {issue.severity}
+                                  </span>
+                                  <span className="text-[13px] text-text group-hover:text-white transition-colors">{issue.title}</span>
+                                </label>
+                              ))}
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={confirmFix}
+                                disabled={selectedIssues.size === 0 || fixingIssues}
+                                className="bg-orange-400/15 hover:bg-orange-400/25 border border-orange-400/25 text-orange-300 text-[13px] px-3 py-1.5 rounded transition-all disabled:opacity-40"
+                              >
+                                {fixingIssues ? '…' : `✓ Create ${selectedIssues.size} Fix Task${selectedIssues.size !== 1 ? 's' : ''}`}
+                              </button>
+                              <button
+                                onClick={() => { setFixCommentId(null); setSelectedIssues(new Set()) }}
+                                className="text-muted text-[13px] hover:text-text"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </>
+                    )
+                  })()}
+                  {c.source === 'lead' && (
+                    <>
+                      <div className="text-[11px] text-accent font-semibold mb-1 uppercase tracking-wide">Lead AI</div>
+                      <div className="text-[13px] text-text whitespace-pre-wrap">{c.body}</div>
+                    </>
                   )}
-                  <div className="text-[13px] text-text whitespace-pre-wrap">{c.body}</div>
+                  {c.source === 'user' && (
+                    <div className="text-[13px] text-text whitespace-pre-wrap">{c.body}</div>
+                  )}
                   {c.createdAt && (
                     <div className="text-[11px] text-dim mt-2">{new Date(c.createdAt).toLocaleString()}</div>
                   )}

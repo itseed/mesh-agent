@@ -123,6 +123,73 @@ export async function taskRoutes(fastify: FastifyInstance) {
     reply.status(204).send()
   })
 
+  // Fix selected review issues → create subtasks + dispatch agents
+  const fixIssuesSchema = z.object({
+    issues: z.array(z.object({
+      title: z.string().min(1).max(512),
+      severity: z.enum(['critical', 'high', 'medium', 'low']).default('medium'),
+      role: z.string().optional(),
+    })).min(1).max(20),
+  })
+
+  fastify.post('/tasks/:id/fix-issues', { preHandler }, async (request, reply) => {
+    const { id } = request.params as { id: string }
+    const [task] = await fastify.db.select().from(tasks).where(eq(tasks.id, id)).limit(1)
+    if (!task) return reply.status(404).send({ error: 'Task not found' })
+
+    const { issues } = fixIssuesSchema.parse(request.body)
+    const userId = (request.user as { id: string }).id
+
+    let baseBranch = 'main'
+    let projectPaths: Record<string, string> = {}
+    if (task.projectId) {
+      const [proj] = await fastify.db.select().from(projects).where(eq(projects.id, task.projectId)).limit(1)
+      if (proj) {
+        baseBranch = proj.baseBranch ?? 'main'
+        projectPaths = (proj.paths as Record<string, string>) ?? {}
+      }
+    }
+
+    const branchSuffix = Date.now().toString(36)
+    const gitInstructions = buildGitInstructions(baseBranch, branchSuffix)
+    const fallbackDir = Object.values(projectPaths)[0] ?? '/tmp'
+
+    const created = []
+    for (const issue of issues) {
+      const role = issue.role ?? 'backend'
+      const agentWorkingDir = projectPaths[role] ?? fallbackDir
+
+      const [subtask] = await fastify.db.insert(tasks).values({
+        title: `[Fix] ${issue.title}`,
+        description: `แก้ไข ${issue.severity.toUpperCase()} issue จาก code review: ${issue.title}\n\nTask เดิม: ${task.title}`,
+        stage: 'in_progress',
+        priority: issue.severity === 'critical' ? 'urgent' : issue.severity === 'high' ? 'high' : 'medium',
+        agentRole: role,
+        projectId: task.projectId ?? null,
+        parentTaskId: id,
+      }).returning()
+
+      const prompt = `แก้ไข code issue ที่พบจาก review:
+
+**Issue:** ${issue.title}
+**Severity:** ${issue.severity.toUpperCase()}
+**Context:** ${task.title}${task.description ? `\n${task.description}` : ''}
+${gitInstructions}`
+
+      await dispatchAgent(role, agentWorkingDir, prompt, {
+        projectId: task.projectId ?? null,
+        taskId: subtask.id,
+        createdBy: userId,
+      })
+
+      await publishTaskEvent(fastify, 'task.created', { taskId: subtask.id, projectId: task.projectId })
+      created.push(subtask)
+    }
+
+    reply.status(201)
+    return { created }
+  })
+
   // Subtasks
   fastify.post('/tasks/:id/subtasks', { preHandler }, async (request, reply) => {
     const { id } = request.params as { id: string }

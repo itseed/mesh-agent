@@ -70,6 +70,8 @@ export const api = {
     subtasks: (id: string, allTasks: any[]) => allTasks.filter((t: any) => t.parentTaskId === id),
     createSubtask: (id: string, data: any) =>
       request<any>(`/tasks/${id}/subtasks`, { method: 'POST', body: JSON.stringify(data) }),
+    fixIssues: (id: string, issues: Array<{ title: string; severity: string; role?: string }>) =>
+      request<{ created: any[] }>(`/tasks/${id}/fix-issues`, { method: 'POST', body: JSON.stringify({ issues }) }),
     attachments: (taskId: string) =>
       request<any[]>(`/tasks/${taskId}/attachments`),
     createAttachment: (taskId: string, data: { fileName: string; fileSize: number; mimeType: string }) =>
