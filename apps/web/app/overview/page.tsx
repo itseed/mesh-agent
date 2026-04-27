@@ -259,113 +259,147 @@ export default function OverviewPage() {
                 </div>
               </div>
 
-              {/* Claude Usage */}
-              {metrics && (
-                <div className="bg-surface border border-border rounded-xl p-4 mb-6">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="text-[12px] font-medium text-muted uppercase tracking-wider">Claude Usage — 7 days</div>
-                    {totalSessions > 0 && (
-                      <span className="text-[12px] text-dim">{successRate}% success rate</span>
-                    )}
+              {/* AI Activity — unified card */}
+              {(metrics || tokenStats) && (
+                <div className="bg-surface border border-border rounded-xl mb-6 overflow-hidden">
+                  {/* Header */}
+                  <div className="flex items-center justify-between px-5 py-3 border-b border-border">
+                    <div className="flex items-center gap-2">
+                      <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse" />
+                      <span className="text-[12px] font-semibold text-muted uppercase tracking-wider">AI Activity</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="text-[11px] text-dim">7 days</span>
+                      {totalSessions > 0 && (
+                        <span className="text-[11px] px-2 py-0.5 rounded-full font-medium"
+                          style={{ backgroundColor: '#3fb95015', color: '#3fb950', border: '1px solid #3fb95030' }}>
+                          {successRate}% success
+                        </span>
+                      )}
+                    </div>
                   </div>
 
-                  {totalSessions === 0 ? (
-                    <p className="text-[13px] text-dim">ยังไม่มี session — dispatch agent เพื่อเริ่ม</p>
-                  ) : (
-                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
-                      <div>
-                        <div className="text-[22px] font-semibold text-text leading-none">{totalSessions}</div>
-                        <div className="text-[12px] text-muted mt-1">Sessions run</div>
-                      </div>
-                      <div>
-                        <div className="text-[22px] font-semibold leading-none" style={{ color: '#3fb950' }}>{successSessions}</div>
-                        <div className="text-[12px] text-muted mt-1">Completed</div>
-                      </div>
-                      <div>
-                        <div className="text-[22px] font-semibold text-text leading-none">
-                          {totalAvgMs > 60000
-                            ? `${(totalAvgMs / 60000).toFixed(1)}m`
-                            : `${(totalAvgMs / 1000).toFixed(0)}s`}
-                        </div>
-                        <div className="text-[12px] text-muted mt-1">Avg duration</div>
-                      </div>
-                      <div>
-                        <div className="text-[22px] font-semibold text-text leading-none truncate">
-                          {topRole ? topRole.role : '—'}
-                        </div>
-                        <div className="text-[12px] text-muted mt-1">Most active</div>
-                      </div>
-                    </div>
-                  )}
+                  <div className="grid grid-cols-1 lg:grid-cols-5 divide-y lg:divide-y-0 lg:divide-x divide-border">
+                    {/* Left: agent session stats + role breakdown */}
+                    <div className="lg:col-span-3 p-5">
+                      {totalSessions === 0 ? (
+                        <p className="text-[13px] text-dim">ยังไม่มี session — dispatch agent เพื่อเริ่ม</p>
+                      ) : (
+                        <>
+                          <div className="grid grid-cols-4 gap-3 mb-5">
+                            {[
+                              { label: 'Sessions', value: String(totalSessions), color: 'var(--color-text)' },
+                              { label: 'Completed', value: String(successSessions), color: '#3fb950' },
+                              {
+                                label: 'Avg time',
+                                value: totalAvgMs > 60000
+                                  ? `${(totalAvgMs / 60000).toFixed(1)}m`
+                                  : `${(totalAvgMs / 1000).toFixed(0)}s`,
+                                color: 'var(--color-text)',
+                              },
+                              { label: 'Top role', value: topRole?.role ?? '—', color: topRole ? (ROLE_DOT[topRole.role] ?? '#6a7a8e') : '#6a7a8e' },
+                            ].map(({ label, value, color }) => (
+                              <div key={label} className="bg-canvas rounded-lg px-3 py-2.5 border border-border">
+                                <div className="text-[18px] font-semibold leading-none truncate" style={{ color }}>{value}</div>
+                                <div className="text-[11px] text-dim mt-1.5">{label}</div>
+                              </div>
+                            ))}
+                          </div>
 
-                  {perRole.length > 0 && (
-                    <div className="flex flex-col gap-2 border-t border-border pt-3">
-                      {[...perRole].sort((a, b) => b.count - a.count).map((r) => {
-                        const pct = totalSessions > 0 ? Math.round((r.count / totalSessions) * 100) : 0
-                        return (
-                          <div key={r.role}>
-                            <div className="flex items-center justify-between mb-1">
-                              <span className="text-[12px] text-muted font-mono">{r.role}</span>
-                              <div className="flex items-center gap-2">
-                                <span className="text-[12px] text-dim">{r.count} sessions</span>
-                                <span className="text-[11px] text-dim w-8 text-right">{pct}%</span>
+                          {perRole.length > 0 && (
+                            <div className="flex flex-col gap-2.5">
+                              {[...perRole].sort((a, b) => b.count - a.count).map((r) => {
+                                const pct = totalSessions > 0 ? Math.round((r.count / totalSessions) * 100) : 0
+                                const color = ROLE_DOT[r.role] ?? '#6a7a8e'
+                                return (
+                                  <div key={r.role}>
+                                    <div className="flex items-center justify-between mb-1">
+                                      <div className="flex items-center gap-1.5">
+                                        <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: color }} />
+                                        <span className="text-[12px] text-muted">{r.role}</span>
+                                      </div>
+                                      <div className="flex items-center gap-2.5">
+                                        <span className="text-[11px] text-dim">{r.count} sessions</span>
+                                        <span className="text-[11px] font-medium w-7 text-right" style={{ color }}>{pct}%</span>
+                                      </div>
+                                    </div>
+                                    <div className="h-1 bg-border rounded-full overflow-hidden">
+                                      <div
+                                        className="h-full rounded-full transition-all duration-700"
+                                        style={{ width: `${pct}%`, backgroundColor: color, opacity: 0.75 }}
+                                      />
+                                    </div>
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </div>
+
+                    {/* Right: Lead token stats */}
+                    <div className="lg:col-span-2 p-5 flex flex-col">
+                      <div className="text-[11px] font-semibold text-dim uppercase tracking-wider mb-4">Lead AI — tokens (all time)</div>
+                      {tokenStats && tokenStats.totalTokens > 0 ? (
+                        <>
+                          <div className="flex-1 flex flex-col gap-3">
+                            {/* Total tokens — primary */}
+                            <div className="bg-canvas rounded-lg border border-border px-4 py-3">
+                              <div className="text-[28px] font-bold text-text leading-none">
+                                {tokenStats.totalTokens >= 1000000
+                                  ? `${(tokenStats.totalTokens / 1000000).toFixed(2)}M`
+                                  : tokenStats.totalTokens >= 1000
+                                  ? `${(tokenStats.totalTokens / 1000).toFixed(1)}K`
+                                  : String(tokenStats.totalTokens)}
+                              </div>
+                              <div className="text-[11px] text-muted mt-1">Total tokens used</div>
+                              {/* input/output mini bars */}
+                              <div className="mt-3 flex gap-1.5 h-1 rounded-full overflow-hidden">
+                                <div
+                                  className="rounded-l-full bg-accent/50"
+                                  style={{ flex: tokenStats.inputTokens }}
+                                />
+                                <div
+                                  className="rounded-r-full"
+                                  style={{ flex: tokenStats.outputTokens, backgroundColor: '#3fb95070' }}
+                                />
+                              </div>
+                              <div className="flex items-center gap-3 mt-1.5">
+                                <div className="flex items-center gap-1">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-accent/50" />
+                                  <span className="text-[10px] text-dim">
+                                    In: {tokenStats.inputTokens >= 1000 ? `${(tokenStats.inputTokens / 1000).toFixed(1)}K` : tokenStats.inputTokens}
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-1">
+                                  <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: '#3fb95070' }} />
+                                  <span className="text-[10px] text-dim">
+                                    Out: {tokenStats.outputTokens >= 1000 ? `${(tokenStats.outputTokens / 1000).toFixed(1)}K` : tokenStats.outputTokens}
+                                  </span>
+                                </div>
                               </div>
                             </div>
-                            <div className="h-1.5 bg-border rounded-full overflow-hidden">
-                              <div
-                                className="h-full rounded-full transition-all duration-500 bg-accent/60"
-                                style={{ width: `${pct}%` }}
-                              />
+
+                            {/* Cost */}
+                            <div className="bg-canvas rounded-lg border border-border px-4 py-3 flex items-center justify-between">
+                              <div>
+                                <div className="text-[22px] font-semibold leading-none" style={{ color: '#facc15' }}>
+                                  ${tokenStats.costUsd < 0.001 && tokenStats.costUsd > 0
+                                    ? tokenStats.costUsd.toFixed(5)
+                                    : tokenStats.costUsd.toFixed(4)}
+                                </div>
+                                <div className="text-[11px] text-muted mt-1">Lead cost (USD)</div>
+                              </div>
+                              <div className="text-[24px] opacity-20 select-none">$</div>
                             </div>
                           </div>
-                        )
-                      })}
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Token Stats */}
-              {tokenStats && (
-                <div className="bg-surface border border-border rounded-xl p-4 mb-6">
-                  <div className="text-[12px] font-medium text-muted uppercase tracking-wider mb-4">Lead AI — Token Usage (All Time)</div>
-                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                    <div>
-                      <div className="text-[22px] font-semibold text-text leading-none">
-                        {tokenStats.totalTokens >= 1000000
-                          ? `${(tokenStats.totalTokens / 1000000).toFixed(1)}M`
-                          : tokenStats.totalTokens >= 1000
-                          ? `${(tokenStats.totalTokens / 1000).toFixed(1)}K`
-                          : String(tokenStats.totalTokens)}
-                      </div>
-                      <div className="text-[12px] text-muted mt-1">Total tokens</div>
-                    </div>
-                    <div>
-                      <div className="text-[22px] font-semibold text-text leading-none">
-                        {tokenStats.inputTokens >= 1000
-                          ? `${(tokenStats.inputTokens / 1000).toFixed(1)}K`
-                          : String(tokenStats.inputTokens)}
-                      </div>
-                      <div className="text-[12px] text-muted mt-1">Input tokens</div>
-                    </div>
-                    <div>
-                      <div className="text-[22px] font-semibold text-text leading-none">
-                        {tokenStats.outputTokens >= 1000
-                          ? `${(tokenStats.outputTokens / 1000).toFixed(1)}K`
-                          : String(tokenStats.outputTokens)}
-                      </div>
-                      <div className="text-[12px] text-muted mt-1">Output tokens</div>
-                    </div>
-                    <div>
-                      <div className="text-[22px] font-semibold leading-none" style={{ color: '#facc15' }}>
-                        ${tokenStats.costUsd.toFixed(4)}
-                      </div>
-                      <div className="text-[12px] text-muted mt-1">Lead cost (USD)</div>
+                        </>
+                      ) : (
+                        <p className="text-[13px] text-dim">ยังไม่มีข้อมูล — เริ่มส่งข้อความใน Chat</p>
+                      )}
                     </div>
                   </div>
-                  {tokenStats.totalTokens === 0 && (
-                    <p className="text-[13px] text-dim mt-2">ยังไม่มีข้อมูล — เริ่มส่งข้อความใน Chat เพื่อเริ่มนับ</p>
-                  )}
                 </div>
               )}
 
