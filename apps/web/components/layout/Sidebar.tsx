@@ -102,6 +102,19 @@ export function Sidebar() {
         })}
       </nav>
 
+      {/* Buy Me a Coffee */}
+      <div className="px-2 pb-2 hidden lg:block">
+        <a
+          href="https://www.buymeacoffee.com/chaykr"
+          target="_blank"
+          rel="noreferrer"
+          className="flex items-center gap-2 px-2.5 py-2 rounded border border-[#FFDD00]/20 hover:border-[#FFDD00]/50 hover:bg-[#FFDD00]/5 transition-all group"
+        >
+          <span className="text-[16px] shrink-0">☕</span>
+          <span className="text-[12px] text-muted group-hover:text-[#FFDD00] transition-colors leading-tight">Buy me a coffee</span>
+        </a>
+      </div>
+
       {/* User info + sign out */}
       <div className="p-2 border-t border-border">
         {user && (
