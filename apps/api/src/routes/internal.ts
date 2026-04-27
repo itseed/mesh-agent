@@ -134,7 +134,7 @@ export async function internalRoutes(fastify: FastifyInstance) {
     if (taskId) {
       await fastify.db
         .update(tasks)
-        .set({ stage, updatedAt: new Date() })
+        .set({ stage, githubPrUrl: prUrl ?? null, updatedAt: new Date() })
         .where(eq(tasks.id, taskId))
 
       const commentBody = [

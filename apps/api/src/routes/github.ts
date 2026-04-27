@@ -1,9 +1,13 @@
 import { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 import { createHmac, timingSafeEqual } from 'node:crypto'
+import { eq, and } from 'drizzle-orm'
+import { tasks } from '@meshagent/shared'
 import { resolveGitHubClient, parseRepo } from '../lib/github-client.js'
 import { env, isProd } from '../env.js'
 import { logAudit } from '../lib/audit.js'
+
+const TASKS_CHANNEL = 'tasks:events'
 
 const repoSchema = z.object({ repo: z.string() })
 
@@ -212,6 +216,30 @@ export async function githubRoutes(fastify: FastifyInstance) {
     request.log.info({ event, action: payload?.action }, 'GitHub webhook received')
 
     await fastify.redis.publish('github:events', JSON.stringify({ event, payload }))
+
+    // PR merged → find matching task and move to done
+    if (event === 'pull_request' && payload?.action === 'closed' && payload?.pull_request?.merged === true) {
+      const prUrl: string = payload.pull_request.html_url
+      const matched = await fastify.db
+        .select({ id: tasks.id, projectId: tasks.projectId })
+        .from(tasks)
+        .where(and(eq(tasks.githubPrUrl, prUrl), eq(tasks.stage, 'review')))
+
+      if (matched.length > 0) {
+        await Promise.all(matched.map(async (t) => {
+          await fastify.db
+            .update(tasks)
+            .set({ stage: 'done', updatedAt: new Date() })
+            .where(eq(tasks.id, t.id))
+          await fastify.redis.publish(
+            TASKS_CHANNEL,
+            JSON.stringify({ type: 'task.stage', taskId: t.id, stage: 'done', projectId: t.projectId }),
+          )
+          request.log.info({ taskId: t.id, prUrl }, 'Task auto-closed via PR merge')
+        }))
+      }
+    }
+
     return reply.status(200).send({ ok: true })
   })
 }
