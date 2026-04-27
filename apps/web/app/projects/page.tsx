@@ -3,6 +3,11 @@ import { useState, useEffect, useCallback, useMemo } from 'react'
 import { AppShell } from '@/components/layout/AppShell'
 import { AuthGuard } from '@/components/layout/AuthGuard'
 import { api } from '@/lib/api'
+import {
+  GitHubTabSkeleton,
+  ProjectListSkeleton,
+  RepoListSkeleton,
+} from '@/components/skeletons/ProjectsSkeleton'
 
 /* ── types ── */
 interface PathEntry { key: string; value: string }
@@ -140,7 +145,7 @@ function RepoPicker({
   )
 
   if (loading) {
-    return <p className="text-muted text-[13px]"><span className="cursor-blink">▋</span> Loading repos…</p>
+    return <RepoListSkeleton />
   }
 
   if (fallback) {
@@ -245,7 +250,7 @@ function GitHubTab({ project }: { project: any }) {
       </div>
       {error && <p className="text-danger text-[13px] mb-3">✕ {error}</p>}
       {loading ? (
-        <p className="text-muted text-[13px]"><span className="cursor-blink">▋</span> Loading…</p>
+        <GitHubTabSkeleton />
       ) : tab === 'prs' ? (
         <div className="flex flex-col gap-2">
           {prs.length === 0
@@ -574,7 +579,7 @@ export default function ProjectsPage() {
             <div className="flex-1 overflow-y-auto p-2">
               {error && <p className="text-danger text-[12px] px-2 mb-2">✕ {error}</p>}
               {loading ? (
-                <p className="text-muted text-[13px] px-2 py-3"><span className="cursor-blink">▋</span> Loading…</p>
+                <ProjectListSkeleton />
               ) : projects.length === 0 ? (
                 <p className="text-muted text-[13px] px-2 py-3">No projects yet. Create one →</p>
               ) : projects.map(project => (
