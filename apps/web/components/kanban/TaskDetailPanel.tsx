@@ -523,6 +523,14 @@ export function TaskDetailPanel({ task, allTasks, onClose, onUpdate, onDelete }:
                           )}
                         </div>
                         <div className="text-[13px] text-text whitespace-pre-wrap">{c.body}</div>
+                        {issues.length > 0 && fixCommentId !== c.id && (
+                          <button
+                            onClick={() => openFixPanel(c.id, issues)}
+                            className="mt-2 text-[11px] px-2 py-1 rounded border border-orange-400/30 text-orange-300 hover:bg-orange-400/10 transition-colors w-full"
+                          >
+                            🔧 Fix {issues.length} Issue{issues.length !== 1 ? 's' : ''} — เลือก &amp; สร้าง Task
+                          </button>
+                        )}
                         {fixCommentId === c.id && (
                           <div className="mt-3 border border-orange-400/20 rounded-lg p-3 bg-orange-400/5">
                             <div className="flex items-center justify-between mb-2">

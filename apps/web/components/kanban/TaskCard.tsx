@@ -8,6 +8,16 @@ const ROLE_STYLE: Record<string, { bg: string; text: string }> = {
   reviewer: { bg: 'rgba(248,113,113,0.1)', text: '#f87171' },
 }
 
+function relativeTime(dateStr: string | undefined | null): string | null {
+  if (!dateStr) return null
+  const diff = Date.now() - new Date(dateStr).getTime()
+  if (diff < 60_000) return 'just now'
+  if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}m ago`
+  if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}h ago`
+  if (diff < 7 * 86_400_000) return `${Math.floor(diff / 86_400_000)}d ago`
+  return new Date(dateStr).toLocaleDateString()
+}
+
 const PRIORITY_DOT: Record<string, string> = {
   urgent: '#f87171',
   high:   '#fb923c',
@@ -31,6 +41,7 @@ export function TaskCard({ task, projects, allTasks, onClick, onDelete, stageCol
   const project = projects?.find((p: any) => p.id === task.projectId)
   const subtaskCount = allTasks?.filter((t: any) => t.parentTaskId === task.id).length ?? 0
   const doneCount = allTasks?.filter((t: any) => t.parentTaskId === task.id && t.stage === 'done').length ?? 0
+  const timeAgo = relativeTime(task.createdAt)
 
   return (
     <div
@@ -65,42 +76,43 @@ export function TaskCard({ task, projects, allTasks, onClick, onDelete, stageCol
         <div className="text-[11px] text-dim mt-1 ml-3">subtask</div>
       )}
 
-      {(task.agentRole || task.githubPrUrl || project || subtaskCount > 0) && (
-        <div className="flex items-center gap-1.5 mt-2 ml-3 flex-wrap">
-          {task.agentRole && role && (
-            <span
-              className="text-[12px] px-1.5 py-0.5 rounded font-medium"
-              style={{ backgroundColor: role.bg, color: role.text }}
-            >
-              {task.agentRole}
-            </span>
-          )}
-          {project && (
-            <span className="text-[11px] px-1.5 py-0.5 rounded bg-surface-2 text-muted border border-border">
-              {project.name}
-            </span>
-          )}
-          {subtaskCount > 0 && (
-            <span
-              className="text-[11px] px-1.5 py-0.5 rounded bg-surface-2 border border-border"
-              style={{ color: doneCount === subtaskCount ? '#3fb950' : '#6a7a8e' }}
-            >
-              {doneCount}/{subtaskCount}
-            </span>
-          )}
-          {task.githubPrUrl && (
-            <a
-              href={task.githubPrUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="text-[12px] text-accent hover:underline"
-              onClick={(e) => e.stopPropagation()}
-            >
-              PR ↗
-            </a>
-          )}
-        </div>
-      )}
+      <div className="flex items-center gap-1.5 mt-2 ml-3 flex-wrap">
+        {task.agentRole && role && (
+          <span
+            className="text-[12px] px-1.5 py-0.5 rounded font-medium"
+            style={{ backgroundColor: role.bg, color: role.text }}
+          >
+            {task.agentRole}
+          </span>
+        )}
+        {project && (
+          <span className="text-[11px] px-1.5 py-0.5 rounded bg-surface-2 text-muted border border-border">
+            {project.name}
+          </span>
+        )}
+        {subtaskCount > 0 && (
+          <span
+            className="text-[11px] px-1.5 py-0.5 rounded bg-surface-2 border border-border"
+            style={{ color: doneCount === subtaskCount ? '#3fb950' : '#6a7a8e' }}
+          >
+            {doneCount}/{subtaskCount}
+          </span>
+        )}
+        {task.githubPrUrl && (
+          <a
+            href={task.githubPrUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="text-[12px] text-accent hover:underline"
+            onClick={(e) => e.stopPropagation()}
+          >
+            PR ↗
+          </a>
+        )}
+        {timeAgo && (
+          <span className="text-[11px] text-dim ml-auto shrink-0">{timeAgo}</span>
+        )}
+      </div>
     </div>
   )
 }
