@@ -24,14 +24,6 @@ const MOCK_PROVIDERS = [
     loginInstructions: 'docker exec -it <orchestrator-container> sh\nclaude auth login',
   },
   {
-    id: 'qwen',
-    name: 'Qwen',
-    loggedIn: false,
-    enabled: false,
-    isDefault: false,
-    loginInstructions: 'docker exec -it <orchestrator-container> sh\nqwen auth login',
-  },
-  {
     id: 'gemini',
     name: 'Gemini',
     loggedIn: false,

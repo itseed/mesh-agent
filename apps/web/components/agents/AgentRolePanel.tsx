@@ -21,6 +21,12 @@ const HIST_STATUS_STYLE: Record<string, { color: string; label: string }> = {
   pending:   { color: '#fbbf24', label: 'pending' },
 }
 
+const CLI_PROVIDERS = [
+  { id: 'claude', name: 'Claude', enabled: true, isDefault: true },
+  { id: 'gemini', name: 'Gemini', enabled: false, isDefault: false },
+  { id: 'cursor', name: 'Cursor', enabled: false, isDefault: false },
+]
+
 function relTime(iso: string) {
   const d = Date.now() - new Date(iso).getTime()
   if (d < 60000) return 'just now'
@@ -72,6 +78,7 @@ export function AgentRolePanel({
   const [dispatchDir, setDispatchDir] = useState('')
   const [dispatching, setDispatching] = useState(false)
   const [stopping, setStopping] = useState(false)
+  const [dispatchCli, setDispatchCli] = useState(CLI_PROVIDERS.find(p => p.isDefault)?.id ?? 'claude')
   const [dispatchError, setDispatchError] = useState('')
 
   const roleHistory = history
@@ -88,6 +95,7 @@ export function AgentRolePanel({
         workingDir: dispatchDir.trim() || process.cwd?.() || '.',
         prompt: dispatchPrompt.trim(),
         projectId: dispatchProject || undefined,
+        cli: dispatchCli,
       })
       setDispatchPrompt('')
       setDispatchProject('')
@@ -231,6 +239,26 @@ export function AgentRolePanel({
               <p className="text-[12px] text-warning mb-3">A session is already running. Stop it first or dispatch after it finishes.</p>
             )}
             <div className="flex flex-col gap-2.5">
+              <div>
+                <label className="block text-[11px] text-muted uppercase tracking-wider mb-1">CLI</label>
+                <select
+                  value={dispatchCli}
+                  onChange={(e) => setDispatchCli(e.target.value)}
+                  disabled={isRunning}
+                  className="w-full bg-canvas border border-border text-text text-[13px] rounded px-3 py-2 disabled:opacity-40"
+                >
+                  {CLI_PROVIDERS.map((p) => (
+                    <option
+                      key={p.id}
+                      value={p.id}
+                      disabled={!p.enabled}
+                      style={!p.enabled ? { color: '#4a5568' } : undefined}
+                    >
+                      {p.name}{!p.enabled ? ' (disabled)' : ''}{p.isDefault ? ' ✓' : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
               <select
                 value={dispatchProject}
                 onChange={(e) => setDispatchProject(e.target.value)}
