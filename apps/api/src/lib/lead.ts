@@ -75,7 +75,11 @@ function loadLeadSystemPrompt(): string {
 
 const LEAD_SYSTEM_PROMPT = loadLeadSystemPrompt()
 
-function buildPrompt(message: string, context: LeadContextMessage[]): string {
+function buildPrompt(
+  message: string,
+  context: LeadContextMessage[],
+  imagePaths: string[],
+): string {
   const lines = [LEAD_SYSTEM_PROMPT, '', '## Conversation so far']
   if (context.length === 0) {
     lines.push('(no prior messages)')
@@ -86,7 +90,16 @@ function buildPrompt(message: string, context: LeadContextMessage[]): string {
       lines.push(`${label}: ${m.content}`)
     }
   }
-  lines.push('', '## Current user message', message, '', 'Respond now with the JSON object only.')
+  lines.push('', '## Current user message', message)
+  if (imagePaths.length > 0) {
+    lines.push('')
+    lines.push('## Attached images')
+    lines.push(
+      'The user attached the following images. Use the Read tool to view each absolute path before deciding intent. Do NOT skip them — they are likely critical to understanding the request.',
+    )
+    for (const p of imagePaths) lines.push(`- ${p}`)
+  }
+  lines.push('', 'Respond now with the JSON object only.')
   return lines.join('\n')
 }
 
@@ -175,9 +188,10 @@ function sanitizeDecision(raw: unknown): LeadDecision {
 export async function runLead(
   message: string,
   context: LeadContextMessage[],
+  imagePaths: string[] = [],
 ): Promise<LeadDecision> {
   const cmd = process.env.CLAUDE_CMD ?? 'claude'
-  const prompt = buildPrompt(message, context)
+  const prompt = buildPrompt(message, context, imagePaths)
   const { stdout } = await execFileAsync(cmd, ['--output-format', 'json', '-p', prompt], {
     encoding: 'utf8',
     timeout: 60_000,

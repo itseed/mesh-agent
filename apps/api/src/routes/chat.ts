@@ -5,6 +5,7 @@ import { tasks, projects } from '@meshagent/shared'
 import { findRoleBySlug, ensureBuiltinRoles } from '../lib/roles.js'
 import { dispatchAgent, buildGitInstructions } from '../lib/dispatch.js'
 import { runLead, type LeadContextMessage, type LeadDecision } from '../lib/lead.js'
+import { saveImagesForBucket } from '../lib/uploads.js'
 
 const HISTORY_KEY = 'chat:lead:history'
 const HISTORY_LIMIT = 200
@@ -41,6 +42,7 @@ interface StoredProposal {
   status: ProposalStatus
   userMessage: string
   imageNote: string
+  imagePaths: string[]
   projectId: string | null
   workingDir: string
   baseBranch: string
@@ -313,6 +315,13 @@ export async function chatRoutes(fastify: FastifyInstance) {
     }
     await pushHistory(fastify, userMsg)
 
+    // Persist any attached images to disk so that Lead and (later) agents can
+    // pick them up via the Read tool. Bucketed by message id so we never mix
+    // uploads across requests.
+    const imagePaths = body.images
+      ? saveImagesForBucket(userMsg.id, body.images)
+      : []
+
     // Tell any open chat panels that Lead is now thinking, so they can render
     // a typing indicator while we wait for the LLM. The 'idle' counterpart
     // fires after we push the lead reply below.
@@ -325,7 +334,7 @@ export async function chatRoutes(fastify: FastifyInstance) {
 
     let decision: LeadDecision
     try {
-      decision = await runLead(body.message, recentContext)
+      decision = await runLead(body.message, recentContext, imagePaths)
     } catch (err) {
       fastify.log.warn({ err }, 'Lead LLM failed; using soft fallback')
       decision = fallbackDecision()
@@ -345,6 +354,7 @@ export async function chatRoutes(fastify: FastifyInstance) {
         status: 'pending',
         userMessage: body.message,
         imageNote,
+        imagePaths,
         projectId: ctx.projectId,
         workingDir: ctx.workingDir,
         baseBranch: ctx.baseBranch,
@@ -414,7 +424,11 @@ export async function chatRoutes(fastify: FastifyInstance) {
 
     const branchSuffix = Date.now().toString(36)
     const gitInstructions = buildGitInstructions(proposal.baseBranch, branchSuffix)
-    const fullPrompt = `${contextBlock}\n${proposal.taskBrief.description}${proposal.imageNote}${gitInstructions}`
+    const imageBlock =
+      proposal.imagePaths && proposal.imagePaths.length > 0
+        ? `\n\n## Attached images\nThe user attached the following image files. Use the Read tool on each absolute path before starting work — they may contain mockups, screenshots, or constraints critical to the task.\n${proposal.imagePaths.map((p) => `- ${p}`).join('\n')}`
+        : ''
+    const fullPrompt = `${contextBlock}\n${proposal.taskBrief.description}${proposal.imageNote}${imageBlock}${gitInstructions}`
 
     const dispatched: ChatMessage[] = []
     for (const r of proposal.roles) {
