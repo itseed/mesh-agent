@@ -229,6 +229,29 @@ export async function agentRoutes(fastify: FastifyInstance) {
     }
   })
 
+  fastify.get('/agents/metrics/by-provider', { preHandler }, async (request, reply) => {
+    const qParsed = z
+      .object({ sinceHours: z.coerce.number().int().min(1).max(720).default(24) })
+      .safeParse(request.query)
+    if (!qParsed.success) return reply.status(400).send({ error: qParsed.error.issues[0]?.message ?? 'Invalid request' })
+    const { sinceHours } = qParsed.data
+
+    const since = new Date(Date.now() - sinceHours * 3600 * 1000)
+
+    const rows = await fastify.db
+      .select({
+        provider: sql<string>`COALESCE(${agentSessions.cliProvider}, 'claude')`,
+        count: sql<number>`count(*)::int`,
+        successCount: sql<number>`sum(CASE WHEN ${agentSessions.status} = 'completed' THEN 1 ELSE 0 END)::int`,
+        avgDurationMs: sql<number>`COALESCE(AVG(EXTRACT(EPOCH FROM (${agentSessions.endedAt} - ${agentSessions.startedAt})) * 1000), 0)::int`,
+      })
+      .from(agentSessions)
+      .where(gte(agentSessions.createdAt, since))
+      .groupBy(sql`COALESCE(${agentSessions.cliProvider}, 'claude')`)
+
+    return { sinceHours, perProvider: rows }
+  })
+
   fastify.get('/agents/sessions/:id', { preHandler }, async (request, reply) => {
     const { id } = request.params as { id: string }
     const [session] = await fastify.db
