@@ -1,8 +1,21 @@
-import { execFile } from 'node:child_process'
-import { promisify } from 'node:util'
 import { readFileSync } from 'node:fs'
 
-const execFileAsync = promisify(execFile)
+const ORCHESTRATOR_URL = process.env.ORCHESTRATOR_URL ?? 'http://localhost:4802'
+
+async function callOrchestrator(prompt: string, timeoutMs: number): Promise<string> {
+  const res = await fetch(`${ORCHESTRATOR_URL}/prompt`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ prompt, timeoutMs }),
+    signal: AbortSignal.timeout(timeoutMs + 5_000),
+  })
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({})) as { error?: string }
+    throw new Error(`Orchestrator error ${res.status}: ${(body as any).error ?? 'unknown'}`)
+  }
+  const { stdout } = await res.json() as { stdout: string }
+  return stdout
+}
 
 export type LeadIntent = 'chat' | 'clarify' | 'dispatch'
 
@@ -206,14 +219,8 @@ export async function runLead(
   imagePaths: string[] = [],
   projectContext?: { name: string; paths: Record<string, string> },
 ): Promise<{ decision: LeadDecision; usage: LeadUsage | null }> {
-  const cmd = process.env.CLAUDE_CMD ?? 'claude'
   const prompt = buildPrompt(message, context, imagePaths, projectContext)
-  const { stdout } = await execFileAsync(cmd, ['--output-format', 'json', '-p', prompt], {
-    encoding: 'utf8',
-    timeout: 60_000,
-    maxBuffer: 4 * 1024 * 1024,
-    env: { ...process.env },
-  })
+  const stdout = await callOrchestrator(prompt, 60_000)
 
   let usage: LeadUsage | null = null
   try {
@@ -300,14 +307,8 @@ function buildSynthesisPrompt(input: SynthesisInput): string {
 }
 
 export async function runLeadSynthesis(input: SynthesisInput): Promise<string> {
-  const cmd = process.env.CLAUDE_CMD ?? 'claude'
   const prompt = buildSynthesisPrompt(input)
-  const { stdout } = await execFileAsync(cmd, ['--output-format', 'json', '-p', prompt], {
-    encoding: 'utf8',
-    timeout: 45_000,
-    maxBuffer: 2 * 1024 * 1024,
-    env: { ...process.env },
-  })
+  const stdout = await callOrchestrator(prompt, 45_000)
   // CLI returns { result: "..." } — pull out plain text
   let text = stdout.trim()
   try {
