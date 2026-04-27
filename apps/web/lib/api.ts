@@ -240,5 +240,12 @@ export const api = {
         last24h: { count: number; avgDurationMs: number; successRate: number }
         orchestrator: { ok: boolean; activeSessions: number }
       }>('/metrics/health'),
+    tokens: () =>
+      request<{
+        inputTokens: number
+        outputTokens: number
+        totalTokens: number
+        costUsd: number
+      }>('/metrics/tokens'),
   },
 }

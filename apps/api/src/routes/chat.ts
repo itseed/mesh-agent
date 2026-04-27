@@ -350,7 +350,15 @@ export async function chatRoutes(fastify: FastifyInstance) {
 
     let decision: LeadDecision
     try {
-      decision = await runLead(body.message, recentContext, imagePaths, projectForLead)
+      const result = await runLead(body.message, recentContext, imagePaths, projectForLead)
+      decision = result.decision
+      if (result.usage) {
+        await Promise.all([
+          fastify.redis.incrby('lead:tokens:input', result.usage.inputTokens),
+          fastify.redis.incrby('lead:tokens:output', result.usage.outputTokens),
+          fastify.redis.incrbyfloat('lead:tokens:cost_usd', result.usage.costUsd),
+        ])
+      }
     } catch (err) {
       fastify.log.warn({ err }, 'Lead LLM failed; using soft fallback')
       decision = fallbackDecision()
@@ -477,6 +485,13 @@ export async function chatRoutes(fastify: FastifyInstance) {
           projectId: proposal.projectId ?? null,
         })
         .returning()
+
+      if (task?.id) {
+        await fastify.redis.publish(
+          'tasks:events',
+          JSON.stringify({ type: 'task.created', taskId: task.id, projectId: proposal.projectId ?? null }),
+        )
+      }
 
       const result = await dispatchAgent(r.slug, agentWorkingDir, fullPrompt, {
         projectId: proposal.projectId ?? null,

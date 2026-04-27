@@ -111,21 +111,24 @@ export default function OverviewPage() {
   const [tasks, setTasks] = useState<any[]>([])
   const [agents, setAgents] = useState<any[]>([])
   const [metrics, setMetrics] = useState<any>(null)
+  const [tokenStats, setTokenStats] = useState<{ inputTokens: number; outputTokens: number; totalTokens: number; costUsd: number } | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
   const fetchData = useCallback(async () => {
     try {
-      const [p, t, a, m] = await Promise.all([
+      const [p, t, a, m, tok] = await Promise.all([
         api.projects.list(),
         api.tasks.list(),
         api.agents.list(),
         api.agents.metrics(24 * 7),
+        api.metrics.tokens(),
       ])
       setProjects(p)
       setTasks(t)
       setAgents(a)
       setMetrics(m)
+      setTokenStats(tok)
       setError('')
     } catch (e: any) {
       setError(e.message)
@@ -318,6 +321,50 @@ export default function OverviewPage() {
                         )
                       })}
                     </div>
+                  )}
+                </div>
+              )}
+
+              {/* Token Stats */}
+              {tokenStats && (
+                <div className="bg-surface border border-border rounded-xl p-4 mb-6">
+                  <div className="text-[12px] font-medium text-muted uppercase tracking-wider mb-4">Lead AI — Token Usage (All Time)</div>
+                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div>
+                      <div className="text-[22px] font-semibold text-text leading-none">
+                        {tokenStats.totalTokens >= 1000000
+                          ? `${(tokenStats.totalTokens / 1000000).toFixed(1)}M`
+                          : tokenStats.totalTokens >= 1000
+                          ? `${(tokenStats.totalTokens / 1000).toFixed(1)}K`
+                          : String(tokenStats.totalTokens)}
+                      </div>
+                      <div className="text-[12px] text-muted mt-1">Total tokens</div>
+                    </div>
+                    <div>
+                      <div className="text-[22px] font-semibold text-text leading-none">
+                        {tokenStats.inputTokens >= 1000
+                          ? `${(tokenStats.inputTokens / 1000).toFixed(1)}K`
+                          : String(tokenStats.inputTokens)}
+                      </div>
+                      <div className="text-[12px] text-muted mt-1">Input tokens</div>
+                    </div>
+                    <div>
+                      <div className="text-[22px] font-semibold text-text leading-none">
+                        {tokenStats.outputTokens >= 1000
+                          ? `${(tokenStats.outputTokens / 1000).toFixed(1)}K`
+                          : String(tokenStats.outputTokens)}
+                      </div>
+                      <div className="text-[12px] text-muted mt-1">Output tokens</div>
+                    </div>
+                    <div>
+                      <div className="text-[22px] font-semibold leading-none" style={{ color: '#facc15' }}>
+                        ${tokenStats.costUsd.toFixed(4)}
+                      </div>
+                      <div className="text-[12px] text-muted mt-1">Lead cost (USD)</div>
+                    </div>
+                  </div>
+                  {tokenStats.totalTokens === 0 && (
+                    <p className="text-[13px] text-dim mt-2">ยังไม่มีข้อมูล — เริ่มส่งข้อความใน Chat เพื่อเริ่มนับ</p>
                   )}
                 </div>
               )}

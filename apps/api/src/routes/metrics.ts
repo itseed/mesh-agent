@@ -6,6 +6,23 @@ import { env } from '../env.js'
 export async function metricsRoutes(fastify: FastifyInstance) {
   const preHandler = [fastify.authenticate]
 
+  fastify.get('/metrics/tokens', { preHandler }, async () => {
+    const [inputStr, outputStr, costStr] = await Promise.all([
+      fastify.redis.get('lead:tokens:input'),
+      fastify.redis.get('lead:tokens:output'),
+      fastify.redis.get('lead:tokens:cost_usd'),
+    ])
+    const inputTokens = Number(inputStr ?? 0)
+    const outputTokens = Number(outputStr ?? 0)
+    const costUsd = parseFloat(costStr ?? '0')
+    return {
+      inputTokens,
+      outputTokens,
+      totalTokens: inputTokens + outputTokens,
+      costUsd: Math.round(costUsd * 100000) / 100000,
+    }
+  })
+
   fastify.get('/metrics/health', { preHandler }, async () => {
     const since = new Date(Date.now() - 24 * 3600 * 1000)
     const [taskCount] = await fastify.db

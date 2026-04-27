@@ -194,12 +194,18 @@ function sanitizeDecision(raw: unknown): LeadDecision {
   return decision
 }
 
+export interface LeadUsage {
+  inputTokens: number
+  outputTokens: number
+  costUsd: number
+}
+
 export async function runLead(
   message: string,
   context: LeadContextMessage[],
   imagePaths: string[] = [],
   projectContext?: { name: string; paths: Record<string, string> },
-): Promise<LeadDecision> {
+): Promise<{ decision: LeadDecision; usage: LeadUsage | null }> {
   const cmd = process.env.CLAUDE_CMD ?? 'claude'
   const prompt = buildPrompt(message, context, imagePaths, projectContext)
   const { stdout } = await execFileAsync(cmd, ['--output-format', 'json', '-p', prompt], {
@@ -208,6 +214,19 @@ export async function runLead(
     maxBuffer: 4 * 1024 * 1024,
     env: { ...process.env },
   })
+
+  let usage: LeadUsage | null = null
+  try {
+    const wrapper = JSON.parse(stdout.trim())
+    if (wrapper?.usage) {
+      usage = {
+        inputTokens: Number(wrapper.usage.input_tokens ?? 0),
+        outputTokens: Number(wrapper.usage.output_tokens ?? 0),
+        costUsd: Number(wrapper.cost_usd ?? 0),
+      }
+    }
+  } catch { /* non-wrapper format */ }
+
   const jsonText = extractJson(stdout)
   if (!jsonText) throw new Error('Lead CLI returned no JSON')
   let parsed: unknown
@@ -216,7 +235,7 @@ export async function runLead(
   } catch {
     throw new Error('Lead CLI returned invalid JSON')
   }
-  return sanitizeDecision(parsed)
+  return { decision: sanitizeDecision(parsed), usage }
 }
 
 export interface SynthesisInput {

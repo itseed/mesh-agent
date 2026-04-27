@@ -645,6 +645,21 @@ function LeadThinkingBubble() {
   )
 }
 
+function getQuickChips(content: string): string[] {
+  const t = content.toLowerCase()
+  if (/approve|permission|อนุมัติ|allow/.test(t))
+    return ['ใช่ approve เลย', 'ยังก่อน', 'ขอดูก่อน']
+  if (/dispatch|ส่ง agent|ให้.*ทำ|frontend|backend|mobile|devops|designer|qa|reviewer/.test(t))
+    return ['ใช่ ส่งเลย', 'ยังก่อน', 'ปรับ scope ก่อน']
+  if (/review|pr|pull request|merge/.test(t))
+    return ['ให้ review เลย', 'ยังก่อน', 'ขอแก้ก่อน']
+  if (/deploy|release|push|production/.test(t))
+    return ['ใช่ deploy เลย', 'ยังก่อน', 'ขอเช็คก่อน']
+  if (/test|qa|spec/.test(t))
+    return ['รัน test เลย', 'ยังก่อน', 'บอกรายละเอียดเพิ่ม']
+  return ['ใช่ ดำเนินการเลย', 'ยังก่อน', 'บอกรายละเอียดเพิ่ม']
+}
+
 function ChatBubble({ m, busy, onConfirm, onCancel, stoppedSessions, onStop, onQuickReply, replying }: ChatBubbleProps) {
   const isUser = m.role === 'user'
   const isLead = m.role === 'lead'
@@ -724,7 +739,7 @@ function ChatBubble({ m, busy, onConfirm, onCancel, stoppedSessions, onStop, onQ
         </div>
         {isLeadQuestion && (
           <div className="flex gap-1.5 mt-1.5 flex-wrap">
-            {['ใช่ ดำเนินการเลย', 'ยังก่อน', 'บอกรายละเอียดเพิ่ม'].map((reply) => (
+            {getQuickChips(m.content).map((reply) => (
               <button
                 key={reply}
                 onClick={() => onQuickReply(reply)}
