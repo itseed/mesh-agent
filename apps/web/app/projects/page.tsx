@@ -455,12 +455,13 @@ export default function ProjectsPage() {
   }, [])
 
   useEffect(() => {
-    if (!reposBaseDir || cRepos.length === 0) return
+    if (cRepos.length === 0) { setCPaths([{ key: '', value: '' }]); return }
+    const base = reposBaseDir ?? '/repos'
     const suggested = cRepos.map(r => {
       const folderName = r.split('/')[1] ?? r
-      return { key: guessRole(folderName), value: `${reposBaseDir}/${folderName}` }
+      return { key: guessRole(folderName), value: `${base}/${folderName}` }
     })
-    setCPaths(suggested.length > 0 ? suggested : [{ key: '', value: '' }])
+    setCPaths(suggested)
   }, [cRepos, reposBaseDir])
 
   useEffect(() => {
