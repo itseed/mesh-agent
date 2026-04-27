@@ -12,6 +12,7 @@ interface CreateSessionOpts {
   taskId?: string | null
   createdBy?: string | null
   sessionId?: string
+  systemPrompt?: string
 }
 
 interface ManagerOptions {
@@ -52,6 +53,7 @@ export class SessionManager {
       projectId: input.projectId,
       taskId: input.taskId,
       createdBy: input.createdBy,
+      systemPrompt: input.systemPrompt,
     })
     this.sessions.set(session.id, session)
 

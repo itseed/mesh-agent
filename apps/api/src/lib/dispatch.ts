@@ -5,6 +5,7 @@ export async function dispatchAgent(
   workingDir: string,
   prompt: string,
   context: { projectId?: string | null; taskId?: string | null; createdBy?: string | null },
+  systemPrompt?: string,
 ): Promise<{ id: string | null; error?: string }> {
   const ctrl = new AbortController()
   const timer = setTimeout(() => ctrl.abort(), 10000)
@@ -12,7 +13,7 @@ export async function dispatchAgent(
     const res = await fetch(`${env.ORCHESTRATOR_URL}/sessions`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ role, workingDir, prompt, ...context }),
+      body: JSON.stringify({ role, workingDir, prompt, ...context, ...(systemPrompt ? { systemPrompt } : {}) }),
       signal: ctrl.signal,
     })
     if (!res.ok) {

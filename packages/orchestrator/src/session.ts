@@ -11,6 +11,7 @@ interface SessionOptions {
   projectId?: string | null
   taskId?: string | null
   createdBy?: string | null
+  systemPrompt?: string
 }
 
 export interface SessionMetrics {
@@ -40,6 +41,7 @@ export class AgentSession extends EventEmitter {
   private _status: AgentSessionStatus = 'pending'
   private process: ChildProcess | null = null
   private readonly claudeCmd: string
+  private readonly systemPrompt: string | null
   private startedAt: Date | null = null
   private endedAt: Date | null = null
   private outputBytes = 0
@@ -53,6 +55,7 @@ export class AgentSession extends EventEmitter {
     this.workingDir = opts.workingDir
     this.prompt = opts.prompt
     this.claudeCmd = opts.claudeCmd
+    this.systemPrompt = opts.systemPrompt ?? null
     this.projectId = opts.projectId ?? null
     this.taskId = opts.taskId ?? null
     this.createdBy = opts.createdBy ?? null
@@ -97,7 +100,12 @@ export class AgentSession extends EventEmitter {
       this.setStatus('running')
       this.startedAt = new Date()
 
-      this.process = spawn(this.claudeCmd, [this.prompt], {
+      const args: string[] = []
+      if (this.systemPrompt) {
+        args.push('--system-prompt', this.systemPrompt)
+      }
+      args.push(this.prompt)
+      this.process = spawn(this.claudeCmd, args, {
         cwd: this.workingDir,
         stdio: ['ignore', 'pipe', 'pipe'],
         env: { ...process.env, AGENT_ROLE: String(this.role) },

@@ -482,7 +482,7 @@ export async function chatRoutes(fastify: FastifyInstance) {
         projectId: proposal.projectId ?? null,
         taskId: task?.id ?? null,
         createdBy: userId,
-      })
+      }, role?.systemPrompt ?? undefined)
 
       // If the orchestrator never accepted the dispatch, the task we just inserted
       // has no session backing it — surface it as blocked in the kanban so it

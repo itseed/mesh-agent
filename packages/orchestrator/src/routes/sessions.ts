@@ -10,6 +10,7 @@ const createSessionSchema = z.object({
   projectId: z.string().optional().nullable(),
   taskId: z.string().optional().nullable(),
   createdBy: z.string().optional().nullable(),
+  systemPrompt: z.string().max(8 * 1024).optional().nullable(),
 })
 
 export async function sessionRoutes(
@@ -30,6 +31,7 @@ export async function sessionRoutes(
         projectId: body.projectId ?? null,
         taskId: body.taskId ?? null,
         createdBy: body.createdBy ?? null,
+        systemPrompt: body.systemPrompt ?? undefined,
       })
     } catch (err: any) {
       return reply.status(429).send({ error: err.message ?? 'Failed to create session' })

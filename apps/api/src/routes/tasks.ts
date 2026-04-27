@@ -1,7 +1,7 @@
 import { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 import { eq, desc, and } from 'drizzle-orm'
-import { tasks, taskComments, taskActivities, taskAttachments, projects } from '@meshagent/shared'
+import { tasks, taskComments, taskActivities, taskAttachments, projects, agentRoles } from '@meshagent/shared'
 import { logAudit } from '../lib/audit.js'
 import { analyzeTask, type AnalyzePlan } from '../lib/analyze.js'
 import { dispatchAgent, buildGitInstructions } from '../lib/dispatch.js'
@@ -176,11 +176,13 @@ export async function taskRoutes(fastify: FastifyInstance) {
 **Context:** ${task.title}${task.description ? `\n${task.description}` : ''}
 ${gitInstructions}`
 
+      const [roleRow] = await fastify.db.select().from(agentRoles).where(eq(agentRoles.slug, role)).limit(1)
+
       await dispatchAgent(role, agentWorkingDir, prompt, {
         projectId: task.projectId ?? null,
         taskId: subtask.id,
         createdBy: userId,
-      })
+      }, roleRow?.systemPrompt ?? undefined)
 
       await publishTaskEvent(fastify, 'task.created', { taskId: subtask.id, projectId: task.projectId })
       created.push(subtask)
