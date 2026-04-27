@@ -4,6 +4,7 @@ import { env } from './env.js'
 import { SessionManager } from './manager.js'
 import { Streamer } from './streamer.js'
 import { sessionRoutes } from './routes/sessions.js'
+import { promptRoutes } from './routes/prompt.js'
 import { createSessionStore } from './store.js'
 
 const isTest = env.NODE_ENV === 'test'
@@ -52,6 +53,7 @@ export async function buildServer() {
   }))
 
   await fastify.register(sessionRoutes, { manager, store })
+  await fastify.register(promptRoutes)
 
   fastify.addHook('onClose', async () => {
     await manager.shutdown()
