@@ -387,10 +387,10 @@ export function CommandBar() {
               <div className="flex flex-col gap-2 px-1 pb-1 pt-1">
                 <p className="text-[12px] text-muted px-3">ลองพิมพ์:</p>
                 {[
-                  'วิเคราะห์งานใน backlog และเสนอแผน',
-                  'สร้าง task: setup CI/CD pipeline',
-                  'รายงานสถานะทุก agent ที่รันอยู่',
-                  'dispatch frontend agent ไปทำ task ล่าสุด',
+                  'อธิบายโครงสร้าง auth ในระบบให้ฟังหน่อย',
+                  'อยากเพิ่ม feature dark mode เริ่มจากไหนดี',
+                  'มี bug ตรงปุ่ม logout — ช่วยวิเคราะห์ที',
+                  'setup CI/CD pipeline ได้เลย',
                 ].map((s) => (
                   <button
                     key={s}
