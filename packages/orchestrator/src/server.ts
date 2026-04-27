@@ -6,6 +6,7 @@ import { Streamer } from './streamer.js'
 import { sessionRoutes } from './routes/sessions.js'
 import { promptRoutes } from './routes/prompt.js'
 import { createSessionStore } from './store.js'
+import { cleanOrphanWorktrees } from './orphanCleaner.js'
 
 const isTest = env.NODE_ENV === 'test'
 const isProd = env.NODE_ENV === 'production'
@@ -35,6 +36,23 @@ export async function buildServer() {
     await manager.recoverFromCrash().catch((err) => {
       fastify.log.error({ err }, 'Crash recovery failed')
     })
+  }
+
+  // Orphan worktree cleanup — run once at startup and every hour
+  const runOrphanCleanup = async () => {
+    const activeTaskIds = new Set(
+      manager.listSessions()
+        .filter((s) => s.taskId && (s.status === 'running' || s.status === 'pending'))
+        .map((s) => s.taskId!),
+    )
+    await cleanOrphanWorktrees(env.REPOS_BASE_DIR, activeTaskIds, fastify.log).catch((err) => {
+      fastify.log.warn({ err }, 'Orphan cleanup error')
+    })
+  }
+  if (!isTest) {
+    await runOrphanCleanup()
+    const orphanCronHandle = setInterval(runOrphanCleanup, 60 * 60 * 1000)
+    fastify.addHook('onClose', () => clearInterval(orphanCronHandle))
   }
 
   fastify.get('/health', async () => ({
