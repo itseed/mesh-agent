@@ -206,6 +206,15 @@ export const api = {
       request<{ name: string; protected: boolean }[]>(
         `/settings/github/branches?repo=${encodeURIComponent(repo)}`
       ),
+    listCliProviders: () =>
+      request<Array<{ provider: string; enabled: boolean; isDefault: boolean; createdAt: string | null; updatedAt: string | null }>>('/settings/cli'),
+    updateCliProvider: (provider: string, body: { enabled?: boolean; isDefault?: boolean }) =>
+      request<{ provider: string; enabled: boolean; isDefault: boolean }>(`/settings/cli/${provider}`, {
+        method: 'PUT',
+        body: JSON.stringify(body),
+      }),
+    testCliProvider: (provider: string) =>
+      request<{ ok: boolean; version?: string; error?: string; cmd: string }>(`/settings/cli/${provider}/test`),
   },
   chat: {
     history: () => request<any[]>('/chat/history'),

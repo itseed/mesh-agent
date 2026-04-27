@@ -14,32 +14,11 @@ interface GhStatus {
 
 const emptyForm = { slug: '', name: '', description: '', systemPrompt: '', keywords: '' }
 
-const MOCK_PROVIDERS = [
-  {
-    id: 'claude',
-    name: 'Claude',
-    loggedIn: true,
-    enabled: true,
-    isDefault: true,
-    loginInstructions: 'docker exec -it <orchestrator-container> sh\nclaude auth login',
-  },
-  {
-    id: 'gemini',
-    name: 'Gemini',
-    loggedIn: false,
-    enabled: false,
-    isDefault: false,
-    loginInstructions: 'docker exec -it <orchestrator-container> sh\ngemini auth login',
-  },
-  {
-    id: 'cursor',
-    name: 'Cursor',
-    loggedIn: false,
-    enabled: false,
-    isDefault: false,
-    loginInstructions: 'docker exec -it <orchestrator-container> sh\nagent login',
-  },
-]
+const PROVIDER_LOGIN_INSTRUCTIONS: Record<string, string> = {
+  claude: 'docker exec -it <orchestrator-container> sh\nclaude auth login',
+  gemini: 'docker exec -it <orchestrator-container> sh\ngemini auth login',
+  cursor: 'docker exec -it <orchestrator-container> sh\nagent login',
+}
 
 export default function SettingsPage() {
   return (
@@ -68,7 +47,14 @@ function SettingsPageInner() {
   const [deletingSlug, setDeletingSlug] = useState<string | null>(null)
 
   // CLI Providers tab state
-  const [providers, setProviders] = useState(MOCK_PROVIDERS)
+  const [providers, setProviders] = useState<Array<{
+    id: string
+    name: string
+    loggedIn: boolean
+    enabled: boolean
+    isDefault: boolean
+    loginInstructions: string
+  }>>([])
   const [expandedInstructions, setExpandedInstructions] = useState<string | null>(null)
   const [oauthToken, setOauthToken] = useState('')
   const [savingToken, setSavingToken] = useState(false)
@@ -94,6 +80,29 @@ function SettingsPageInner() {
       setReposBaseDir(s.reposBaseDir ?? '')
       setRoles(r)
       setError('')
+
+      // Load CLI providers from API
+      try {
+        const cliRows = await api.settings.listCliProviders()
+        const healthResults = await Promise.allSettled(
+          cliRows.map(row => api.settings.testCliProvider(row.provider))
+        )
+        setProviders(
+          cliRows.map((row, i) => {
+            const health = healthResults[i].status === 'fulfilled' ? healthResults[i].value : null
+            return {
+              id: row.provider,
+              name: row.provider.charAt(0).toUpperCase() + row.provider.slice(1),
+              loggedIn: health?.ok ?? false,
+              enabled: row.enabled,
+              isDefault: row.isDefault,
+              loginInstructions: PROVIDER_LOGIN_INSTRUCTIONS[row.provider] ?? '',
+            }
+          })
+        )
+      } catch {
+        // keep whatever state providers is in
+      }
     } catch (e: any) {
       setError(e.message)
     }
@@ -522,18 +531,36 @@ function SettingsPageInner() {
                   <div className="flex items-center gap-2">
                     {!p.isDefault && p.enabled && (
                       <button
-                        onClick={() => setProviders(prev => prev.map(x => ({ ...x, isDefault: x.id === p.id })))}
+                        onClick={async () => {
+                          setProviders(prev => prev.map(x => ({ ...x, isDefault: x.id === p.id })))
+                          try {
+                            await api.settings.updateCliProvider(p.id, { isDefault: true })
+                          } catch {
+                            setProviders(prev => prev.map(x => ({ ...x, isDefault: x.id === p.id ? false : x.isDefault })))
+                          }
+                        }}
                         className="text-[12px] text-muted hover:text-accent border border-border hover:border-accent/40 px-2.5 py-1 rounded transition-all"
                       >
                         Set default
                       </button>
                     )}
                     <button
-                      onClick={() => setProviders(prev => prev.map(x =>
-                        x.id === p.id
-                          ? { ...x, enabled: !x.enabled, isDefault: x.isDefault && x.enabled ? false : x.isDefault }
-                          : x
-                      ))}
+                      onClick={async () => {
+                        const newEnabled = !p.enabled
+                        setProviders(prev => prev.map(x =>
+                          x.id === p.id
+                            ? { ...x, enabled: newEnabled, isDefault: x.isDefault && newEnabled ? x.isDefault : newEnabled ? x.isDefault : false }
+                            : x
+                        ))
+                        try {
+                          await api.settings.updateCliProvider(p.id, {
+                            enabled: newEnabled,
+                            ...(p.isDefault && !newEnabled ? { isDefault: false } : {}),
+                          })
+                        } catch {
+                          setProviders(prev => prev.map(x => x.id === p.id ? { ...x, enabled: p.enabled, isDefault: p.isDefault } : x))
+                        }
+                      }}
                       className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
                         p.enabled ? 'bg-accent' : 'bg-surface-2 border border-border'
                       }`}
