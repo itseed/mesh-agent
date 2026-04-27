@@ -2,16 +2,32 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import Fastify from 'fastify'
 import type { FastifyInstance } from 'fastify'
 
+// vi.hoisted runs before vi.mock factories, so the mock reference is available
+// when the factory executes (vi.mock is hoisted to top of file by Vitest).
+const { execFileMock } = vi.hoisted(() => {
+  const { promisify } = require('node:util')
+  const execFileMock = vi.fn()
+  // Attach promisify.custom so promisify(execFile) in the route resolves to { stdout, stderr }
+  ;(execFileMock as any)[promisify.custom] = (...args: any[]) => {
+    return new Promise((resolve, reject) => {
+      const cb = (err: any, stdout: string, stderr: string) => {
+        if (err) reject(err)
+        else resolve({ stdout, stderr })
+      }
+      execFileMock(...args, cb)
+    })
+  }
+  return { execFileMock }
+})
+
 vi.mock('node:child_process', () => ({
-  execFile: vi.fn(),
-  execFileSync: vi.fn(),
+  execFile: execFileMock,
 }))
 vi.mock('node:fs', () => ({
   writeFileSync: vi.fn(),
   mkdirSync: vi.fn(),
 }))
 
-import { execFile, execFileSync } from 'node:child_process'
 import { writeFileSync, mkdirSync } from 'node:fs'
 import { promptRoutes } from '../routes/prompt.js'
 
@@ -23,13 +39,16 @@ async function buildApp(): Promise<FastifyInstance> {
 
 describe('POST /prompt', () => {
   let app: FastifyInstance
-  beforeEach(async () => { app = await buildApp() })
+  beforeEach(async () => {
+    execFileMock.mockReset()
+    app = await buildApp()
+  })
   afterEach(async () => { await app.close() })
 
   it('returns stdout on success', async () => {
-    ;(execFile as any).mockImplementation(
+    execFileMock.mockImplementation(
       (_cmd: string, _args: string[], _opts: any, cb: Function) => {
-        cb(null, { stdout: '{"result":"ok"}' })
+        cb(null, '{"result":"ok"}', '')
       }
     )
     const res = await app.inject({
@@ -42,7 +61,7 @@ describe('POST /prompt', () => {
   })
 
   it('returns 504 when claude is killed (timeout)', async () => {
-    ;(execFile as any).mockImplementation(
+    execFileMock.mockImplementation(
       (_cmd: string, _args: string[], _opts: any, cb: Function) => {
         const err: any = new Error('Process killed')
         err.killed = true
@@ -58,7 +77,7 @@ describe('POST /prompt', () => {
   })
 
   it('returns 500 on non-timeout error', async () => {
-    ;(execFile as any).mockImplementation(
+    execFileMock.mockImplementation(
       (_cmd: string, _args: string[], _opts: any, cb: Function) => {
         cb(new Error('ENOENT: no such file'))
       }
@@ -84,13 +103,20 @@ describe('POST /prompt', () => {
 
 describe('GET /health/claude', () => {
   let app: FastifyInstance
-  beforeEach(async () => { app = await buildApp() })
+  beforeEach(async () => {
+    execFileMock.mockReset()
+    app = await buildApp()
+  })
   afterEach(async () => { await app.close() })
 
   it('returns ok=true with resolved cmd and version', async () => {
-    ;(execFileSync as any)
-      .mockReturnValueOnce('/usr/local/bin/claude\n')
-      .mockReturnValueOnce('claude/1.2.3 linux-x64\n')
+    execFileMock
+      .mockImplementationOnce((_cmd: string, _args: string[], _opts: any, cb: Function) => {
+        cb(null, '/usr/local/bin/claude\n', '')  // which
+      })
+      .mockImplementationOnce((_cmd: string, _args: string[], _opts: any, cb: Function) => {
+        cb(null, 'claude/1.2.3 linux-x64\n', '')  // --version
+      })
     const res = await app.inject({ method: 'GET', url: '/health/claude' })
     expect(res.statusCode).toBe(200)
     expect(res.json()).toMatchObject({
@@ -101,9 +127,13 @@ describe('GET /health/claude', () => {
   })
 
   it('falls back to CLAUDE_CMD when which fails', async () => {
-    ;(execFileSync as any)
-      .mockImplementationOnce(() => { throw new Error('not found') })
-      .mockReturnValueOnce('claude/1.0.0\n')
+    execFileMock
+      .mockImplementationOnce((_cmd: string, _args: string[], _opts: any, cb: Function) => {
+        cb(new Error('not found'))  // which fails
+      })
+      .mockImplementationOnce((_cmd: string, _args: string[], _opts: any, cb: Function) => {
+        cb(null, 'claude/1.0.0\n', '')  // --version ok
+      })
     const res = await app.inject({ method: 'GET', url: '/health/claude' })
     expect(res.statusCode).toBe(200)
     const body = res.json()
@@ -112,9 +142,13 @@ describe('GET /health/claude', () => {
   })
 
   it('returns ok=false when claude binary is missing', async () => {
-    ;(execFileSync as any)
-      .mockImplementationOnce(() => { throw new Error('which: no claude') })
-      .mockImplementationOnce(() => { throw new Error('ENOENT') })
+    execFileMock
+      .mockImplementationOnce((_cmd: string, _args: string[], _opts: any, cb: Function) => {
+        cb(new Error('which: no claude'))  // which
+      })
+      .mockImplementationOnce((_cmd: string, _args: string[], _opts: any, cb: Function) => {
+        cb(new Error('ENOENT'))  // --version
+      })
     const res = await app.inject({ method: 'GET', url: '/health/claude' })
     expect(res.statusCode).toBe(200)
     expect(res.json().ok).toBe(false)
@@ -149,5 +183,14 @@ describe('POST /health/claude/token', () => {
       payload: { token: 'abc123' },
     })
     expect(res.statusCode).toBe(500)
+  })
+
+  it('returns 400 on missing token', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/health/claude/token',
+      payload: {},
+    })
+    expect(res.statusCode).toBe(400)
   })
 })

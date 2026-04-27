@@ -6,7 +6,7 @@ services:
       POSTGRES_PASSWORD: meshagent
       POSTGRES_DB: meshagent
     ports:
-      - "5432:5432"
+      - "4803:5432"
     volumes:
       - db_data:/var/lib/postgresql/data
     healthcheck:
@@ -18,7 +18,7 @@ services:
   redis:
     image: redis:7-alpine
     ports:
-      - "6379:6379"
+      - "4804:6379"
     volumes:
       - redis_data:/data
     healthcheck:
@@ -33,31 +33,88 @@ services:
       dockerfile: packages/orchestrator/Dockerfile.dev
     environment:
       REDIS_URL: redis://redis:6379
-      PORT: 3002
+      PORT: 4802
       CLAUDE_CMD: claude
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
     volumes:
       - ./packages/orchestrator:/app/packages/orchestrator
       - ./packages/shared:/app/packages/shared
-      - ~/.claude:/root/.claude:ro
+      - ~/.claude:/root/.claude
+      - qwen_config:/root/.qwen
+      - gemini_config:/root/.gemini
+      - cursor_config:/root/.cursor
     ports:
-      - "3002:3002"
+      - "4802:4802"
     depends_on:
       redis:
         condition: service_healthy
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile.dev
+    environment:
+      DATABASE_URL: postgresql://meshagent:meshagent@db:5432/meshagent
+      DB_POOL_MAX: ${DB_POOL_MAX:-20}
+      DB_POOL_IDLE_TIMEOUT: ${DB_POOL_IDLE_TIMEOUT:-30}
+      REDIS_URL: redis://redis:6379
+      AUTH_EMAIL: ${AUTH_EMAIL:-admin@example.com}
+      AUTH_PASSWORD: ${AUTH_PASSWORD:-changeme123}
+      JWT_SECRET: ${JWT_SECRET:-change-this-to-a-random-64-char-string}
+      TOKEN_ENCRYPTION_KEY: ${TOKEN_ENCRYPTION_KEY:-change-this-to-a-random-32+-char-string}
+      ORCHESTRATOR_URL: http://orchestrator:4802
+      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+      GITHUB_WEBHOOK_SECRET: ${GITHUB_WEBHOOK_SECRET:-}
+      GITHUB_OAUTH_CLIENT_ID: ${GITHUB_OAUTH_CLIENT_ID:-}
+      GITHUB_OAUTH_CLIENT_SECRET: ${GITHUB_OAUTH_CLIENT_SECRET:-}
+      GITHUB_OAUTH_REDIRECT_URI: ${GITHUB_OAUTH_REDIRECT_URI:-http://localhost:4801/settings/github/oauth/callback}
+      WEB_BASE_URL: ${WEB_BASE_URL:-http://localhost:4800}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:4800}
+      COOKIE_DOMAIN: ${COOKIE_DOMAIN:-}
+      RATE_LIMIT_MAX: ${RATE_LIMIT_MAX:-120}
+      RATE_LIMIT_WINDOW: ${RATE_LIMIT_WINDOW:-1 minute}
+      AUTH_RATE_LIMIT_MAX: ${AUTH_RATE_LIMIT_MAX:-10}
+      AUTH_RATE_LIMIT_WINDOW: ${AUTH_RATE_LIMIT_WINDOW:-1 minute}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      MINIO_ENDPOINT: minio
+      MINIO_PORT: 9000
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-meshagent}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-meshagent123}
+      MINIO_USE_SSL: 'false'
+      MINIO_BUCKET: ${MINIO_BUCKET:-mesh-agent}
+      PORT: 4801
+      NODE_ENV: development
+    ports:
+      - "4801:4801"
+    volumes:
+      - ./apps/api:/app/apps/api
+      - /app/apps/api/node_modules
+      - ./packages/shared:/app/packages/shared
+      - /app/packages/shared/node_modules
+      - ./tsconfig.base.json:/app/tsconfig.base.json:ro
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      orchestrator:
+        condition: service_started
 
   web:
     build:
       context: .
       dockerfile: apps/web/Dockerfile.dev
     environment:
-      NEXT_PUBLIC_API_URL: http://localhost:3001
-      NEXT_PUBLIC_WS_URL: ws://localhost:3001
+      NEXT_PUBLIC_API_URL: http://localhost:4801
+      NEXT_PUBLIC_WS_URL: ws://localhost:4801
     ports:
-      - "3000:3000"
+      - "4800:3000"
     volumes:
       - ./apps/web:/app/apps/web
+      - /app/apps/web/node_modules
       - ./packages/shared:/app/packages/shared
+      - ./tsconfig.base.json:/app/tsconfig.base.json:ro
   minio:
     image: minio/minio:latest
     command: server /data --console-address ':9001'
@@ -65,8 +122,8 @@ services:
       MINIO_ROOT_USER: meshagent
       MINIO_ROOT_PASSWORD: meshagent123
     ports:
-      - '9000:9000'
-      - '9001:9001'
+      - '4805:9000'
+      - '4806:9001'
     volumes:
       - minio_data:/data
     healthcheck:
@@ -79,3 +136,6 @@ volumes:
   db_data:
   redis_data:
   minio_data:
+  qwen_config:
+  gemini_config:
+  cursor_config:

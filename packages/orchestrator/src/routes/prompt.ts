@@ -1,6 +1,6 @@
 import { FastifyInstance } from 'fastify'
 import { z } from 'zod'
-import { execFile, execFileSync } from 'node:child_process'
+import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import { writeFileSync, mkdirSync } from 'node:fs'
 import { dirname } from 'node:path'
@@ -36,7 +36,10 @@ export async function promptRoutes(fastify: FastifyInstance) {
       )
       return { stdout }
     } catch (err: any) {
-      if (err.killed || err.signal === 'SIGTERM' || err.code === 'ETIMEDOUT') {
+      if (err.code === 'ERR_CHILD_PROCESS_STDIO_MAXBUFFER') {
+        return reply.status(500).send({ error: 'claude response exceeded buffer limit' })
+      }
+      if (err.killed || err.signal === 'SIGTERM') {
         return reply.status(504).send({ error: 'claude timed out' })
       }
       return reply.status(500).send({ error: err.message ?? 'claude failed' })
@@ -46,25 +49,33 @@ export async function promptRoutes(fastify: FastifyInstance) {
   fastify.get('/health/claude', async () => {
     let cmd = env.CLAUDE_CMD
     try {
-      const resolved = execFileSync('which', [env.CLAUDE_CMD], { encoding: 'utf8' }).trim()
-      if (resolved) cmd = resolved
+      const { stdout } = await execFileAsync('which', [env.CLAUDE_CMD], {
+        encoding: 'utf8',
+        timeout: 5_000,
+      })
+      if (stdout.trim()) cmd = stdout.trim()
     } catch {
-      // keep env.CLAUDE_CMD as fallback
+      // keep env.CLAUDE_CMD fallback
     }
     try {
-      const version = execFileSync(env.CLAUDE_CMD, ['--version'], {
+      const { stdout } = await execFileAsync(env.CLAUDE_CMD, ['--version'], {
         encoding: 'utf8',
         timeout: 10_000,
         env: process.env,
-      }).trim()
-      return { ok: true, version, cmd }
+      })
+      return { ok: true, version: stdout.trim(), cmd }
     } catch (err: any) {
       return { ok: false, error: err?.message ?? 'CLI not found', cmd }
     }
   })
 
   fastify.post('/health/claude/token', async (request, reply) => {
-    const { token } = tokenBodySchema.parse(request.body)
+    let token: string
+    try {
+      token = tokenBodySchema.parse(request.body).token
+    } catch (err: any) {
+      return reply.status(400).send({ error: err.message ?? 'Invalid request' })
+    }
     const tokenPath = '/root/.claude/token'
     try {
       mkdirSync(dirname(tokenPath), { recursive: true })
