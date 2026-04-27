@@ -229,6 +229,8 @@ export const api = {
       }),
     cancelProposal: (proposalId: string) =>
       request<void>(`/chat/proposal/${encodeURIComponent(proposalId)}`, { method: 'DELETE' }),
+    newTopic: () =>
+      request<{ marker: any }>('/chat/topic', { method: 'POST' }),
   },
   metrics: {
     health: () =>

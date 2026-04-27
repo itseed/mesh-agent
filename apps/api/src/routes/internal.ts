@@ -43,23 +43,40 @@ async function pushChatMessage(fastify: FastifyInstance, message: object) {
 }
 
 interface RawChatMessage {
-  role: 'user' | 'lead' | 'agent'
+  role: 'user' | 'lead' | 'agent' | 'system'
   content: string
-  meta?: { agentRole?: string }
+  meta?: { agentRole?: string; topicReset?: boolean }
 }
 
 async function loadRecentContext(fastify: FastifyInstance): Promise<LeadContextMessage[]> {
-  const raw = await fastify.redis.lrange(HISTORY_KEY, -20, -1)
-  return raw
-    .map((s: string): LeadContextMessage | null => {
+  const raw = await fastify.redis.lrange(HISTORY_KEY, -100, -1)
+  const parsed = raw
+    .map((s: string): RawChatMessage | null => {
       try {
-        const m = JSON.parse(s) as RawChatMessage
-        return { role: m.role, content: m.content, agentRole: m.meta?.agentRole }
+        return JSON.parse(s) as RawChatMessage
       } catch {
         return null
       }
     })
-    .filter((m): m is LeadContextMessage => m !== null)
+    .filter((m): m is RawChatMessage => m !== null)
+
+  let startIdx = 0
+  for (let i = parsed.length - 1; i >= 0; i -= 1) {
+    if (parsed[i].meta?.topicReset) {
+      startIdx = i + 1
+      break
+    }
+  }
+
+  return parsed
+    .slice(startIdx)
+    .filter((m) => m.role !== 'system')
+    .slice(-20)
+    .map((m) => ({
+      role: m.role as 'user' | 'lead' | 'agent',
+      content: m.content,
+      agentRole: m.meta?.agentRole,
+    }))
 }
 
 async function synthesizeAfterCompletion(
@@ -71,6 +88,9 @@ async function synthesizeAfterCompletion(
     prUrl: string | null
   },
 ): Promise<void> {
+  await fastify.redis
+    .publish(CHAT_CHANNEL, JSON.stringify({ type: 'lead-status', status: 'thinking' }))
+    .catch(() => {})
   try {
     const context = await loadRecentContext(fastify)
     const reply = await runLeadSynthesis({
@@ -89,6 +109,10 @@ async function synthesizeAfterCompletion(
     })
   } catch (err) {
     fastify.log.warn({ err, role: input.agentRole }, 'Lead synthesis failed; skipping')
+  } finally {
+    await fastify.redis
+      .publish(CHAT_CHANNEL, JSON.stringify({ type: 'lead-status', status: 'idle' }))
+      .catch(() => {})
   }
 }
 

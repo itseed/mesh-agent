@@ -28,7 +28,7 @@ interface ProposalView {
 
 interface ChatMessage {
   id: string
-  role: 'user' | 'lead' | 'agent'
+  role: 'user' | 'lead' | 'agent' | 'system'
   content: string
   timestamp: number
   imageRefs?: string[]
@@ -40,6 +40,7 @@ interface ChatMessage {
     proposal?: ProposalView
     questions?: string[]
     confirmed?: boolean
+    topicReset?: boolean
   }
 }
 
@@ -104,6 +105,7 @@ export function CommandBar() {
   const [error, setError] = useState('')
   const [unread, setUnread] = useState(0)
   const [busyProposalId, setBusyProposalId] = useState<string | null>(null)
+  const [leadThinking, setLeadThinking] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const openRef = useRef(open)
@@ -156,7 +158,19 @@ export function CommandBar() {
       }),
     )
   }, [])
-  useChatStream({ onMessage: handleStream, onProposalUpdate: handleProposalUpdate })
+  const handleLeadStatus = useCallback((status: 'thinking' | 'idle') => {
+    setLeadThinking(status === 'thinking')
+  }, [])
+  const handleReconnect = useCallback(() => {
+    // Catch up on anything we missed during the disconnect
+    api.chat.history().then(setHistory).catch(() => {})
+  }, [])
+  useChatStream({
+    onMessage: handleStream,
+    onProposalUpdate: handleProposalUpdate,
+    onLeadStatus: handleLeadStatus,
+    onReconnect: handleReconnect,
+  })
 
   useEffect(() => {
     if (!open) return
@@ -164,7 +178,7 @@ export function CommandBar() {
       scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
     }, 30)
     return () => clearTimeout(t)
-  }, [history, open])
+  }, [history, open, leadThinking])
 
   async function handleFiles(files: FileList | null) {
     if (!files || files.length === 0) return
@@ -239,6 +253,15 @@ export function CommandBar() {
     if (!confirm('ล้างประวัติแชท?')) return
     await api.chat.clear()
     setHistory([])
+  }
+
+  async function startNewTopic() {
+    try {
+      await api.chat.newTopic()
+      // server publishes the marker via WS; no manual append needed
+    } catch (e: any) {
+      setError(e?.message ?? 'เริ่มหัวข้อใหม่ไม่สำเร็จ')
+    }
   }
 
   function applyProposalStatus(id: string, status: ProposalStatus) {
@@ -331,6 +354,13 @@ export function CommandBar() {
             </div>
             <div className="flex items-center gap-1">
               <button
+                onClick={startNewTopic}
+                className="text-muted hover:text-accent text-[12px] px-2 py-1 transition-colors"
+                title="เริ่มหัวข้อใหม่ — Lead จะลืมบทสนทนาก่อนหน้าเวลาวิเคราะห์ข้อความถัดไป"
+              >
+                หัวข้อใหม่
+              </button>
+              <button
                 onClick={clearHistory}
                 className="text-muted hover:text-text text-[12px] px-2 py-1 transition-colors"
                 title="ล้างประวัติ"
@@ -372,18 +402,24 @@ export function CommandBar() {
                 ))}
               </div>
             ) : (
-              history.map((m) => (
-                <ChatBubble
-                  key={m.id}
-                  m={m}
-                  busy={
-                    m.meta?.proposal ? busyProposalId === m.meta.proposal.id : false
-                  }
-                  onConfirm={confirmProposal}
-                  onCancel={cancelProposal}
-                />
-              ))
+              history.map((m) => {
+                if (m.meta?.topicReset || m.role === 'system') {
+                  return <TopicDivider key={m.id} label={m.content} />
+                }
+                return (
+                  <ChatBubble
+                    key={m.id}
+                    m={m}
+                    busy={
+                      m.meta?.proposal ? busyProposalId === m.meta.proposal.id : false
+                    }
+                    onConfirm={confirmProposal}
+                    onCancel={cancelProposal}
+                  />
+                )
+              })
             )}
+            {leadThinking && <LeadThinkingBubble />}
           </div>
 
           {/* Project selector */}
@@ -549,6 +585,39 @@ interface ChatBubbleProps {
   busy: boolean
   onConfirm: (proposalId: string) => void
   onCancel: (proposalId: string) => void
+}
+
+function TopicDivider({ label }: { label: string }) {
+  return (
+    <div className="flex items-center gap-2 my-1 select-none" role="separator">
+      <span className="flex-1 h-px bg-border" />
+      <span className="text-[10.5px] text-dim uppercase tracking-wider whitespace-nowrap">
+        {label}
+      </span>
+      <span className="flex-1 h-px bg-border" />
+    </div>
+  )
+}
+
+function LeadThinkingBubble() {
+  return (
+    <div className="flex justify-start gap-2" aria-live="polite">
+      <span
+        className="w-2 h-2 rounded-full mt-2 shrink-0 animate-pulse"
+        style={{ backgroundColor: ROLE_DOT.lead }}
+      />
+      <div>
+        <div className="text-[11px] text-muted mb-0.5 font-medium uppercase tracking-wider">
+          Lead
+        </div>
+        <div className="bg-surface-2 border border-border text-text rounded-2xl rounded-bl-sm px-3 py-2 inline-flex items-center gap-1">
+          <span className="w-1.5 h-1.5 rounded-full bg-muted/70 animate-bounce" style={{ animationDelay: '0ms' }} />
+          <span className="w-1.5 h-1.5 rounded-full bg-muted/70 animate-bounce" style={{ animationDelay: '150ms' }} />
+          <span className="w-1.5 h-1.5 rounded-full bg-muted/70 animate-bounce" style={{ animationDelay: '300ms' }} />
+        </div>
+      </div>
+    </div>
+  )
 }
 
 function ChatBubble({ m, busy, onConfirm, onCancel }: ChatBubbleProps) {

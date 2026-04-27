@@ -59,7 +59,7 @@ interface ProposalView {
 
 interface ChatMessage {
   id: string
-  role: 'user' | 'lead' | 'agent'
+  role: 'user' | 'lead' | 'agent' | 'system'
   content: string
   timestamp: number
   imageRefs?: string[]
@@ -71,6 +71,7 @@ interface ChatMessage {
     proposal?: ProposalView
     questions?: string[]
     confirmed?: boolean
+    topicReset?: boolean
   }
 }
 
@@ -84,12 +85,35 @@ async function loadRecentContext(
   fastify: FastifyInstance,
   excludeContent: string,
 ): Promise<LeadContextMessage[]> {
-  const raw = await fastify.redis.lrange(HISTORY_KEY, -20, -1)
-  return raw
-    .map((s: string) => JSON.parse(s) as ChatMessage)
+  // Walk back further than 20 — we'll trim once we know where the topic starts
+  const raw = await fastify.redis.lrange(HISTORY_KEY, -100, -1)
+  const parsed = raw
+    .map((s: string): ChatMessage | null => {
+      try {
+        return JSON.parse(s) as ChatMessage
+      } catch {
+        return null
+      }
+    })
+    .filter((m): m is ChatMessage => m !== null)
+
+  // Find the most recent topic-reset marker; everything before it is a
+  // different conversation that Lead should not be carrying into context.
+  let startIdx = 0
+  for (let i = parsed.length - 1; i >= 0; i -= 1) {
+    if (parsed[i].meta?.topicReset) {
+      startIdx = i + 1
+      break
+    }
+  }
+
+  return parsed
+    .slice(startIdx)
+    .filter((m) => m.role !== 'system') // skip markers themselves
     .filter((m) => !(m.role === 'user' && m.content === excludeContent))
+    .slice(-20) // cap final context size
     .map((m) => ({
-      role: m.role,
+      role: m.role === 'system' ? 'user' : (m.role as 'user' | 'lead' | 'agent'),
       content: m.content,
       agentRole: m.meta?.agentRole,
     }))
@@ -261,6 +285,20 @@ export async function chatRoutes(fastify: FastifyInstance) {
     reply.status(204).send()
   })
 
+  // Insert a topic-reset marker. Past messages remain visible in history but
+  // Lead's context window starts fresh from this point onward.
+  fastify.post('/chat/topic', { preHandler }, async () => {
+    const marker: ChatMessage = {
+      id: crypto.randomUUID(),
+      role: 'system',
+      content: '— เริ่มหัวข้อใหม่ —',
+      timestamp: Date.now(),
+      meta: { topicReset: true },
+    }
+    await pushHistory(fastify, marker)
+    return { marker }
+  })
+
   fastify.post('/chat', { preHandler }, async (request) => {
     const body = sendSchema.parse(request.body)
 
@@ -274,6 +312,14 @@ export async function chatRoutes(fastify: FastifyInstance) {
       imageRefs: body.images?.map((img) => `${img.name} (${img.mimeType})`),
     }
     await pushHistory(fastify, userMsg)
+
+    // Tell any open chat panels that Lead is now thinking, so they can render
+    // a typing indicator while we wait for the LLM. The 'idle' counterpart
+    // fires after we push the lead reply below.
+    await fastify.redis.publish(
+      CHAT_CHANNEL,
+      JSON.stringify({ type: 'lead-status', status: 'thinking' }),
+    )
 
     const recentContext = await loadRecentContext(fastify, body.message)
 
@@ -321,6 +367,10 @@ export async function chatRoutes(fastify: FastifyInstance) {
       },
     }
     await pushHistory(fastify, leadMsg)
+    await fastify.redis.publish(
+      CHAT_CHANNEL,
+      JSON.stringify({ type: 'lead-status', status: 'idle' }),
+    )
 
     return { user: userMsg, lead: leadMsg, proposal: proposalView ?? null }
   })
