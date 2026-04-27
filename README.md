@@ -2,7 +2,7 @@
 
 Web platform สำหรับ orchestrate AI dev team agents — เข้าถึงได้จากทุกที่ผ่าน browser รวมถึง mobile และ iPad
 
-ต่อยอดจาก [agent-teams](https://github.com/your-org/agent-teams) CLI ให้รันบน server แบบ always-on พร้อม Kanban dashboard และ GitHub integration
+ต่อยอดจาก [agent-teams](https://github.com/itseed/agent-teams) CLI ให้รันบน server แบบ always-on พร้อม Kanban dashboard และ GitHub integration
 
 ---
 
@@ -71,12 +71,14 @@ graph TB
 
 | Feature | Description |
 |---|---|
-| **Kanban Board** | Backlog → In Progress → Review → Done พร้อม drag-and-drop |
-| **Agent Monitoring** | เห็น live output ทุก agent พร้อมกัน real-time ผ่าน WebSocket |
-| **Command Bar** | สั่งงาน agent จาก quick bar หรือขยายเป็น modal ทุกหน้า |
-| **GitHub Integration** | PRs, commits, issues, webhook trigger agents อัตโนมัติ |
-| **Projects** | จัดการ projects และ paths เหมือน projects.json แต่ผ่าน UI |
-| **PWA** | ติดตั้งบน iOS/Android ได้ ใช้งาน offline บางส่วน |
+| **Lead Chat** | พิมพ์ภาษาธรรมชาติ → Lead AI วิเคราะห์ → propose task brief → confirm → dispatch |
+| **Kanban Board** | Backlog → In Progress → Review → Done พร้อม drag-and-drop และ real-time update ผ่าน WebSocket |
+| **Agent Monitoring** | เห็น live output ทุก agent พร้อมกัน real-time |
+| **Review Loop** | Reviewer agent วิเคราะห์ → เลือก issue → สร้าง fix task + dispatch อัตโนมัติ |
+| **GitHub Integration** | PRs, commits, issues — agent สร้าง PR ได้โดยตรง |
+| **Projects** | จัดการ projects + paths per role ผ่าน UI |
+| **Multi-user** | role-based access: admin / member / viewer |
+| **PWA** | ติดตั้งบน iOS/Android ได้ |
 
 ---
 
@@ -88,125 +90,8 @@ graph TB
 | Backend | Fastify 4, Drizzle ORM, PostgreSQL 16 |
 | Realtime | WebSocket, Redis pub/sub |
 | Orchestration | Node.js subprocess, Claude Code CLI |
+| Storage | MinIO (S3-compatible) |
 | Infrastructure | Docker Compose, Nginx, Let's Encrypt |
-
----
-
-## Sequence Diagrams
-
-### Dispatch Agent จาก Mobile
-
-```mermaid
-sequenceDiagram
-    actor User as 👤 User (Mobile)
-    participant Web as Next.js PWA
-    participant API as Fastify API
-    participant Orch as Orchestrator
-    participant Claude as Claude Code CLI
-    participant Redis
-
-    User->>Web: พิมพ์ prompt ใน Command Bar
-    Web->>API: POST /agents { role, workingDir, prompt }
-    API->>Orch: POST /sessions { role, workingDir, prompt }
-    Orch->>Claude: spawn subprocess
-    Orch-->>API: { sessionId, status: running }
-    API-->>Web: { sessionId }
-    Web->>API: WebSocket connect /ws?sessionId=xxx
-
-    loop Agent ทำงาน
-        Claude->>Orch: stdout line
-        Orch->>Redis: PUBLISH agent:{id}:output
-        Redis->>API: message event
-        API->>Web: WebSocket push { line }
-        Web->>User: แสดง live output
-    end
-
-    Claude->>Orch: process exit
-    Orch->>Redis: PUBLISH status: idle
-    API->>Web: WebSocket push { status: idle }
-```
-
-### GitHub Webhook → Auto-trigger Agent
-
-```mermaid
-sequenceDiagram
-    participant GH as GitHub
-    participant API as Fastify API
-    participant Redis
-    participant Web as Next.js PWA
-    participant Orch as Orchestrator
-
-    GH->>API: POST /github/webhook (issue opened)
-    API->>API: verify HMAC signature
-    API->>Redis: PUBLISH github:events { event, payload }
-    Redis->>Web: WebSocket push (GitHub activity feed)
-    Note over Web: แสดง notification ใน UI
-
-    alt User กด "Assign to Agent"
-        Web->>API: POST /agents { role: backend, prompt: issue body }
-        API->>Orch: POST /sessions
-        Orch->>Orch: spawn Claude Code CLI
-    end
-```
-
-### Authentication Flow
-
-```mermaid
-sequenceDiagram
-    actor User
-    participant Web as Next.js PWA
-    participant API as Fastify API
-    participant DB as PostgreSQL
-
-    User->>Web: เปิด app ครั้งแรก
-    Web->>API: GET /auth/me (HttpOnly cookie)
-    alt ไม่มี cookie หรือ invalid
-        API-->>Web: 401
-        Web->>User: redirect /login
-        User->>Web: ใส่ email + password
-        Web->>API: POST /auth/login (credentials: include)
-        API->>DB: SELECT * FROM users WHERE email = ?
-        API->>API: bcrypt.compare(password, hash)
-        API-->>Web: Set-Cookie: mesh_token (HttpOnly, Secure, SameSite=Lax)
-        Web->>User: redirect /overview
-    else มี cookie ที่ valid
-        API-->>Web: { id, email, role }
-        Web->>User: แสดง dashboard
-    end
-```
-
----
-
-## Project Structure
-
-```
-meshagent/
-├── apps/
-│   ├── web/                    # Next.js 14 PWA
-│   │   ├── app/                # App Router pages
-│   │   ├── components/         # React components
-│   │   └── lib/                # API client, WebSocket hook, auth
-│   └── api/                    # Fastify backend
-│       └── src/
-│           ├── plugins/        # DB, Redis plugins
-│           ├── routes/         # auth, tasks, projects, agents, github
-│           └── ws/             # WebSocket handler
-├── packages/
-│   ├── shared/                 # Types + Drizzle schema (shared)
-│   └── orchestrator/           # Agent session manager
-│       └── src/
-│           ├── session.ts      # AgentSession (subprocess)
-│           ├── manager.ts      # SessionManager
-│           └── streamer.ts     # Redis pub/sub streamer
-├── nginx/                      # Nginx config
-├── scripts/                    # Deploy + setup scripts
-├── docker-compose.yml          # Dev environment
-├── docker-compose.prod.yml     # Production
-└── docs/
-    └── superpowers/
-        ├── specs/              # Design spec
-        └── plans/              # Implementation plans (1-5)
-```
 
 ---
 
@@ -217,7 +102,7 @@ meshagent/
 - Node.js 20+
 - pnpm 9+ (`npm install -g pnpm@9`)
 - Docker + Docker Compose
-- Claude Code CLI (`npm install -g @anthropic-ai/claude-code`)
+- Claude Code CLI (`npm install -g @anthropic-ai/claude-code`) พร้อม login (`claude login`)
 
 ### Setup
 
@@ -231,9 +116,9 @@ pnpm install
 
 # 3. Setup env
 cp .env.example .env
-# แก้ไข .env ใส่ค่าที่ต้องการ
+# แก้ไข .env — ดูรายละเอียด Environment Variables ด้านล่าง
 
-# 4. Start Docker services (PostgreSQL + Redis)
+# 4. Start Docker services (PostgreSQL + Redis + MinIO)
 docker compose up -d
 
 # 5. Run migrations
@@ -241,14 +126,155 @@ cd packages/shared
 DATABASE_URL=postgresql://meshagent:meshagent@localhost:5432/meshagent pnpm db:migrate
 cd ../..
 
-# 6. Start all services (single command)
+# 6. Start all services
 pnpm dev
-# api → http://localhost:3001  |  orchestrator → http://localhost:3002  |  web → http://localhost:3000
+# api → http://localhost:3001
+# orchestrator → http://localhost:3002
+# web → http://localhost:3000
 ```
 
 เปิด [http://localhost:3000](http://localhost:3000) แล้ว login ด้วย `AUTH_EMAIL` และ `AUTH_PASSWORD` ที่ตั้งใน `.env`
 
 ![Login](docs/screenshots/login.png)
+
+---
+
+## วิธีใช้งาน
+
+### 1. ตั้งค่า Project
+
+ไปที่ **Settings → Projects** แล้วสร้าง project ใหม่ ระบุ **working directory ของแต่ละ role**:
+
+```
+Project: my-app
+Paths:
+  frontend  →  /Users/you/project/my-app/web
+  backend   →  /Users/you/project/my-app/api
+  mobile    →  /Users/you/project/my-app/mobile
+  devops    →  /Users/you/project/my-app
+```
+
+> Role ที่ไม่มี path จะ fallback ไปใช้ path แรกที่มี ไม่จำเป็นต้องครบทุก role
+
+### 2. สั่งงานผ่าน Lead Chat
+
+กดปุ่ม **Lead** (มุมขวาล่าง) แล้วพิมพ์คำสั่งเป็นภาษาธรรมชาติ:
+
+```
+"เพิ่ม feature dark mode ใน web app"
+"รีวิว code ของ API ให้หน่อย"
+"เพิ่ม unit test สำหรับ auth module"
+"แก้ bug ที่ login ไม่ redirect หลัง success"
+```
+
+Lead AI จะ:
+1. วิเคราะห์ request — ถ้าต้องการข้อมูลเพิ่มจะถามก่อน
+2. เสนอ **task brief** + role ที่เหมาะสม
+3. รอ confirm จากคุณ → กด **ยืนยันและสั่งงาน**
+
+> เลือก project ก่อนพิมพ์ (dropdown ใต้ chat) เพื่อให้ Lead รู้ paths ที่ถูกต้อง
+
+### 3. ติดตามงานใน Kanban
+
+หลัง confirm งาน — task จะปรากฏใน Kanban **In Progress** ทันที (real-time ผ่าน WebSocket)
+
+เมื่อ agent เสร็จ:
+- Task เลื่อนไป **Review** หรือ **Done** อัตโนมัติ
+- Lead debrief ผ่าน chat ว่าเสร็จอะไรบ้าง
+- มี link **"ดู Task ใน Kanban →"** ใน chat
+
+### 4. Review Loop
+
+ถ้าใช้ role `reviewer`:
+
+1. Reviewer agent วิเคราะห์ code → สร้าง comment พร้อม issues
+2. กดปุ่ม **🔧 Fix N Issues** ใน task comment
+3. เลือก issue ที่ต้องการแก้ (checklist พร้อม severity badge)
+4. กด **Create Fix Tasks** → สร้าง subtask + dispatch fix agent ทันที
+
+### 5. Quick Replies
+
+เมื่อ Lead ถามคำถาม (เช่น "อยากให้ส่ง agent แก้ Critical ทั้ง 7 ก่อนไหมครับ?") — มีปุ่ม quick reply:
+- **ใช่ ดำเนินการเลย** — ส่งตอบทันที
+- **ยังก่อน** — ปฏิเสธ
+- **บอกรายละเอียดเพิ่ม** — ขอข้อมูลเพิ่ม
+
+### 6. หยุด Agent ที่กำลังทำงาน
+
+บน agent message ที่ขึ้นว่า "เริ่มทำงานแล้ว" — กดปุ่ม **■ หยุดงาน** เพื่อ kill session
+
+---
+
+## Agent Roles
+
+| Role | ทำอะไร |
+|---|---|
+| **frontend** | React, Next.js, TypeScript, CSS, browser extension |
+| **backend** | REST API, GraphQL, database, business logic, auth |
+| **mobile** | React Native, iOS/Android native modules |
+| **devops** | CI/CD, Docker, deployment, infrastructure, env config |
+| **designer** | Figma-to-code, design system, UX review, accessibility |
+| **qa** | Unit / integration / e2e tests, edge cases, coverage |
+| **reviewer** | Code review, security audit, performance, best practices |
+
+Lead เลือก role ที่เหมาะสมเองโดยอัตโนมัติ หรือระบุตรงๆ เช่น "ให้ reviewer ตรวจ code"
+
+---
+
+## Environment Variables
+
+| Variable | Required | Default | Description |
+|---|---|---|---|
+| `DATABASE_URL` | ✓ | — | PostgreSQL connection URL |
+| `DB_POOL_MAX` | — | `10` | DB connection pool size |
+| `REDIS_URL` | ✓ | — | Redis connection URL |
+| `AUTH_EMAIL` | ✓ | — | Initial admin email (seeded on first boot) |
+| `AUTH_PASSWORD` | ✓ | — | Initial admin password |
+| `JWT_SECRET` | ✓ | — | JWT signing secret (32+ chars) |
+| `TOKEN_ENCRYPTION_KEY` | ✓ | — | AES-256-GCM key for encrypting GitHub tokens at rest (32 bytes hex) |
+| `INTERNAL_SECRET` | ✓ | — | Shared secret between API and orchestrator (32+ chars) |
+| `CORS_ALLOWED_ORIGINS` | prod | — | Comma-separated allowed browser origins |
+| `COOKIE_DOMAIN` | — | — | Apex domain for cross-subdomain cookies (e.g. `.yourdomain.com`) |
+| `RATE_LIMIT_MAX` | — | `120` | API rate limit (requests per window) |
+| `RATE_LIMIT_WINDOW` | — | `1 minute` | Rate limit window |
+| `AUTH_RATE_LIMIT_MAX` | — | `10` | Login endpoint rate limit |
+| `GITHUB_TOKEN` | — | — | Fallback GitHub PAT (user-level tokens preferred) |
+| `GITHUB_WEBHOOK_SECRET` | prod | — | HMAC secret for verifying GitHub webhooks (min 16 chars) |
+| `GITHUB_OAUTH_CLIENT_ID` | — | — | GitHub OAuth App client ID |
+| `GITHUB_OAUTH_CLIENT_SECRET` | — | — | GitHub OAuth App client secret |
+| `GITHUB_OAUTH_REDIRECT_URI` | — | — | OAuth callback URL |
+| `WEB_BASE_URL` | — | `http://localhost:3000` | Public URL of web frontend |
+| `MINIO_ACCESS_KEY` | — | `meshagent` | MinIO access key (file attachments) |
+| `MINIO_SECRET_KEY` | — | — | MinIO secret key |
+| `MINIO_BUCKET` | — | `mesh-agent` | MinIO bucket name |
+| `ORCHESTRATOR_URL` | — | `http://localhost:3002` | Internal orchestrator URL |
+| `MAX_CONCURRENT_SESSIONS` | — | `8` | Max simultaneous agent sessions |
+| `SESSION_IDLE_TIMEOUT_MS` | — | `3600000` | Auto-kill idle sessions (ms) |
+| `CLAUDE_CMD` | — | `claude` | Path to Claude Code CLI binary |
+| `LEAD_SYSTEM_PROMPT` | — | — | Override Lead AI system prompt (inline) |
+| `LEAD_SYSTEM_PROMPT_FILE` | — | — | Path to file containing Lead system prompt |
+| `LEAD_SYNTHESIS_PROMPT` | — | — | Override Lead debrief system prompt |
+| `LOG_LEVEL` | — | `info` | Pino log level |
+
+### Generating secrets
+
+```bash
+# JWT_SECRET, TOKEN_ENCRYPTION_KEY, INTERNAL_SECRET, GITHUB_WEBHOOK_SECRET
+openssl rand -hex 32
+```
+
+### Multi-user
+
+First boot seeds an admin from `AUTH_EMAIL` / `AUTH_PASSWORD`. Create more users via Settings UI (admin only) or API:
+
+```bash
+curl -X POST https://your-api/auth/users \
+  -H 'Content-Type: application/json' \
+  -b mesh_token=<admin-jwt> \
+  -d '{"email":"dev@example.com","password":"...","role":"member"}'
+```
+
+Roles: `admin` (full access + user management), `member` (default), `viewer` (read-only).
 
 ---
 
@@ -266,56 +292,7 @@ bash <(curl -fsSL https://raw.githubusercontent.com/itseed/mesh-agent/main/scrip
 DROPLET_HOST=your.droplet.ip bash scripts/deploy.sh
 ```
 
----
-
-## Environment Variables
-
-| Variable | Required | Description |
-|---|---|---|
-| `DATABASE_URL` | ✓ | PostgreSQL connection URL |
-| `DB_POOL_MAX` | — | DB pool size (default 10) |
-| `REDIS_URL` | ✓ | Redis connection URL |
-| `AUTH_EMAIL` | ✓ | Initial admin email (seeded into `users` table on first boot) |
-| `AUTH_PASSWORD` | ✓ | Initial admin password (bcrypt-hashed at seed time) |
-| `JWT_SECRET` | ✓ | JWT signing secret (32+ chars) |
-| `TOKEN_ENCRYPTION_KEY` | ✓ | AES-256-GCM key for encrypting GitHub tokens at rest (32+ chars) |
-| `CORS_ALLOWED_ORIGINS` | ✓ in prod | Comma-separated allowed browser origins |
-| `COOKIE_DOMAIN` | — | Set to your apex domain when API and web are on subdomains |
-| `RATE_LIMIT_MAX` / `RATE_LIMIT_WINDOW` | — | Global API rate limit (default: 120 req/min) |
-| `AUTH_RATE_LIMIT_MAX` / `AUTH_RATE_LIMIT_WINDOW` | — | Tighter limit on `/auth/login` (default: 10 req/min) |
-| `ANTHROPIC_API_KEY` | ✓ | สำหรับ Claude Code CLI |
-| `GITHUB_TOKEN` | — | Fallback GitHub PAT |
-| `GITHUB_WEBHOOK_SECRET` | ✓ in prod | HMAC secret for verifying GitHub webhooks (min 16 chars) |
-| `GITHUB_OAUTH_CLIENT_ID` / `GITHUB_OAUTH_CLIENT_SECRET` | — | Enables OAuth flow on Settings page |
-| `ORCHESTRATOR_URL` | — | Internal URL ของ orchestrator (default: http://localhost:3002) |
-| `MAX_CONCURRENT_SESSIONS` | — | Cap on simultaneous agent sessions (default: 8) |
-| `SESSION_IDLE_TIMEOUT_MS` | — | Auto-kill idle sessions after this many ms (default: 1h) |
-| `LOG_LEVEL` | — | pino log level (default: info) |
-
-### Generating secrets
-
-```bash
-# 32-byte hex (use for JWT_SECRET, TOKEN_ENCRYPTION_KEY, GITHUB_WEBHOOK_SECRET)
-openssl rand -hex 32
-```
-
-### Multi-user
-
-The first boot seeds an admin from `AUTH_EMAIL` / `AUTH_PASSWORD`. Subsequent
-users are created via the API:
-
-```bash
-curl -X POST https://your-api/auth/users \
-  -H 'Content-Type: application/json' \
-  -b mesh_token=<admin-jwt> \
-  -d '{"email":"dev@example.com","password":"...","role":"member"}'
-```
-
-Roles: `admin` (full access, manages users + roles), `member` (default), `viewer`.
-
 ### Database backups
-
-A daily backup script is provided. Add to crontab on the host:
 
 ```cron
 0 3 * * * /opt/mesh-agent/scripts/db-backup.sh >>/var/log/meshagent-backup.log 2>&1
@@ -325,7 +302,120 @@ Restore: `./scripts/db-restore.sh /var/backups/meshagent/meshagent-...sql.gz`
 
 ---
 
+## Project Structure
+
+```
+meshagent/
+├── apps/
+│   ├── web/                    # Next.js 14 PWA
+│   │   ├── app/                # App Router pages
+│   │   ├── components/         # React components
+│   │   └── lib/                # API client, WebSocket hooks, auth
+│   └── api/                    # Fastify backend
+│       └── src/
+│           ├── lib/            # lead.ts, dispatch.ts, roles.ts
+│           ├── plugins/        # DB, Redis plugins
+│           ├── routes/         # auth, tasks, projects, agents, chat, github
+│           └── ws/             # WebSocket handler + pub/sub
+├── packages/
+│   ├── shared/                 # Types + Drizzle schema (shared)
+│   └── orchestrator/           # Agent session manager
+│       └── src/
+│           ├── session.ts      # AgentSession (subprocess + streaming)
+│           ├── manager.ts      # SessionManager
+│           └── streamer.ts     # Redis pub/sub streamer
+├── nginx/                      # Nginx config
+├── scripts/                    # Deploy + setup + backup scripts
+├── docker-compose.yml          # Dev environment
+├── docker-compose.prod.yml     # Production
+└── docs/
+    └── superpowers/
+        ├── specs/              # Design specs
+        └── plans/              # Implementation plans (1-5)
+```
+
+---
+
+## Sequence Diagrams
+
+### Chat → Dispatch → Agent Complete
+
+```mermaid
+sequenceDiagram
+    actor User
+    participant Web as Next.js
+    participant API as Fastify API
+    participant Lead as Lead LLM
+    participant Orch as Orchestrator
+    participant Claude as Claude Code CLI
+
+    User->>Web: พิมพ์ใน Lead chat
+    Web->>API: POST /chat { message, projectId }
+    API->>Lead: runLead(message, context, projectPaths)
+    Lead-->>API: { intent: dispatch, taskBrief, roles }
+    API-->>Web: proposal card (WebSocket push)
+    User->>Web: กด "ยืนยันและสั่งงาน"
+    Web->>API: POST /chat/dispatch { proposalId }
+    API->>Orch: POST /sessions { role, workingDir, prompt }
+    Orch->>Claude: spawn subprocess
+    Claude-->>Orch: stdout stream
+    Orch-->>API: WebSocket push (live output)
+    Claude->>Orch: process exit
+    Orch->>API: POST /internal/agent-complete
+    API->>API: update task stage + Lead synthesis
+    API-->>Web: WebSocket push (task.stage + lead debrief)
+```
+
+### Review → Fix Loop
+
+```mermaid
+sequenceDiagram
+    actor User
+    participant Web as Next.js
+    participant API as Fastify API
+    participant Orch as Orchestrator
+
+    User->>Web: สั่ง reviewer ผ่าน Lead chat
+    Web->>API: POST /chat/dispatch
+    API->>Orch: spawn reviewer agent
+    Orch-->>API: agent complete (issues found)
+    API-->>Web: task comment with issues list
+    User->>Web: กด "🔧 Fix N Issues"
+    Web->>Web: เลือก issues (checklist + severity)
+    User->>Web: กด "Create Fix Tasks"
+    Web->>API: POST /tasks/:id/fix-issues { issues }
+    API->>Orch: spawn fix agent per issue
+    API-->>Web: subtasks created (WebSocket push)
+```
+
+### Authentication Flow
+
+```mermaid
+sequenceDiagram
+    actor User
+    participant Web as Next.js PWA
+    participant API as Fastify API
+    participant DB as PostgreSQL
+
+    User->>Web: เปิด app
+    Web->>API: GET /auth/me (HttpOnly cookie)
+    alt ไม่มี cookie
+        API-->>Web: 401
+        Web->>User: redirect /login
+        User->>Web: ใส่ email + password
+        Web->>API: POST /auth/login
+        API->>DB: verify credentials (bcrypt)
+        API-->>Web: Set-Cookie: mesh_token (HttpOnly, Secure)
+        Web->>User: redirect /overview
+    else มี cookie ที่ valid
+        API-->>Web: { id, email, role }
+        Web->>User: แสดง dashboard
+    end
+```
+
+---
+
 ## Roadmap
 
 - **v1** — Server-based platform (current)
-- **v2** — Local Companion CLI (hybrid mode: agents รันบน local machine ผ่าน WebSocket)
+- **v2** — Local Companion CLI (hybrid mode: agents รันบน local machine ผ่าน WebSocket tunnel)
