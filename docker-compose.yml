@@ -35,12 +35,14 @@ services:
       REDIS_URL: redis://redis:6379
       ORCHESTRATOR_PORT: 4802
       CLAUDE_CMD: claude
+      REPOS_BASE_DIR: /repos
     volumes:
       - ./packages/orchestrator:/app/packages/orchestrator
       - /app/packages/orchestrator/node_modules
       - ./packages/shared:/app/packages/shared
       - /app/packages/shared/node_modules
       - ~/.claude:/root/.claude
+      - repos_data:/repos
       - qwen_config:/root/.qwen
       - gemini_config:/root/.gemini
       - cursor_config:/root/.cursor
@@ -77,6 +79,7 @@ services:
       AUTH_RATE_LIMIT_MAX: ${AUTH_RATE_LIMIT_MAX:-10}
       AUTH_RATE_LIMIT_WINDOW: ${AUTH_RATE_LIMIT_WINDOW:-1 minute}
       LOG_LEVEL: ${LOG_LEVEL:-info}
+      REPOS_BASE_DIR: /repos
       MINIO_ENDPOINT: minio
       MINIO_PORT: 9000
       MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-meshagent}
@@ -93,6 +96,7 @@ services:
       - ./packages/shared:/app/packages/shared
       - /app/packages/shared/node_modules
       - ./tsconfig.base.json:/app/tsconfig.base.json:ro
+      - repos_data:/repos
     depends_on:
       db:
         condition: service_healthy
@@ -141,3 +145,4 @@ volumes:
   qwen_config:
   gemini_config:
   cursor_config:
+  repos_data:
