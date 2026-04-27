@@ -1,6 +1,6 @@
-FROM node:20-alpine AS base
+FROM node:20-slim AS base
 RUN npm install -g pnpm@9
-RUN apk add --no-cache tmux curl bash
+RUN apt-get update && apt-get install -y --no-install-recommends tmux curl bash git ca-certificates && rm -rf /var/lib/apt/lists/*
 # ติดตั้ง Claude Code CLI และ AI CLI tools อื่นๆ
 RUN npm install -g @anthropic-ai/claude-code \
     && npm install -g @google/gemini-cli \
