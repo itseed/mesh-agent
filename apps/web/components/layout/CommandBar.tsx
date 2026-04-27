@@ -15,13 +15,29 @@ const ROLE_DOT: Record<string, string> = {
   lead: '#facc15',
 }
 
+interface ProposalView {
+  id: string
+  taskBrief: { title: string; description: string }
+  roles: { slug: string; reason?: string }[]
+  projectId: string | null
+  baseBranch: string
+}
+
 interface ChatMessage {
   id: string
   role: 'user' | 'lead' | 'agent'
   content: string
   timestamp: number
   imageRefs?: string[]
-  meta?: { agentRole?: string; sessionId?: string; taskId?: string }
+  meta?: {
+    agentRole?: string
+    sessionId?: string
+    taskId?: string
+    intent?: 'chat' | 'clarify' | 'dispatch'
+    proposal?: ProposalView
+    questions?: string[]
+    confirmed?: boolean
+  }
 }
 
 interface Attachment {
@@ -84,6 +100,8 @@ export function CommandBar() {
   const [sending, setSending] = useState(false)
   const [error, setError] = useState('')
   const [unread, setUnread] = useState(0)
+  const [resolvedProposals, setResolvedProposals] = useState<Set<string>>(new Set())
+  const [busyProposalId, setBusyProposalId] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const openRef = useRef(open)
@@ -205,6 +223,41 @@ export function CommandBar() {
     if (!confirm('ล้างประวัติแชท?')) return
     await api.chat.clear()
     setHistory([])
+    setResolvedProposals(new Set())
+  }
+
+  async function confirmProposal(id: string) {
+    setBusyProposalId(id)
+    setError('')
+    try {
+      await api.chat.dispatch(id)
+      setResolvedProposals((prev) => {
+        const next = new Set(prev)
+        next.add(id)
+        return next
+      })
+    } catch (e: any) {
+      setError(e.message ?? 'ยืนยันไม่สำเร็จ')
+    } finally {
+      setBusyProposalId(null)
+    }
+  }
+
+  async function cancelProposal(id: string) {
+    setBusyProposalId(id)
+    setError('')
+    try {
+      await api.chat.cancelProposal(id)
+      setResolvedProposals((prev) => {
+        const next = new Set(prev)
+        next.add(id)
+        return next
+      })
+    } catch (e: any) {
+      setError(e.message ?? 'ยกเลิกไม่สำเร็จ')
+    } finally {
+      setBusyProposalId(null)
+    }
   }
 
   if (pathname === '/login') return null
@@ -288,7 +341,20 @@ export function CommandBar() {
                 ))}
               </div>
             ) : (
-              history.map((m) => <ChatBubble key={m.id} m={m} />)
+              history.map((m) => (
+                <ChatBubble
+                  key={m.id}
+                  m={m}
+                  resolved={
+                    m.meta?.proposal ? resolvedProposals.has(m.meta.proposal.id) : false
+                  }
+                  busy={
+                    m.meta?.proposal ? busyProposalId === m.meta.proposal.id : false
+                  }
+                  onConfirm={confirmProposal}
+                  onCancel={cancelProposal}
+                />
+              ))
             )}
           </div>
 
@@ -450,7 +516,15 @@ export function CommandBar() {
   )
 }
 
-function ChatBubble({ m }: { m: ChatMessage }) {
+interface ChatBubbleProps {
+  m: ChatMessage
+  resolved: boolean
+  busy: boolean
+  onConfirm: (proposalId: string) => void
+  onCancel: (proposalId: string) => void
+}
+
+function ChatBubble({ m, resolved, busy, onConfirm, onCancel }: ChatBubbleProps) {
   const isUser = m.role === 'user'
   const isLead = m.role === 'lead'
   const role = m.meta?.agentRole
@@ -470,6 +544,9 @@ function ChatBubble({ m }: { m: ChatMessage }) {
     )
   }
 
+  const proposal = m.meta?.proposal
+  const questions = m.meta?.questions
+
   return (
     <div className="flex justify-start gap-2">
       <span
@@ -480,12 +557,19 @@ function ChatBubble({ m }: { m: ChatMessage }) {
             : (role && ROLE_DOT[role]) || '#6a7a8e',
         }}
       />
-      <div className="max-w-[85%]">
+      <div className="max-w-[85%] flex-1 min-w-0">
         <div className="text-[11px] text-muted mb-0.5 font-medium uppercase tracking-wider">
           {isLead ? 'Lead' : role ?? 'agent'}
         </div>
         <div className="bg-surface-2 border border-border text-text rounded-2xl rounded-bl-sm px-3 py-2">
           <p className="text-[13.5px] whitespace-pre-wrap leading-relaxed">{m.content}</p>
+          {questions && questions.length > 0 && (
+            <ul className="mt-2 pl-4 list-disc text-[12.5px] text-muted space-y-0.5">
+              {questions.map((q, i) => (
+                <li key={i}>{q}</li>
+              ))}
+            </ul>
+          )}
           {m.role === 'agent' && m.content.includes('PR: https://') && (
             <a
               href={m.content.match(/PR: (https:\/\/[^\s]+)/)?.[1]}
@@ -497,7 +581,73 @@ function ChatBubble({ m }: { m: ChatMessage }) {
             </a>
           )}
         </div>
+        {proposal && (
+          <ProposalCard
+            proposal={proposal}
+            resolved={resolved}
+            busy={busy}
+            onConfirm={onConfirm}
+            onCancel={onCancel}
+          />
+        )}
       </div>
+    </div>
+  )
+}
+
+interface ProposalCardProps {
+  proposal: ProposalView
+  resolved: boolean
+  busy: boolean
+  onConfirm: (proposalId: string) => void
+  onCancel: (proposalId: string) => void
+}
+
+function ProposalCard({ proposal, resolved, busy, onConfirm, onCancel }: ProposalCardProps) {
+  return (
+    <div className="mt-2 bg-canvas border border-border-hi rounded-lg p-3 text-[12.5px] flex flex-col gap-2">
+      <div>
+        <div className="text-[11px] text-dim uppercase tracking-wider mb-0.5">Proposed task</div>
+        <div className="text-text font-semibold leading-snug">{proposal.taskBrief.title}</div>
+      </div>
+      <p className="text-muted whitespace-pre-wrap leading-relaxed">
+        {proposal.taskBrief.description}
+      </p>
+      <div className="flex flex-wrap gap-1.5">
+        {proposal.roles.map((r) => (
+          <span
+            key={r.slug}
+            title={r.reason}
+            className="inline-flex items-center gap-1 bg-surface-2 border border-border rounded-full px-2 py-0.5 text-[11px] text-text"
+          >
+            <span
+              className="w-1.5 h-1.5 rounded-full"
+              style={{ backgroundColor: ROLE_DOT[r.slug] ?? '#6a7a8e' }}
+            />
+            {r.slug}
+          </span>
+        ))}
+      </div>
+      {resolved ? (
+        <div className="text-[11px] text-dim italic">— จัดการแล้ว —</div>
+      ) : (
+        <div className="flex items-center gap-2 pt-1">
+          <button
+            onClick={() => onConfirm(proposal.id)}
+            disabled={busy}
+            className="bg-accent/90 hover:bg-accent text-canvas text-[12px] font-semibold px-3 py-1.5 rounded transition-colors disabled:opacity-40"
+          >
+            {busy ? '…' : 'ยืนยันและสั่งงาน'}
+          </button>
+          <button
+            onClick={() => onCancel(proposal.id)}
+            disabled={busy}
+            className="text-muted hover:text-danger text-[12px] px-2 py-1.5 transition-colors disabled:opacity-40"
+          >
+            ยกเลิก
+          </button>
+        </div>
+      )}
     </div>
   )
 }

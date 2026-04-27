@@ -207,10 +207,17 @@ export const api = {
       projectId?: string
       images?: Array<{ name: string; mimeType: string; data: string }>
     }) =>
-      request<{ user: any; lead: any; dispatches: any[] }>('/chat', {
+      request<{ user: any; lead: any; proposal: any | null }>('/chat', {
         method: 'POST',
         body: JSON.stringify(data),
       }),
+    dispatch: (proposalId: string) =>
+      request<{ confirm: any; dispatches: any[] }>('/chat/dispatch', {
+        method: 'POST',
+        body: JSON.stringify({ proposalId }),
+      }),
+    cancelProposal: (proposalId: string) =>
+      request<void>(`/chat/proposal/${encodeURIComponent(proposalId)}`, { method: 'DELETE' }),
   },
   metrics: {
     health: () =>
