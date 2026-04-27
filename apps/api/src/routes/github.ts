@@ -1,8 +1,10 @@
 import { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 import { createHmac, timingSafeEqual } from 'node:crypto'
+import { execSync } from 'node:child_process'
+import path from 'node:path'
 import { eq, and } from 'drizzle-orm'
-import { tasks } from '@meshagent/shared'
+import { tasks, projects } from '@meshagent/shared'
 import { resolveGitHubClient, parseRepo } from '../lib/github-client.js'
 import { env, isProd } from '../env.js'
 import { logAudit } from '../lib/audit.js'
@@ -236,6 +238,26 @@ export async function githubRoutes(fastify: FastifyInstance) {
             JSON.stringify({ type: 'task.stage', taskId: t.id, stage: 'done', projectId: t.projectId }),
           )
           request.log.info({ taskId: t.id, prUrl }, 'Task auto-closed via PR merge')
+
+          if (t.projectId) {
+            const [proj] = await fastify.db
+              .select({ workspacePath: projects.workspacePath })
+              .from(projects)
+              .where(eq(projects.id, t.projectId))
+              .limit(1)
+            if (proj?.workspacePath) {
+              const worktreePath = path.resolve(path.dirname(proj.workspacePath), '..', 'worktrees', t.id)
+              try {
+                execSync(`git worktree remove ${worktreePath} --force`, {
+                  cwd: proj.workspacePath,
+                  stdio: 'inherit',
+                })
+                execSync('git worktree prune', { cwd: proj.workspacePath, stdio: 'inherit' })
+              } catch (e: any) {
+                request.log.warn({ err: e?.message, worktreePath }, 'Failed to remove worktree — ignoring')
+              }
+            }
+          }
         }))
       }
     }

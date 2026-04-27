@@ -43,6 +43,13 @@
       "when": 1745859200000,
       "tag": "0005_role_system_prompts",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1745945600000,
+      "tag": "0006_cli_providers",
+      "breakpoints": true
     }
   ]
 }
