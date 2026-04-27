@@ -30,7 +30,7 @@ export default function SettingsPage() {
 
 function SettingsPageInner() {
   const searchParams = useSearchParams()
-  const [activeTab, setActiveTab] = useState<'cli' | 'skills' | 'github' | 'providers'>('cli')
+  const [activeTab, setActiveTab] = useState<'skills' | 'github' | 'providers'>('providers')
 
   const [status, setStatus] = useState<GhStatus | null>(null)
   const [tokenInput, setTokenInput] = useState('')
@@ -224,7 +224,7 @@ function SettingsPageInner() {
         <div className="p-6 pb-32 fade-up max-w-4xl">
           <div className="mb-4">
             <h1 className="text-[15px] font-semibold text-text tracking-tight">ตั้งค่า</h1>
-            <p className="text-[13px] text-muted mt-0.5">Claude CLI · Agent Skills · GitHub · CLI Providers</p>
+            <p className="text-[13px] text-muted mt-0.5">CLI · Agent Skills · GitHub</p>
           </div>
 
           {error && (
@@ -236,7 +236,7 @@ function SettingsPageInner() {
 
           {/* Tab bar */}
           <div className="flex gap-0 mb-6 border-b border-border">
-            {([['cli', 'Claude CLI'], ['skills', 'Agent Skills'], ['github', 'GitHub'], ['providers', 'CLI Providers']] as const).map(([id, label]) => (
+            {([['providers', 'CLI'], ['skills', 'Agent Skills'], ['github', 'GitHub']] as const).map(([id, label]) => (
               <button
                 key={id}
                 onClick={() => setActiveTab(id)}
@@ -250,78 +250,6 @@ function SettingsPageInner() {
               </button>
             ))}
           </div>
-
-          {/* Claude CLI tab */}
-          {activeTab === 'cli' && (
-            <section className="bg-surface border border-border rounded-lg p-5">
-              <div className="mb-4">
-                <h2 className="text-[14px] font-semibold text-text">Claude CLI</h2>
-                <p className="text-[13px] text-muted mt-0.5">สถานะ claude binary ใน orchestrator container</p>
-              </div>
-
-              <div className="mb-4">
-                <button
-                  onClick={testCli}
-                  disabled={cliTesting}
-                  className="text-[13px] bg-surface-2 hover:bg-canvas border border-border text-text px-4 py-2 rounded transition-colors disabled:opacity-40"
-                >
-                  {cliTesting ? '…' : '▶ ทดสอบ CLI'}
-                </button>
-                {cliTestResult && (
-                  <div className={`mt-2 p-3 rounded border text-[12px] font-mono ${
-                    cliTestResult.ok
-                      ? 'bg-success/5 border-success/20 text-success'
-                      : 'bg-danger/5 border-danger/20 text-danger'
-                  }`}>
-                    {cliTestResult.ok
-                      ? `${cliTestResult.version}  (${cliTestResult.cmd})`
-                      : cliTestResult.error}
-                  </div>
-                )}
-              </div>
-
-              <p className="text-[12px] text-dim mt-2">
-                เปลี่ยน binary ได้โดยตั้ง <code className="font-mono text-muted">CLAUDE_CMD</code> ใน orchestrator environment แล้ว restart
-              </p>
-
-              {/* Repos Base Directory */}
-              <div className="pt-4 border-t border-border mt-4">
-                <h3 className="text-[13px] font-semibold text-text mb-0.5">Repos Base Directory</h3>
-                <p className="text-[12px] text-dim mb-3">
-                  root directory ที่ clone repos ไว้ — ใช้ auto-fill path เมื่อสร้าง project เช่น <span className="font-mono text-muted">/home/ubuntu/repos</span>
-                </p>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={reposBaseDir}
-                    onChange={e => setReposBaseDir(e.target.value)}
-                    placeholder="/home/ubuntu/repos"
-                    className="flex-1 bg-canvas border border-border text-text text-[13px] rounded px-3 py-1.5 placeholder-dim font-mono"
-                  />
-                  <button
-                    type="button"
-                    onClick={saveBaseDir}
-                    disabled={savingBaseDir}
-                    className="text-[13px] bg-accent/15 hover:bg-accent/25 border border-accent/25 text-accent px-3 py-1.5 rounded transition-all disabled:opacity-50"
-                  >
-                    {savingBaseDir ? '…' : 'Save'}
-                  </button>
-                  {savedBaseDir && (
-                    <button
-                      type="button"
-                      onClick={async () => { await api.settings.resetReposBaseDir(); setSavedBaseDir(null); setReposBaseDir('') }}
-                      className="text-[13px] text-muted hover:text-danger px-2 py-1.5 rounded transition-colors"
-                    >
-                      ✕
-                    </button>
-                  )}
-                </div>
-                {savedBaseDir && (
-                  <p className="text-[12px] text-success mt-1.5">✓ {savedBaseDir}</p>
-                )}
-              </div>
-            </section>
-          )}
 
           {/* GitHub connection */}
           {activeTab === 'github' && (
@@ -587,6 +515,7 @@ function SettingsPageInner() {
                 </div>
 
                 {p.id === 'claude' && (
+                  <>
                   <div className="mt-4 pt-4 border-t border-border">
                     <h3 className="text-[13px] font-semibold text-text mb-0.5">Paste OAuth Token</h3>
                     <p className="text-[12px] text-dim mb-3">
@@ -624,6 +553,71 @@ function SettingsPageInner() {
                     {tokenInfo && <p className="text-[12px] text-success mt-1.5">✓ {tokenInfo}</p>}
                     {tokenError && <p className="text-[12px] text-danger mt-1.5">✕ {tokenError}</p>}
                   </div>
+
+                  {/* Test Claude CLI */}
+                  <div className="mt-4 pt-4 border-t border-border">
+                    <h3 className="text-[13px] font-semibold text-text mb-0.5">Test CLI</h3>
+                    <p className="text-[12px] text-dim mb-3">ตรวจสอบว่า claude binary ใน orchestrator container ทำงานได้</p>
+                    <button
+                      onClick={testCli}
+                      disabled={cliTesting}
+                      className="text-[13px] bg-surface-2 hover:bg-canvas border border-border text-text px-4 py-2 rounded transition-colors disabled:opacity-40"
+                    >
+                      {cliTesting ? '…' : '▶ Test CLI'}
+                    </button>
+                    {cliTestResult && (
+                      <div className={`mt-2 p-3 rounded border text-[12px] font-mono ${
+                        cliTestResult.ok
+                          ? 'bg-success/5 border-success/20 text-success'
+                          : 'bg-danger/5 border-danger/20 text-danger'
+                      }`}>
+                        {cliTestResult.ok
+                          ? `${cliTestResult.version}  (${cliTestResult.cmd})`
+                          : cliTestResult.error}
+                      </div>
+                    )}
+                    <p className="text-[12px] text-dim mt-2">
+                      เปลี่ยน binary ได้โดยตั้ง <code className="font-mono text-muted">CLAUDE_CMD</code> ใน orchestrator environment แล้ว restart
+                    </p>
+                  </div>
+
+                  {/* Repos Base Directory */}
+                  <div className="mt-4 pt-4 border-t border-border">
+                    <h3 className="text-[13px] font-semibold text-text mb-0.5">Repos Base Directory</h3>
+                    <p className="text-[12px] text-dim mb-3">
+                      root directory ที่ clone repos ไว้ — ใช้ auto-fill path เมื่อสร้าง project เช่น <span className="font-mono text-muted">/home/ubuntu/repos</span>
+                    </p>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={reposBaseDir}
+                        onChange={e => setReposBaseDir(e.target.value)}
+                        placeholder="/home/ubuntu/repos"
+                        className="flex-1 bg-canvas border border-border text-text text-[13px] rounded px-3 py-1.5 placeholder-dim font-mono"
+                      />
+                      <button
+                        type="button"
+                        onClick={saveBaseDir}
+                        disabled={savingBaseDir}
+                        className="text-[13px] bg-accent/15 hover:bg-accent/25 border border-accent/25 text-accent px-3 py-1.5 rounded transition-all disabled:opacity-50"
+                      >
+                        {savingBaseDir ? '…' : 'Save'}
+                      </button>
+                      {savedBaseDir && (
+                        <button
+                          type="button"
+                          onClick={async () => { await api.settings.resetReposBaseDir(); setSavedBaseDir(null); setReposBaseDir('') }}
+                          className="text-[13px] text-muted hover:text-danger px-2 py-1.5 rounded transition-colors"
+                        >
+                          ✕
+                        </button>
+                      )}
+                    </div>
+                    {savedBaseDir && (
+                      <p className="text-[12px] text-success mt-1.5">✓ {savedBaseDir}</p>
+                    )}
+                  </div>
+                  </>
                 )}
               </div>
             ))}
