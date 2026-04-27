@@ -14,6 +14,41 @@ interface GhStatus {
 
 const emptyForm = { slug: '', name: '', description: '', systemPrompt: '', keywords: '' }
 
+const MOCK_PROVIDERS = [
+  {
+    id: 'claude',
+    name: 'Claude',
+    loggedIn: true,
+    enabled: true,
+    isDefault: true,
+    loginInstructions: 'docker exec -it <orchestrator-container> sh\nclaude auth login',
+  },
+  {
+    id: 'qwen',
+    name: 'Qwen',
+    loggedIn: false,
+    enabled: false,
+    isDefault: false,
+    loginInstructions: 'docker exec -it <orchestrator-container> sh\nqwen auth login',
+  },
+  {
+    id: 'gemini',
+    name: 'Gemini',
+    loggedIn: false,
+    enabled: false,
+    isDefault: false,
+    loginInstructions: 'docker exec -it <orchestrator-container> sh\ngemini auth login',
+  },
+  {
+    id: 'cursor',
+    name: 'Cursor',
+    loggedIn: false,
+    enabled: false,
+    isDefault: false,
+    loginInstructions: 'docker exec -it <orchestrator-container> sh\nagent login',
+  },
+]
+
 export default function SettingsPage() {
   return (
     <Suspense fallback={null}>
@@ -24,7 +59,7 @@ export default function SettingsPage() {
 
 function SettingsPageInner() {
   const searchParams = useSearchParams()
-  const [activeTab, setActiveTab] = useState<'cli' | 'skills' | 'github'>('cli')
+  const [activeTab, setActiveTab] = useState<'cli' | 'skills' | 'github' | 'providers'>('cli')
 
   const [status, setStatus] = useState<GhStatus | null>(null)
   const [tokenInput, setTokenInput] = useState('')
@@ -40,15 +75,17 @@ function SettingsPageInner() {
   const [submittingRole, setSubmittingRole] = useState(false)
   const [deletingSlug, setDeletingSlug] = useState<string | null>(null)
 
+  // CLI Providers tab state
+  const [providers, setProviders] = useState(MOCK_PROVIDERS)
+  const [expandedInstructions, setExpandedInstructions] = useState<string | null>(null)
+  const [oauthToken, setOauthToken] = useState('')
+  const [savingToken, setSavingToken] = useState(false)
+  const [tokenInfo, setTokenInfo] = useState('')
+  const [tokenError, setTokenError] = useState('')
+
   // Claude CLI tab state
-  const [cliCmd, setCliCmd] = useState('claude')
-  const [cliCmdInput, setCliCmdInput] = useState('')
-  const [cliSource, setCliSource] = useState('default')
-  const [cliSaving, setCliSaving] = useState(false)
   const [cliTesting, setCliTesting] = useState(false)
   const [cliTestResult, setCliTestResult] = useState<{ ok: boolean; version?: string; error?: string; cmd: string } | null>(null)
-  const [cliInfo, setCliInfo] = useState('')
-  const [cliError, setCliError] = useState('')
   const [reposBaseDir, setReposBaseDir] = useState('')
   const [savedBaseDir, setSavedBaseDir] = useState<string | null>(null)
   const [savingBaseDir, setSavingBaseDir] = useState(false)
@@ -61,8 +98,6 @@ function SettingsPageInner() {
         api.agents.listRoles(),
       ])
       setStatus(s.github)
-      setCliCmd(s.cli?.cmd ?? 'claude')
-      setCliSource(s.cli?.source ?? 'default')
       setSavedBaseDir(s.reposBaseDir ?? null)
       setReposBaseDir(s.reposBaseDir ?? '')
       setRoles(r)
@@ -126,40 +161,19 @@ function SettingsPageInner() {
         setSavedBaseDir(null)
       }
     } catch (e: any) {
-      setCliError(e.message)
+      setError(e.message)
     } finally {
       setSavingBaseDir(false)
     }
   }
 
-  async function saveCliCmd() {
-    if (!cliCmdInput.trim()) return
-    setCliSaving(true)
-    setCliError('')
-    try {
-      await api.settings.saveCliCmd(cliCmdInput.trim())
-      setCliInfo('บันทึกแล้ว — restart orchestrator เพื่อให้มีผล')
-      setCliCmdInput('')
-      await refresh()
-    } catch (e: any) { setCliError(e.message) }
-    finally { setCliSaving(false) }
-  }
-
-  async function resetCliCmd() {
-    if (!confirm('Reset เป็น default (claude)?')) return
-    await api.settings.resetCliCmd()
-    setCliInfo('Reset แล้ว')
-    await refresh()
-  }
-
   async function testCli() {
     setCliTesting(true)
     setCliTestResult(null)
-    setCliError('')
     try {
       const r = await api.settings.testCli()
       setCliTestResult(r)
-    } catch (e: any) { setCliError(e.message) }
+    } catch (e: any) { setError(e.message) }
     finally { setCliTesting(false) }
   }
 
@@ -209,7 +223,7 @@ function SettingsPageInner() {
         <div className="p-6 pb-32 fade-up max-w-4xl">
           <div className="mb-4">
             <h1 className="text-[15px] font-semibold text-text tracking-tight">ตั้งค่า</h1>
-            <p className="text-[13px] text-muted mt-0.5">Claude CLI · Agent Skills · GitHub</p>
+            <p className="text-[13px] text-muted mt-0.5">Claude CLI · Agent Skills · GitHub · CLI Providers</p>
           </div>
 
           {error && (
@@ -221,7 +235,7 @@ function SettingsPageInner() {
 
           {/* Tab bar */}
           <div className="flex gap-0 mb-6 border-b border-border">
-            {([['cli', 'Claude CLI'], ['skills', 'Agent Skills'], ['github', 'GitHub']] as const).map(([id, label]) => (
+            {([['cli', 'Claude CLI'], ['skills', 'Agent Skills'], ['github', 'GitHub'], ['providers', 'CLI Providers']] as const).map(([id, label]) => (
               <button
                 key={id}
                 onClick={() => setActiveTab(id)}
@@ -241,15 +255,7 @@ function SettingsPageInner() {
             <section className="bg-surface border border-border rounded-lg p-5">
               <div className="mb-4">
                 <h2 className="text-[14px] font-semibold text-text">Claude CLI</h2>
-                <p className="text-[13px] text-muted mt-0.5">path ไปยัง claude binary ที่ใช้รัน agent และ analyze</p>
-              </div>
-
-              <div className="mb-4 p-3 bg-canvas border border-border rounded-lg">
-                <div className="text-[11px] text-muted uppercase tracking-wider mb-1">Current command</div>
-                <div className="flex items-center gap-2">
-                  <code className="text-[14px] text-accent font-mono flex-1">{cliCmd}</code>
-                  <span className="text-[11px] px-1.5 py-0.5 rounded bg-surface-2 border border-border text-dim">{cliSource}</span>
-                </div>
+                <p className="text-[13px] text-muted mt-0.5">สถานะ claude binary ใน orchestrator container</p>
               </div>
 
               <div className="mb-4">
@@ -266,44 +272,19 @@ function SettingsPageInner() {
                       ? 'bg-success/5 border-success/20 text-success'
                       : 'bg-danger/5 border-danger/20 text-danger'
                   }`}>
-                    {cliTestResult.ok ? cliTestResult.version : cliTestResult.error}
+                    {cliTestResult.ok
+                      ? `${cliTestResult.version}  (${cliTestResult.cmd})`
+                      : cliTestResult.error}
                   </div>
                 )}
               </div>
 
-              <div>
-                <label className="block text-[12px] text-muted uppercase tracking-wider mb-1.5">เปลี่ยน path</label>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={cliCmdInput}
-                    onChange={e => setCliCmdInput(e.target.value)}
-                    placeholder="/usr/local/bin/claude หรือ claude"
-                    className={inputCls}
-                  />
-                  <button
-                    onClick={saveCliCmd}
-                    disabled={cliSaving || !cliCmdInput.trim()}
-                    className="bg-accent/90 hover:bg-accent text-canvas text-[14px] font-semibold px-4 py-2 rounded transition-colors disabled:opacity-40 shrink-0"
-                  >
-                    {cliSaving ? '…' : 'บันทึก'}
-                  </button>
-                </div>
-                {cliSource === 'override' && (
-                  <button onClick={resetCliCmd} className="text-[12px] text-muted hover:text-danger mt-1.5 transition-colors">
-                    Reset เป็น default
-                  </button>
-                )}
-                <p className="text-[12px] text-dim mt-2">
-                  ต้องรัน <code className="font-mono text-muted">claude auth login</code> บน server ก่อน 1 ครั้ง เพื่อ authenticate
-                </p>
-                <p className="text-[12px] text-dim mt-1">
-                  หลังเปลี่ยน path ต้อง restart orchestrator เพื่อให้ agent sessions ใช้ค่าใหม่
-                </p>
-              </div>
+              <p className="text-[12px] text-dim mt-2">
+                เปลี่ยน binary ได้โดยตั้ง <code className="font-mono text-muted">CLAUDE_CMD</code> ใน orchestrator environment แล้ว restart
+              </p>
 
               {/* Repos Base Directory */}
-              <div className="pt-4 border-t border-border">
+              <div className="pt-4 border-t border-border mt-4">
                 <h3 className="text-[13px] font-semibold text-text mb-0.5">Repos Base Directory</h3>
                 <p className="text-[12px] text-dim mb-3">
                   root directory ที่ clone repos ไว้ — ใช้ auto-fill path เมื่อสร้าง project เช่น <span className="font-mono text-muted">/home/ubuntu/repos</span>
@@ -338,9 +319,6 @@ function SettingsPageInner() {
                   <p className="text-[12px] text-success mt-1.5">✓ {savedBaseDir}</p>
                 )}
               </div>
-
-              {cliInfo && <p className="text-success text-[12px] mt-3 bg-success/5 border border-success/20 rounded px-3 py-2">✓ {cliInfo}</p>}
-              {cliError && <p className="text-danger text-[12px] mt-3 bg-danger/5 border border-danger/20 rounded px-3 py-2">✕ {cliError}</p>}
             </section>
           )}
 
@@ -521,6 +499,115 @@ function SettingsPageInner() {
                 </div>
               ))}
             </div>
+          </section>
+          )}
+
+          {/* CLI Providers tab */}
+          {activeTab === 'providers' && (
+          <section className="flex flex-col gap-4">
+            <div className="mb-2">
+              <h2 className="text-[14px] font-semibold text-text">CLI Providers</h2>
+              <p className="text-[13px] text-muted mt-0.5">จัดการ CLI tools ที่ใช้รัน agent</p>
+            </div>
+            {providers.map((p) => (
+              <div key={p.id} className="bg-surface border border-border rounded-lg p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-3">
+                    <span className="text-[14px] font-semibold text-text">{p.name}</span>
+                    <span className={`text-[11px] px-2 py-0.5 rounded-full border font-medium ${
+                      p.loggedIn
+                        ? 'bg-success/10 border-success/25 text-success'
+                        : 'bg-danger/10 border-danger/25 text-danger'
+                    }`}>
+                      {p.loggedIn ? '● logged in' : '○ not logged in'}
+                    </span>
+                    {p.isDefault && (
+                      <span className="text-[11px] bg-accent/10 border border-accent/25 text-accent px-2 py-0.5 rounded-full">
+                        default
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {!p.isDefault && p.enabled && (
+                      <button
+                        onClick={() => setProviders(prev => prev.map(x => ({ ...x, isDefault: x.id === p.id })))}
+                        className="text-[12px] text-muted hover:text-accent border border-border hover:border-accent/40 px-2.5 py-1 rounded transition-all"
+                      >
+                        Set default
+                      </button>
+                    )}
+                    <button
+                      onClick={() => setProviders(prev => prev.map(x =>
+                        x.id === p.id
+                          ? { ...x, enabled: !x.enabled, isDefault: x.isDefault && x.enabled ? false : x.isDefault }
+                          : x
+                      ))}
+                      className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
+                        p.enabled ? 'bg-accent' : 'bg-surface-2 border border-border'
+                      }`}
+                    >
+                      <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
+                        p.enabled ? 'translate-x-4' : 'translate-x-0.5'
+                      }`} />
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <button
+                    onClick={() => setExpandedInstructions(expandedInstructions === p.id ? null : p.id)}
+                    className="text-[12px] text-accent hover:text-text transition-colors"
+                  >
+                    {expandedInstructions === p.id ? '▾ Hide login instructions' : '▸ Login instructions'}
+                  </button>
+                  {expandedInstructions === p.id && (
+                    <pre className="mt-2 text-[12px] font-mono text-dim bg-canvas border border-border rounded p-3 whitespace-pre-wrap">
+                      {p.loginInstructions}
+                    </pre>
+                  )}
+                </div>
+
+                {p.id === 'claude' && (
+                  <div className="mt-4 pt-4 border-t border-border">
+                    <h3 className="text-[13px] font-semibold text-text mb-0.5">Paste OAuth Token</h3>
+                    <p className="text-[12px] text-dim mb-3">
+                      รัน <code className="font-mono text-muted">claude setup-token</code> บนเครื่อง แล้ว copy token มาวางที่นี่
+                    </p>
+                    <div className="flex gap-2">
+                      <input
+                        type="password"
+                        placeholder="Paste token here…"
+                        value={oauthToken}
+                        onChange={(e) => setOauthToken(e.target.value)}
+                        className="flex-1 bg-canvas border border-border text-text text-[13px] rounded px-3 py-1.5 placeholder-dim"
+                      />
+                      <button
+                        onClick={async () => {
+                          if (!oauthToken.trim()) return
+                          setSavingToken(true)
+                          setTokenError('')
+                          try {
+                            await new Promise(r => setTimeout(r, 600))
+                            setTokenInfo('บันทึก token แล้ว')
+                            setOauthToken('')
+                          } catch (e: any) {
+                            setTokenError(e.message)
+                          } finally {
+                            setSavingToken(false)
+                          }
+                        }}
+                        disabled={savingToken || !oauthToken.trim()}
+                        className="text-[13px] bg-accent/90 hover:bg-accent text-canvas font-semibold px-4 py-1.5 rounded transition-colors disabled:opacity-40 shrink-0"
+                      >
+                        {savingToken ? '…' : 'Save'}
+                      </button>
+                    </div>
+                    {tokenInfo && <p className="text-[12px] text-success mt-1.5">✓ {tokenInfo}</p>}
+                    {tokenError && <p className="text-[12px] text-danger mt-1.5">✕ {tokenError}</p>}
+                  </div>
+                )}
+              </div>
+            ))}
           </section>
           )}
         </div>

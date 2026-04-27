@@ -111,6 +111,7 @@ export const api = {
       prompt: string
       projectId?: string
       taskId?: string
+      cli?: string
     }) => request<any>('/agents', { method: 'POST', body: JSON.stringify(data) }),
     stop: (id: string) => request<void>(`/agents/${id}`, { method: 'DELETE' }),
     session: (id: string) => request<any>(`/agents/sessions/${id}`),
@@ -159,16 +160,9 @@ export const api = {
           oauthEnabled: boolean
           user: { login: string; avatarUrl?: string } | null
         }
-        cli?: { cmd: string; source: string }
+        cli?: { orchestratorUrl: string }
         reposBaseDir?: string | null
       }>('/settings'),
-    saveCliCmd: (cmd: string) =>
-      request<{ ok: boolean }>('/settings/claude/cmd', {
-        method: 'POST',
-        body: JSON.stringify({ cmd }),
-      }),
-    resetCliCmd: () =>
-      request<{ ok: boolean }>('/settings/claude/cmd', { method: 'DELETE' }),
     testCli: () =>
       request<{ ok: boolean; version?: string; error?: string; cmd: string }>('/settings/claude/test'),
     saveReposBaseDir: (dir: string) =>
