@@ -43,7 +43,6 @@ services:
       - /app/packages/shared/node_modules
       - ~/.claude:/root/.claude
       - repos_data:/repos
-      - qwen_config:/root/.qwen
       - gemini_config:/root/.gemini
       - cursor_config:/root/.cursor
     ports:
@@ -142,7 +141,6 @@ volumes:
   db_data:
   redis_data:
   minio_data:
-  qwen_config:
   gemini_config:
   cursor_config:
   repos_data:

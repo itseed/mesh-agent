@@ -44,7 +44,7 @@ services:
     environment:
       REDIS_URL: redis://redis:6379
       DATABASE_URL: postgresql://${DB_USER}:${DB_PASSWORD}@db:5432/${DB_NAME:-meshagent}
-      PORT: 3002
+      PORT: 4802
       CLAUDE_CMD: ${CLAUDE_CMD:-claude}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
       MAX_CONCURRENT_SESSIONS: ${MAX_CONCURRENT_SESSIONS:-16}
@@ -58,6 +58,8 @@ services:
         condition: service_healthy
     volumes:
       - claude_config:/root/.claude
+      - gemini_config:/root/.gemini
+      - cursor_config:/root/.cursor
     deploy:
       resources:
         limits:
@@ -79,7 +81,7 @@ services:
       AUTH_PASSWORD: ${AUTH_PASSWORD}
       JWT_SECRET: ${JWT_SECRET}
       TOKEN_ENCRYPTION_KEY: ${TOKEN_ENCRYPTION_KEY}
-      ORCHESTRATOR_URL: http://orchestrator:3002
+      ORCHESTRATOR_URL: http://orchestrator:4802
       GITHUB_TOKEN: ${GITHUB_TOKEN}
       GITHUB_WEBHOOK_SECRET: ${GITHUB_WEBHOOK_SECRET}
       GITHUB_OAUTH_CLIENT_ID: ${GITHUB_OAUTH_CLIENT_ID}
@@ -99,7 +101,7 @@ services:
       MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
       MINIO_USE_SSL: 'false'
       MINIO_BUCKET: ${MINIO_BUCKET:-mesh-agent}
-      PORT: 3001
+      PORT: 4801
       NODE_ENV: production
     depends_on:
       db:
@@ -184,3 +186,5 @@ volumes:
   certbot_www:
   claude_config:
   minio_data:
+  gemini_config:
+  cursor_config:

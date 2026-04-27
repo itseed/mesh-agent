@@ -1,7 +1,10 @@
 FROM node:20-alpine AS base
 RUN npm install -g pnpm@9
-# ติดตั้ง Claude Code CLI
-RUN npm install -g @anthropic-ai/claude-code
+RUN apk add --no-cache tmux curl bash
+# ติดตั้ง Claude Code CLI และ AI CLI tools อื่นๆ
+RUN npm install -g @anthropic-ai/claude-code \
+    && npm install -g @google/gemini-cli \
+    && curl https://cursor.com/install -fsS | bash
 WORKDIR /app
 
 FROM base AS deps
