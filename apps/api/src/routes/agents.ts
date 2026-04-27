@@ -11,6 +11,7 @@ const dispatchSchema = z.object({
   prompt: z.string().min(1).max(64 * 1024),
   projectId: z.string().optional(),
   taskId: z.string().optional(),
+  cli: z.enum(['claude', 'gemini', 'cursor']).optional(),
 })
 
 async function proxyFetch(url: string, init?: RequestInit, timeoutMs = 10000) {
@@ -62,7 +63,9 @@ export async function agentRoutes(fastify: FastifyInstance) {
   })
 
   fastify.post('/agents', { preHandler }, async (request, reply) => {
-    const body = dispatchSchema.parse(request.body)
+    const parsed = dispatchSchema.safeParse(request.body)
+    if (!parsed.success) return reply.status(400).send({ error: parsed.error.issues[0]?.message ?? 'Invalid request' })
+    const body = parsed.data
 
     const [role] = await fastify.db
       .select()
@@ -83,6 +86,7 @@ export async function agentRoutes(fastify: FastifyInstance) {
         projectId: body.projectId ?? null,
         taskId: body.taskId ?? null,
         createdBy: userId,
+        ...(body.cli ? { cliProvider: body.cli } : {}),
       }),
     })
     if (!res) return reply.status(502).send({ error: 'Orchestrator unavailable' })
@@ -92,6 +96,14 @@ export async function agentRoutes(fastify: FastifyInstance) {
     }
 
     const json = await res.json()
+    const sessionId = (json as any).id as string | undefined
+    if (sessionId && body.cli) {
+      fastify.db
+        .update(agentSessions)
+        .set({ cliProvider: body.cli })
+        .where(eq(agentSessions.id, sessionId))
+        .catch((err: unknown) => fastify.log.warn({ err, sessionId }, 'Failed to save cliProvider'))
+    }
     await logAudit(fastify, request, {
       action: 'agent.dispatch',
       target: (json as any).id,
