@@ -13,6 +13,7 @@ const createSessionSchema = z.object({
   createdBy: z.string().optional().nullable(),
   systemPrompt: z.string().max(8 * 1024).optional().nullable(),
   repoUrl: z.string().url().optional().nullable(),
+  cliProvider: z.enum(['claude', 'gemini', 'cursor']).optional().nullable(),
 })
 
 export async function sessionRoutes(
@@ -22,7 +23,9 @@ export async function sessionRoutes(
   const { manager, store } = opts
 
   fastify.post('/sessions', async (request, reply) => {
-    const body = createSessionSchema.parse(request.body)
+    const parsed = createSessionSchema.safeParse(request.body)
+    if (!parsed.success) return reply.status(400).send({ error: parsed.error.issues[0]?.message ?? 'Invalid request' })
+    const body = parsed.data
 
     // If repoUrl provided, orchestrator manages clone + worktree before starting agent
     let actualWorkingDir = body.workingDir
@@ -50,6 +53,7 @@ export async function sessionRoutes(
         createdBy: body.createdBy ?? null,
         systemPrompt: body.systemPrompt ?? undefined,
         repoBaseDir: body.repoUrl ? body.workingDir : null,
+        cliProvider: body.cliProvider ?? undefined,
       })
     } catch (err: any) {
       return reply.status(429).send({ error: err.message ?? 'Failed to create session' })

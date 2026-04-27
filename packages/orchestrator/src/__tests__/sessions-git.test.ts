@@ -41,6 +41,58 @@ async function buildApp(managerOverrides = {}): Promise<FastifyInstance> {
   return app
 }
 
+describe('POST /sessions with cliProvider', () => {
+  let app: FastifyInstance
+  let createSessionMock: ReturnType<typeof vi.fn>
+
+  beforeEach(async () => {
+    createSessionMock = vi.fn().mockResolvedValue({
+      id: 'sess-p',
+      role: 'backend',
+      status: 'pending',
+      start: vi.fn().mockResolvedValue({}),
+    })
+    app = await buildApp({ createSession: createSessionMock })
+  })
+  afterEach(async () => { await app.close() })
+
+  it('passes cliProvider to manager.createSession when provided', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/sessions',
+      payload: {
+        role: 'backend',
+        workingDir: '/tmp/work',
+        prompt: 'do something',
+        cliProvider: 'gemini',
+      },
+    })
+    expect(res.statusCode).toBe(201)
+    expect(createSessionMock).toHaveBeenCalledWith(
+      expect.objectContaining({ cliProvider: 'gemini' }),
+    )
+  })
+
+  it('does not include cliProvider when absent', async () => {
+    await app.inject({
+      method: 'POST',
+      url: '/sessions',
+      payload: { role: 'backend', workingDir: '/tmp/work', prompt: 'do something' },
+    })
+    const call = createSessionMock.mock.calls[0][0]
+    expect(call.cliProvider).toBeUndefined()
+  })
+
+  it('rejects invalid cliProvider value', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/sessions',
+      payload: { role: 'backend', workingDir: '/tmp/work', prompt: 'do', cliProvider: 'bad-cli' },
+    })
+    expect(res.statusCode).toBe(400)
+  })
+})
+
 describe('POST /sessions with repoUrl', () => {
   let app: FastifyInstance
   beforeEach(async () => {

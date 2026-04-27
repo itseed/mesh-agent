@@ -1,4 +1,5 @@
 import { AgentSession } from './session.js'
+import type { CliProvider } from './session.js'
 import { removeWorktree } from './git.js'
 import type { AgentRole } from '@meshagent/shared'
 import type { SessionStore } from './store.js'
@@ -15,6 +16,7 @@ interface CreateSessionOpts {
   sessionId?: string
   systemPrompt?: string
   repoBaseDir?: string | null
+  cliProvider?: CliProvider | null
 }
 
 interface ManagerOptions {
@@ -57,6 +59,7 @@ export class SessionManager {
       createdBy: input.createdBy,
       systemPrompt: input.systemPrompt,
       repoBaseDir: input.repoBaseDir,
+      cliProvider: input.cliProvider ?? undefined,
     })
     this.sessions.set(session.id, session)
 
