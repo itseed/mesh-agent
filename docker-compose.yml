@@ -33,11 +33,13 @@ services:
       dockerfile: packages/orchestrator/Dockerfile.dev
     environment:
       REDIS_URL: redis://redis:6379
-      PORT: 4802
+      ORCHESTRATOR_PORT: 4802
       CLAUDE_CMD: claude
     volumes:
       - ./packages/orchestrator:/app/packages/orchestrator
+      - /app/packages/orchestrator/node_modules
       - ./packages/shared:/app/packages/shared
+      - /app/packages/shared/node_modules
       - ~/.claude:/root/.claude
       - qwen_config:/root/.qwen
       - gemini_config:/root/.gemini
