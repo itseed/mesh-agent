@@ -5,6 +5,17 @@ import { AppShell } from '@/components/layout/AppShell'
 import { AuthGuard } from '@/components/layout/AuthGuard'
 import { api } from '@/lib/api'
 
+const ROLE_DOT: Record<string, string> = {
+  frontend: '#22d3ee',
+  backend: '#60a5fa',
+  mobile: '#c084fc',
+  devops: '#4ade80',
+  designer: '#f472b6',
+  qa: '#fb923c',
+  reviewer: '#f87171',
+  lead: '#facc15',
+}
+
 const STAGE_DOT: Record<string, string> = {
   backlog: '#3d4f61',
   in_progress: '#f0883e',
