@@ -85,4 +85,30 @@ export async function promptRoutes(fastify: FastifyInstance) {
     }
     return { ok: true, path: tokenPath }
   })
+
+  fastify.get('/health/gemini', async () => {
+    try {
+      const { stdout } = await execFileAsync('gemini', ['--version'], {
+        encoding: 'utf8',
+        timeout: 10_000,
+        env: process.env,
+      })
+      return { ok: true, version: stdout.trim(), cmd: 'gemini' }
+    } catch (err: any) {
+      return { ok: false, error: err?.message ?? 'CLI not found', cmd: 'gemini' }
+    }
+  })
+
+  fastify.get('/health/cursor', async () => {
+    try {
+      const { stdout } = await execFileAsync('cursor', ['--version'], {
+        encoding: 'utf8',
+        timeout: 10_000,
+        env: process.env,
+      })
+      return { ok: true, version: stdout.trim(), cmd: 'cursor' }
+    } catch (err: any) {
+      return { ok: false, error: err?.message ?? 'CLI not found', cmd: 'cursor' }
+    }
+  })
 }

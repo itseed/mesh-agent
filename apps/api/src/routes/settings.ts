@@ -277,6 +277,24 @@ export async function settingsRoutes(fastify: FastifyInstance) {
     }
   })
 
+  fastify.get('/settings/cli/:provider/test', { preHandler }, async (request, reply) => {
+    const { provider } = request.params as { provider: string }
+    if (!CLI_PROVIDERS.includes(provider as ProviderSlug)) {
+      return reply.status(400).send({ error: `Unknown provider: ${provider}` })
+    }
+    try {
+      const res = await fetch(`${env.ORCHESTRATOR_URL}/health/${provider}`, {
+        signal: AbortSignal.timeout(15_000),
+      })
+      if (!res.ok) {
+        return reply.status(502).send({ ok: false, error: 'Orchestrator error', cmd: provider })
+      }
+      return res.json()
+    } catch (err: any) {
+      return { ok: false, error: err?.message ?? 'Orchestrator unreachable', cmd: provider }
+    }
+  })
+
   fastify.post('/settings/github/sync', { preHandler }, async (request, reply) => {
     const body = syncSchema.parse(request.body)
     const token = (await readStoredToken(fastify.redis)) ?? env.GITHUB_TOKEN ?? null
