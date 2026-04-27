@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { AppShell } from '@/components/layout/AppShell'
 import { AuthGuard } from '@/components/layout/AuthGuard'
 import { api } from '@/lib/api'
+import { ProviderBreakdownCard } from '@/components/overview/ProviderBreakdownCard'
 
 const ROLE_DOT: Record<string, string> = {
   frontend: '#22d3ee',
@@ -125,21 +126,29 @@ export default function OverviewPage() {
   const [tokenStats, setTokenStats] = useState<{ inputTokens: number; outputTokens: number; totalTokens: number; costUsd: number } | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [providerMetrics, setProviderMetrics] = useState<{ sinceHours: number; perProvider: any[] } | null>(null)
+  const [providerError, setProviderError] = useState('')
 
   const fetchData = useCallback(async () => {
     try {
-      const [p, t, a, m, tok] = await Promise.all([
+      const [p, t, a, m, tok, provByProvider] = await Promise.all([
         api.projects.list(),
         api.tasks.list(),
         api.agents.list(),
         api.agents.metrics(24 * 7),
         api.metrics.tokens(),
+        api.agents.metricsByProvider(24 * 7).catch(() => null),
       ])
       setProjects(p)
       setTasks(t)
       setAgents(a)
       setMetrics(m)
       setTokenStats(tok)
+      if (provByProvider) {
+        setProviderMetrics(provByProvider)
+      } else {
+        setProviderError('Unable to load provider data')
+      }
       setError('')
     } catch (e: any) {
       setError(e.message)
@@ -413,6 +422,13 @@ export default function OverviewPage() {
                   </div>
                 </div>
               )}
+
+              {/* Provider Breakdown */}
+              <ProviderBreakdownCard
+                perProvider={providerMetrics?.perProvider ?? []}
+                sinceHours={providerMetrics?.sinceHours ?? 168}
+                error={providerError}
+              />
 
               {/* Row 2: Pipeline (3) + Recent activity (2) */}
               <div className="grid grid-cols-1 lg:grid-cols-5 gap-3 mb-4">

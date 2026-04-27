@@ -140,6 +140,10 @@ export const api = {
       }),
     deleteRole: (slug: string) => request<void>(`/agents/roles/${slug}`, { method: 'DELETE' }),
     metrics: (sinceHours = 24) => request<any>(`/agents/metrics?sinceHours=${sinceHours}`),
+    metricsByProvider: (sinceHours = 24) =>
+      request<{ sinceHours: number; perProvider: Array<{ provider: string; count: number; successCount: number; avgDurationMs: number }> }>(
+        `/agents/metrics/by-provider?sinceHours=${sinceHours}`
+      ),
   },
   github: {
     prs: (repo: string) => request<any[]>(`/github/prs?repo=${encodeURIComponent(repo)}`),
