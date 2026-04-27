@@ -2,7 +2,7 @@ import { spawn, ChildProcess } from 'node:child_process'
 import { EventEmitter } from 'node:events'
 import type { AgentRole, AgentStatus, AgentSessionStatus } from '@meshagent/shared'
 
-export type CliProvider = 'claude' | 'qwen' | 'gemini' | 'cursor'
+export type CliProvider = 'claude' | 'gemini' | 'cursor'
 
 export function buildCliArgs(
   provider: CliProvider,
@@ -16,10 +16,6 @@ export function buildCliArgs(
       if (systemPrompt) args.push('--system-prompt', systemPrompt)
       args.push(prompt)
       return { cmd: 'claude', args }
-    }
-    case 'qwen': {
-      const fullPrompt = systemPrompt ? `${systemPrompt}\n\n${prompt}` : prompt
-      return { cmd: 'qwen', args: ['-p', fullPrompt] }
     }
     case 'gemini': {
       const fullPrompt = systemPrompt ? `${systemPrompt}\n\n${prompt}` : prompt

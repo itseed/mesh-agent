@@ -198,7 +198,7 @@ export async function settingsRoutes(fastify: FastifyInstance) {
   })
 
   // CLI provider management
-  const CLI_PROVIDERS = ['claude', 'qwen', 'gemini', 'cursor'] as const
+  const CLI_PROVIDERS = ['claude', 'gemini', 'cursor'] as const
   type ProviderSlug = typeof CLI_PROVIDERS[number]
 
   const cliProviderUpdateSchema = z.object({

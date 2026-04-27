@@ -16,6 +16,7 @@ export const projects = pgTable('projects', {
   paths: jsonb('paths').notNull().$type<Record<string, string>>().default({}),
   githubRepos: jsonb('github_repos').notNull().$type<string[]>().default([]),
   baseBranch: text('base_branch').notNull().default('main'),
+  workspacePath: text('workspace_path'),
   isActive: boolean('is_active').notNull().default(false),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
@@ -60,6 +61,15 @@ export const agentRoles = pgTable('agent_roles', {
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 
+export const cliProviders = pgTable('cli_providers', {
+  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+  provider: text('provider', { enum: ['claude', 'gemini', 'cursor'] }).notNull().unique(),
+  enabled: boolean('enabled').notNull().default(false),
+  isDefault: boolean('is_default').notNull().default(false),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
 export const agentSessions = pgTable(
   'agent_sessions',
   {
@@ -72,6 +82,7 @@ export const agentSessions = pgTable(
     }).notNull().default('pending'),
     projectId: text('project_id').references(() => projects.id),
     taskId: text('task_id'),
+    cliProvider: text('cli_provider'),
     pid: integer('pid'),
     exitCode: integer('exit_code'),
     error: text('error'),
