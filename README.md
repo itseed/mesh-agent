@@ -18,14 +18,15 @@ graph TB
 
     subgraph Droplet["DigitalOcean Droplet (Docker Compose)"]
         Nginx["🔒 Nginx\nHTTPS + Reverse Proxy"]
-        Web["Next.js PWA\n:3000"]
-        API["Fastify API\n:3001"]
-        Orch["Orchestration Service\n:3002"]
+        Web["Next.js PWA\n:4800"]
+        API["Fastify API\n:4801"]
+        Orch["Orchestration Service\n:4802\n(repos_data volume)"]
         DB["PostgreSQL\n:5432"]
         Redis["Redis\n:6379"]
+        MinIO["MinIO\n:4805 / :4806"]
     end
 
-    subgraph Agents["Claude Code Agents"]
+    subgraph Agents["CLI Agents"]
         Frontend["frontend"]
         Backend["backend"]
         Mobile["mobile"]
@@ -46,6 +47,7 @@ graph TB
     API --> DB
     API --> Redis
     API -->|dispatch| Orch
+    API --> MinIO
 
     Orch -->|spawn subprocess| Agents
     Agents -->|stdout stream| Redis
@@ -65,7 +67,7 @@ graph TB
 | ![Overview](docs/screenshots/overview.png) | ![Kanban](docs/screenshots/kanban.png) |
 | **Overview** — ภาพรวม projects, pipeline, recent activity | **Kanban** — Backlog → In Progress → Review → Done พร้อม filter by project |
 | ![Agents](docs/screenshots/agents.png) | ![Settings](docs/screenshots/settings.png) |
-| **Agents** — monitoring ทุก agent role พร้อม live output | **Settings** — Claude CLI path, GitHub OAuth, Repos base directory |
+| **Agents** — monitoring ทุก agent role พร้อม live output | **Settings** — CLI tab (toggle claude/gemini/cursor, login status, test CLI, repos base dir), GitHub OAuth, Agent Skills |
 
 ---
 
@@ -81,6 +83,9 @@ graph TB
 | **Projects** | จัดการ projects + paths per role ผ่าน UI |
 | **Multi-user** | role-based access: admin / member / viewer |
 | **PWA** | ติดตั้งบน iOS/Android ได้ |
+| **CLI Provider Selection** | เลือก claude / gemini / cursor ต่อ agent session จาก Agents page |
+| **Provider Breakdown** | Overview page แสดง sessions, success rate, avg duration แยกต่อ CLI provider |
+| **Repo Lifecycle** | Auto clone + git worktree ต่อ task, cleanup หลัง session จบ |
 
 ---
 
@@ -91,7 +96,7 @@ graph TB
 | Frontend | Next.js 14, React 18, TypeScript, Tailwind CSS |
 | Backend | Fastify 4, Drizzle ORM, PostgreSQL 16 |
 | Realtime | WebSocket, Redis pub/sub |
-| Orchestration | Node.js subprocess, Claude Code CLI |
+| Orchestration | Node.js subprocess, Claude Code CLI / Gemini CLI / Cursor Agent |
 | Storage | MinIO (S3-compatible) |
 | Infrastructure | Docker Compose, Nginx, Let's Encrypt |
 
@@ -101,41 +106,22 @@ graph TB
 
 ### Prerequisites
 
-- Node.js 20+
-- pnpm 9+ (`npm install -g pnpm@9`)
 - Docker + Docker Compose
 - Claude Code CLI (`npm install -g @anthropic-ai/claude-code`) พร้อม login (`claude login`)
 
 ### Setup
 
 ```bash
-# 1. Clone
+# Clone และ run install script
 git clone https://github.com/itseed/mesh-agent.git
 cd mesh-agent
+bash scripts/install.sh
+# → กำหนด email + password → build Docker → migrate DB → เสร็จ
 
-# 2. Install deps
-pnpm install
-
-# 3. Setup env
-cp .env.example .env
-# แก้ไข .env — ดูรายละเอียด Environment Variables ด้านล่าง
-
-# 4. Start Docker services (PostgreSQL + Redis + MinIO)
-docker compose up -d
-
-# 5. Run migrations
-cd packages/shared
-DATABASE_URL=postgresql://meshagent:meshagent@localhost:5432/meshagent pnpm db:migrate
-cd ../..
-
-# 6. Start all services
-pnpm dev
-# api → http://localhost:3001
-# orchestrator → http://localhost:3002
-# web → http://localhost:3000
+# Dev: เปิด http://localhost:4800
 ```
 
-เปิด [http://localhost:3000](http://localhost:3000) แล้ว login ด้วย `AUTH_EMAIL` และ `AUTH_PASSWORD` ที่ตั้งใน `.env`
+เปิด [http://localhost:4800](http://localhost:4800) แล้ว login ด้วย `AUTH_EMAIL` และ `AUTH_PASSWORD` ที่ตั้งระหว่าง install
 
 ![Login](docs/screenshots/login.png)
 
@@ -234,7 +220,6 @@ Lead เลือก role ที่เหมาะสมเองโดยอั
 | `AUTH_PASSWORD` | ✓ | — | Initial admin password |
 | `JWT_SECRET` | ✓ | — | JWT signing secret (32+ chars) |
 | `TOKEN_ENCRYPTION_KEY` | ✓ | — | AES-256-GCM key for encrypting GitHub tokens at rest (32 bytes hex) |
-| `INTERNAL_SECRET` | ✓ | — | Shared secret between API and orchestrator (32+ chars) |
 | `CORS_ALLOWED_ORIGINS` | prod | — | Comma-separated allowed browser origins |
 | `COOKIE_DOMAIN` | — | — | Apex domain for cross-subdomain cookies (e.g. `.yourdomain.com`) |
 | `RATE_LIMIT_MAX` | — | `120` | API rate limit (requests per window) |
@@ -245,11 +230,12 @@ Lead เลือก role ที่เหมาะสมเองโดยอั
 | `GITHUB_OAUTH_CLIENT_ID` | — | — | GitHub OAuth App client ID |
 | `GITHUB_OAUTH_CLIENT_SECRET` | — | — | GitHub OAuth App client secret |
 | `GITHUB_OAUTH_REDIRECT_URI` | — | — | OAuth callback URL |
-| `WEB_BASE_URL` | — | `http://localhost:3000` | Public URL of web frontend |
+| `WEB_BASE_URL` | — | `http://localhost:4800` | Public URL of web frontend |
 | `MINIO_ACCESS_KEY` | — | `meshagent` | MinIO access key (file attachments) |
 | `MINIO_SECRET_KEY` | — | — | MinIO secret key |
 | `MINIO_BUCKET` | — | `mesh-agent` | MinIO bucket name |
-| `ORCHESTRATOR_URL` | — | `http://localhost:3002` | Internal orchestrator URL |
+| `ORCHESTRATOR_URL` | — | `http://localhost:4802` | Internal orchestrator URL |
+| `REPOS_BASE_DIR` | — | `/repos` | Root directory สำหรับ clone repos (orchestrator + api) |
 | `MAX_CONCURRENT_SESSIONS` | — | `8` | Max simultaneous agent sessions |
 | `SESSION_IDLE_TIMEOUT_MS` | — | `3600000` | Auto-kill idle sessions (ms) |
 | `CLAUDE_CMD` | — | `claude` | Path to Claude Code CLI binary |
@@ -261,7 +247,7 @@ Lead เลือก role ที่เหมาะสมเองโดยอั
 ### Generating secrets
 
 ```bash
-# JWT_SECRET, TOKEN_ENCRYPTION_KEY, INTERNAL_SECRET, GITHUB_WEBHOOK_SECRET
+# JWT_SECRET, TOKEN_ENCRYPTION_KEY, GITHUB_WEBHOOK_SECRET
 openssl rand -hex 32
 ```
 
@@ -323,8 +309,10 @@ meshagent/
 │   ├── shared/                 # Types + Drizzle schema (shared)
 │   └── orchestrator/           # Agent session manager
 │       └── src/
-│           ├── session.ts      # AgentSession (subprocess + streaming)
-│           ├── manager.ts      # SessionManager
+│           ├── session.ts      # AgentSession (subprocess + streaming + CLI provider)
+│           ├── manager.ts      # SessionManager + worktree cleanup
+│           ├── git.ts          # ensureRepo, createWorktree, removeWorktree
+│           ├── orphanCleaner.ts # Hourly cleanup of orphan worktrees
 │           └── streamer.ts     # Redis pub/sub streamer
 ├── nginx/                      # Nginx config
 ├── scripts/                    # Deploy + setup + backup scripts
@@ -366,6 +354,33 @@ sequenceDiagram
     Orch->>API: POST /internal/agent-complete
     API->>API: update task stage + Lead synthesis
     API-->>Web: WebSocket push (task.stage + lead debrief)
+```
+
+### Agent Dispatch with CLI Provider + Repo Worktree
+
+```mermaid
+sequenceDiagram
+    actor User
+    participant Web as Next.js
+    participant API as Fastify API
+    participant Orch as Orchestrator
+    participant Git as Git (server)
+    participant CLI as CLI (claude/gemini/cursor)
+
+    User->>Web: เลือก role + CLI provider + กด Dispatch
+    Web->>API: POST /agents { role, cli: "gemini", prompt, projectId }
+    API->>API: validate cli enum, save cliProvider to DB
+    API->>Orch: POST /sessions { role, cliProvider: "gemini", repoUrl, taskId }
+    alt มี repoUrl
+        Orch->>Git: ensureRepo (lazy clone --depth 50)
+        Orch->>Git: createWorktree (worktrees/<taskId>)
+        Git-->>Orch: worktree path
+    end
+    Orch->>CLI: spawn gemini subprocess in workingDir
+    CLI-->>Orch: stdout stream
+    CLI->>Orch: process exit
+    Orch->>Git: removeWorktree (fire-and-forget)
+    Orch->>API: session ended
 ```
 
 ### Review → Fix Loop
