@@ -1,4 +1,5 @@
 import { AgentSession } from './session.js'
+import { removeWorktree } from './git.js'
 import type { AgentRole } from '@meshagent/shared'
 import type { SessionStore } from './store.js'
 import type { Streamer } from './streamer.js'
@@ -13,6 +14,7 @@ interface CreateSessionOpts {
   createdBy?: string | null
   sessionId?: string
   systemPrompt?: string
+  repoBaseDir?: string | null
 }
 
 interface ManagerOptions {
@@ -54,6 +56,7 @@ export class SessionManager {
       taskId: input.taskId,
       createdBy: input.createdBy,
       systemPrompt: input.systemPrompt,
+      repoBaseDir: input.repoBaseDir,
     })
     this.sessions.set(session.id, session)
 
@@ -153,6 +156,11 @@ export class SessionManager {
         logger.warn({ err }, 'Failed to notify API of session completion')
       }
       streamer.publishEvent(session.id, { type: 'end', metrics })
+      if (session.repoBaseDir && session.taskId) {
+        removeWorktree(session.repoBaseDir, session.taskId).catch((err) => {
+          logger.warn({ err, taskId: session.taskId }, 'Failed to remove worktree on session end')
+        })
+      }
       this.clearIdleTimer(session.id)
     })
 

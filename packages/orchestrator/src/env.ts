@@ -15,6 +15,7 @@ const envSchema = z.object({
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
   API_URL: z.string().url().default('http://localhost:3001'),
   INTERNAL_SECRET: z.string().default('dev-internal-secret'),
+  REPOS_BASE_DIR: z.string().default('/repos'),
 })
 
 export const env = envSchema.parse(process.env)

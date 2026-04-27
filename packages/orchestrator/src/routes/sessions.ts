@@ -2,6 +2,7 @@ import { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 import type { SessionManager } from '../manager.js'
 import type { SessionStore } from '../store.js'
+import { ensureRepo, createWorktree } from '../git.js'
 
 const createSessionSchema = z.object({
   role: z.string().min(1).max(64),
@@ -11,6 +12,7 @@ const createSessionSchema = z.object({
   taskId: z.string().optional().nullable(),
   createdBy: z.string().optional().nullable(),
   systemPrompt: z.string().max(8 * 1024).optional().nullable(),
+  repoUrl: z.string().url().optional().nullable(),
 })
 
 export async function sessionRoutes(
@@ -22,16 +24,32 @@ export async function sessionRoutes(
   fastify.post('/sessions', async (request, reply) => {
     const body = createSessionSchema.parse(request.body)
 
+    // If repoUrl provided, orchestrator manages clone + worktree before starting agent
+    let actualWorkingDir = body.workingDir
+    if (body.repoUrl && body.taskId) {
+      try {
+        await ensureRepo(body.workingDir, body.repoUrl)
+      } catch (err: any) {
+        return reply.status(500).send({ error: err.message ?? 'Failed to clone/pull repo' })
+      }
+      try {
+        actualWorkingDir = await createWorktree(body.workingDir, body.taskId)
+      } catch (err: any) {
+        return reply.status(500).send({ error: err.message ?? 'Failed to create worktree' })
+      }
+    }
+
     let session
     try {
       session = await manager.createSession({
         role: body.role,
-        workingDir: body.workingDir,
+        workingDir: actualWorkingDir,
         prompt: body.prompt,
         projectId: body.projectId ?? null,
         taskId: body.taskId ?? null,
         createdBy: body.createdBy ?? null,
         systemPrompt: body.systemPrompt ?? undefined,
+        repoBaseDir: body.repoUrl ? body.workingDir : null,
       })
     } catch (err: any) {
       return reply.status(429).send({ error: err.message ?? 'Failed to create session' })

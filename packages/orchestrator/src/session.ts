@@ -2,16 +2,47 @@ import { spawn, ChildProcess } from 'node:child_process'
 import { EventEmitter } from 'node:events'
 import type { AgentRole, AgentStatus, AgentSessionStatus } from '@meshagent/shared'
 
+export type CliProvider = 'claude' | 'qwen' | 'gemini' | 'cursor'
+
+export function buildCliArgs(
+  provider: CliProvider,
+  prompt: string,
+  systemPrompt: string | null,
+  sessionId: string,
+): { cmd: string; args: string[] } {
+  switch (provider) {
+    case 'claude': {
+      const args: string[] = []
+      if (systemPrompt) args.push('--system-prompt', systemPrompt)
+      args.push(prompt)
+      return { cmd: 'claude', args }
+    }
+    case 'qwen': {
+      const fullPrompt = systemPrompt ? `${systemPrompt}\n\n${prompt}` : prompt
+      return { cmd: 'qwen', args: ['-p', fullPrompt] }
+    }
+    case 'gemini': {
+      const fullPrompt = systemPrompt ? `${systemPrompt}\n\n${prompt}` : prompt
+      return { cmd: 'gemini', args: ['-p', fullPrompt] }
+    }
+    case 'cursor': {
+      return { cmd: 'tmux', args: ['new-session', '-d', '-s', sessionId, 'agent', '-p', prompt] }
+    }
+  }
+}
+
 interface SessionOptions {
   id: string
   role: AgentRole
   workingDir: string
   prompt: string
   claudeCmd: string
+  cliProvider?: CliProvider
   projectId?: string | null
   taskId?: string | null
   createdBy?: string | null
   systemPrompt?: string
+  repoBaseDir?: string | null
 }
 
 export interface SessionMetrics {
@@ -38,6 +69,8 @@ export class AgentSession extends EventEmitter {
   readonly projectId: string | null
   readonly taskId: string | null
   readonly createdBy: string | null
+  readonly cliProvider: CliProvider | null
+  readonly repoBaseDir: string | null
   private _status: AgentSessionStatus = 'pending'
   private process: ChildProcess | null = null
   private readonly claudeCmd: string
@@ -55,10 +88,12 @@ export class AgentSession extends EventEmitter {
     this.workingDir = opts.workingDir
     this.prompt = opts.prompt
     this.claudeCmd = opts.claudeCmd
+    this.cliProvider = opts.cliProvider ?? null
     this.systemPrompt = opts.systemPrompt ?? null
     this.projectId = opts.projectId ?? null
     this.taskId = opts.taskId ?? null
     this.createdBy = opts.createdBy ?? null
+    this.repoBaseDir = opts.repoBaseDir ?? null
   }
 
   get status(): AgentSessionStatus {
@@ -100,12 +135,17 @@ export class AgentSession extends EventEmitter {
       this.setStatus('running')
       this.startedAt = new Date()
 
-      const args: string[] = []
-      if (this.systemPrompt) {
-        args.push('--system-prompt', this.systemPrompt)
+      let cmd: string
+      let args: string[]
+      if (this.cliProvider) {
+        ;({ cmd, args } = buildCliArgs(this.cliProvider, this.prompt, this.systemPrompt, this.id))
+      } else {
+        cmd = this.claudeCmd
+        args = []
+        if (this.systemPrompt) args.push('--system-prompt', this.systemPrompt)
+        args.push(this.prompt)
       }
-      args.push(this.prompt)
-      this.process = spawn(this.claudeCmd, args, {
+      this.process = spawn(cmd, args, {
         cwd: this.workingDir,
         stdio: ['ignore', 'pipe', 'pipe'],
         env: { ...process.env, AGENT_ROLE: String(this.role) },
