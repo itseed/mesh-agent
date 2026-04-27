@@ -35,11 +35,11 @@ const PRIORITY_TEXT: Record<string, string> = {
 
 interface ReviewIssue { title: string; severity: 'critical' | 'high' | 'medium' | 'low' }
 
-const SEVERITY_STYLE: Record<string, { bg: string; text: string }> = {
-  critical: { bg: 'rgba(248,113,113,0.15)', text: '#f87171' },
-  high:     { bg: 'rgba(251,146,60,0.15)',  text: '#fb923c' },
-  medium:   { bg: 'rgba(251,191,36,0.15)',  text: '#fbbf24' },
-  low:      { bg: 'rgba(107,114,128,0.15)', text: '#9ca3af' },
+const SEVERITY_STYLE: Record<string, { backgroundColor: string; color: string }> = {
+  critical: { backgroundColor: 'rgba(248,113,113,0.15)', color: '#f87171' },
+  high:     { backgroundColor: 'rgba(251,146,60,0.15)',  color: '#fb923c' },
+  medium:   { backgroundColor: 'rgba(251,191,36,0.15)',  color: '#fbbf24' },
+  low:      { backgroundColor: 'rgba(107,114,128,0.15)', color: '#9ca3af' },
 }
 
 function parseReviewIssues(commentBody: string): ReviewIssue[] {

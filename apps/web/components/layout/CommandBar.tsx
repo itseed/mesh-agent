@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { usePathname } from 'next/navigation'
-import { api } from '@/lib/api'
+import { api, ApiError } from '@/lib/api'
 import { useChatStream } from '@/lib/ws'
 
 const ROLE_DOT: Record<string, string> = {
@@ -15,13 +15,33 @@ const ROLE_DOT: Record<string, string> = {
   lead: '#facc15',
 }
 
+type ProposalStatus = 'pending' | 'consumed' | 'cancelled' | 'expired'
+
+interface ProposalView {
+  id: string
+  status: ProposalStatus
+  taskBrief: { title: string; description: string }
+  roles: { slug: string; reason?: string }[]
+  projectId: string | null
+  baseBranch: string
+}
+
 interface ChatMessage {
   id: string
-  role: 'user' | 'lead' | 'agent'
+  role: 'user' | 'lead' | 'agent' | 'system'
   content: string
   timestamp: number
   imageRefs?: string[]
-  meta?: { agentRole?: string; sessionId?: string; taskId?: string }
+  meta?: {
+    agentRole?: string
+    sessionId?: string
+    taskId?: string
+    intent?: 'chat' | 'clarify' | 'dispatch'
+    proposal?: ProposalView
+    questions?: string[]
+    confirmed?: boolean
+    topicReset?: boolean
+  }
 }
 
 interface Attachment {
@@ -84,6 +104,8 @@ export function CommandBar() {
   const [sending, setSending] = useState(false)
   const [error, setError] = useState('')
   const [unread, setUnread] = useState(0)
+  const [busyProposalId, setBusyProposalId] = useState<string | null>(null)
+  const [leadThinking, setLeadThinking] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const openRef = useRef(open)
@@ -122,7 +144,33 @@ export function CommandBar() {
       setUnread((u) => u + 1)
     }
   }, [])
-  useChatStream(handleStream)
+  const handleProposalUpdate = useCallback((proposalId: string, status: string) => {
+    setHistory((prev) =>
+      prev.map((m) => {
+        if (m.meta?.proposal?.id !== proposalId) return m
+        return {
+          ...m,
+          meta: {
+            ...m.meta,
+            proposal: { ...m.meta.proposal, status: status as ProposalStatus },
+          },
+        }
+      }),
+    )
+  }, [])
+  const handleLeadStatus = useCallback((status: 'thinking' | 'idle') => {
+    setLeadThinking(status === 'thinking')
+  }, [])
+  const handleReconnect = useCallback(() => {
+    // Catch up on anything we missed during the disconnect
+    api.chat.history().then(setHistory).catch(() => {})
+  }, [])
+  useChatStream({
+    onMessage: handleStream,
+    onProposalUpdate: handleProposalUpdate,
+    onLeadStatus: handleLeadStatus,
+    onReconnect: handleReconnect,
+  })
 
   useEffect(() => {
     if (!open) return
@@ -130,7 +178,7 @@ export function CommandBar() {
       scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
     }, 30)
     return () => clearTimeout(t)
-  }, [history, open])
+  }, [history, open, leadThinking])
 
   async function handleFiles(files: FileList | null) {
     if (!files || files.length === 0) return
@@ -207,6 +255,65 @@ export function CommandBar() {
     setHistory([])
   }
 
+  async function startNewTopic() {
+    try {
+      await api.chat.newTopic()
+      // server publishes the marker via WS; no manual append needed
+    } catch (e: any) {
+      setError(e?.message ?? 'เริ่มหัวข้อใหม่ไม่สำเร็จ')
+    }
+  }
+
+  function applyProposalStatus(id: string, status: ProposalStatus) {
+    setHistory((prev) =>
+      prev.map((m) => {
+        if (m.meta?.proposal?.id !== id) return m
+        return {
+          ...m,
+          meta: { ...m.meta, proposal: { ...m.meta.proposal, status } },
+        }
+      }),
+    )
+  }
+
+  async function confirmProposal(id: string) {
+    setBusyProposalId(id)
+    setError('')
+    try {
+      await api.chat.dispatch(id)
+      // server pushes proposal-update via WS; optimistic mark just in case
+      applyProposalStatus(id, 'consumed')
+    } catch (e: any) {
+      if (e instanceof ApiError) {
+        const serverStatus = e.body?.status as ProposalStatus | undefined
+        if (e.status === 410) {
+          applyProposalStatus(id, 'expired')
+        } else if (e.status === 409 && serverStatus) {
+          applyProposalStatus(id, serverStatus)
+        } else {
+          setError(e.message || 'ยืนยันไม่สำเร็จ')
+        }
+      } else {
+        setError(e?.message ?? 'ยืนยันไม่สำเร็จ')
+      }
+    } finally {
+      setBusyProposalId(null)
+    }
+  }
+
+  async function cancelProposal(id: string) {
+    setBusyProposalId(id)
+    setError('')
+    try {
+      await api.chat.cancelProposal(id)
+      applyProposalStatus(id, 'cancelled')
+    } catch (e: any) {
+      setError(e.message ?? 'ยกเลิกไม่สำเร็จ')
+    } finally {
+      setBusyProposalId(null)
+    }
+  }
+
   if (pathname === '/login') return null
 
   return (
@@ -247,6 +354,13 @@ export function CommandBar() {
             </div>
             <div className="flex items-center gap-1">
               <button
+                onClick={startNewTopic}
+                className="text-muted hover:text-accent text-[12px] px-2 py-1 transition-colors"
+                title="เริ่มหัวข้อใหม่ — Lead จะลืมบทสนทนาก่อนหน้าเวลาวิเคราะห์ข้อความถัดไป"
+              >
+                หัวข้อใหม่
+              </button>
+              <button
                 onClick={clearHistory}
                 className="text-muted hover:text-text text-[12px] px-2 py-1 transition-colors"
                 title="ล้างประวัติ"
@@ -273,10 +387,10 @@ export function CommandBar() {
               <div className="flex flex-col gap-2 px-1 pb-1 pt-1">
                 <p className="text-[12px] text-muted px-3">ลองพิมพ์:</p>
                 {[
-                  'วิเคราะห์งานใน backlog และเสนอแผน',
-                  'สร้าง task: setup CI/CD pipeline',
-                  'รายงานสถานะทุก agent ที่รันอยู่',
-                  'dispatch frontend agent ไปทำ task ล่าสุด',
+                  'อธิบายโครงสร้าง auth ในระบบให้ฟังหน่อย',
+                  'อยากเพิ่ม feature dark mode เริ่มจากไหนดี',
+                  'มี bug ตรงปุ่ม logout — ช่วยวิเคราะห์ที',
+                  'setup CI/CD pipeline ได้เลย',
                 ].map((s) => (
                   <button
                     key={s}
@@ -288,8 +402,24 @@ export function CommandBar() {
                 ))}
               </div>
             ) : (
-              history.map((m) => <ChatBubble key={m.id} m={m} />)
+              history.map((m) => {
+                if (m.meta?.topicReset || m.role === 'system') {
+                  return <TopicDivider key={m.id} label={m.content} />
+                }
+                return (
+                  <ChatBubble
+                    key={m.id}
+                    m={m}
+                    busy={
+                      m.meta?.proposal ? busyProposalId === m.meta.proposal.id : false
+                    }
+                    onConfirm={confirmProposal}
+                    onCancel={cancelProposal}
+                  />
+                )
+              })
             )}
+            {leadThinking && <LeadThinkingBubble />}
           </div>
 
           {/* Project selector */}
@@ -450,7 +580,47 @@ export function CommandBar() {
   )
 }
 
-function ChatBubble({ m }: { m: ChatMessage }) {
+interface ChatBubbleProps {
+  m: ChatMessage
+  busy: boolean
+  onConfirm: (proposalId: string) => void
+  onCancel: (proposalId: string) => void
+}
+
+function TopicDivider({ label }: { label: string }) {
+  return (
+    <div className="flex items-center gap-2 my-1 select-none" role="separator">
+      <span className="flex-1 h-px bg-border" />
+      <span className="text-[10.5px] text-dim uppercase tracking-wider whitespace-nowrap">
+        {label}
+      </span>
+      <span className="flex-1 h-px bg-border" />
+    </div>
+  )
+}
+
+function LeadThinkingBubble() {
+  return (
+    <div className="flex justify-start gap-2" aria-live="polite">
+      <span
+        className="w-2 h-2 rounded-full mt-2 shrink-0 animate-pulse"
+        style={{ backgroundColor: ROLE_DOT.lead }}
+      />
+      <div>
+        <div className="text-[11px] text-muted mb-0.5 font-medium uppercase tracking-wider">
+          Lead
+        </div>
+        <div className="bg-surface-2 border border-border text-text rounded-2xl rounded-bl-sm px-3 py-2 inline-flex items-center gap-1">
+          <span className="w-1.5 h-1.5 rounded-full bg-muted/70 animate-bounce" style={{ animationDelay: '0ms' }} />
+          <span className="w-1.5 h-1.5 rounded-full bg-muted/70 animate-bounce" style={{ animationDelay: '150ms' }} />
+          <span className="w-1.5 h-1.5 rounded-full bg-muted/70 animate-bounce" style={{ animationDelay: '300ms' }} />
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function ChatBubble({ m, busy, onConfirm, onCancel }: ChatBubbleProps) {
   const isUser = m.role === 'user'
   const isLead = m.role === 'lead'
   const role = m.meta?.agentRole
@@ -470,6 +640,9 @@ function ChatBubble({ m }: { m: ChatMessage }) {
     )
   }
 
+  const proposal = m.meta?.proposal
+  const questions = m.meta?.questions
+
   return (
     <div className="flex justify-start gap-2">
       <span
@@ -480,12 +653,19 @@ function ChatBubble({ m }: { m: ChatMessage }) {
             : (role && ROLE_DOT[role]) || '#6a7a8e',
         }}
       />
-      <div className="max-w-[85%]">
+      <div className="max-w-[85%] flex-1 min-w-0">
         <div className="text-[11px] text-muted mb-0.5 font-medium uppercase tracking-wider">
           {isLead ? 'Lead' : role ?? 'agent'}
         </div>
         <div className="bg-surface-2 border border-border text-text rounded-2xl rounded-bl-sm px-3 py-2">
           <p className="text-[13.5px] whitespace-pre-wrap leading-relaxed">{m.content}</p>
+          {questions && questions.length > 0 && (
+            <ul className="mt-2 pl-4 list-disc text-[12.5px] text-muted space-y-0.5">
+              {questions.map((q, i) => (
+                <li key={i}>{q}</li>
+              ))}
+            </ul>
+          )}
           {m.role === 'agent' && m.content.includes('PR: https://') && (
             <a
               href={m.content.match(/PR: (https:\/\/[^\s]+)/)?.[1]}
@@ -497,7 +677,103 @@ function ChatBubble({ m }: { m: ChatMessage }) {
             </a>
           )}
         </div>
+        {proposal && (
+          <ProposalCard
+            proposal={proposal}
+            busy={busy}
+            onConfirm={onConfirm}
+            onCancel={onCancel}
+          />
+        )}
       </div>
+    </div>
+  )
+}
+
+interface ProposalCardProps {
+  proposal: ProposalView
+  busy: boolean
+  onConfirm: (proposalId: string) => void
+  onCancel: (proposalId: string) => void
+}
+
+const STATUS_BADGE: Record<
+  ProposalStatus,
+  { label: string; tone: 'info' | 'success' | 'muted' | 'warn' }
+> = {
+  pending: { label: 'รอยืนยัน', tone: 'info' },
+  consumed: { label: '✓ สั่งงานแล้ว', tone: 'success' },
+  cancelled: { label: '✕ ยกเลิกแล้ว', tone: 'muted' },
+  expired: { label: '⏱ หมดอายุ', tone: 'warn' },
+}
+
+function ProposalCard({ proposal, busy, onConfirm, onCancel }: ProposalCardProps) {
+  const status = proposal.status ?? 'pending'
+  const isPending = status === 'pending'
+  const isResolved = !isPending
+  const badge = STATUS_BADGE[status]
+  const toneClass =
+    badge.tone === 'success'
+      ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+      : badge.tone === 'warn'
+      ? 'bg-amber-500/10 text-amber-400 border-amber-500/30'
+      : badge.tone === 'info'
+      ? 'bg-accent/10 text-accent border-accent/30'
+      : 'bg-surface-2 text-dim border-border'
+
+  return (
+    <div
+      className={`mt-2 bg-canvas border rounded-lg p-3 text-[12.5px] flex flex-col gap-2 transition-opacity ${
+        isResolved ? 'border-border opacity-70' : 'border-border-hi'
+      }`}
+    >
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <div className="text-[11px] text-dim uppercase tracking-wider mb-0.5">Proposed task</div>
+          <div className="text-text font-semibold leading-snug">{proposal.taskBrief.title}</div>
+        </div>
+        <span
+          className={`shrink-0 inline-flex items-center text-[10.5px] font-medium uppercase tracking-wider border rounded-full px-2 py-0.5 ${toneClass}`}
+        >
+          {badge.label}
+        </span>
+      </div>
+      <p className="text-muted whitespace-pre-wrap leading-relaxed">
+        {proposal.taskBrief.description}
+      </p>
+      <div className="flex flex-wrap gap-1.5">
+        {proposal.roles.map((r) => (
+          <span
+            key={r.slug}
+            title={r.reason}
+            className="inline-flex items-center gap-1 bg-surface-2 border border-border rounded-full px-2 py-0.5 text-[11px] text-text"
+          >
+            <span
+              className="w-1.5 h-1.5 rounded-full"
+              style={{ backgroundColor: ROLE_DOT[r.slug] ?? '#6a7a8e' }}
+            />
+            {r.slug}
+          </span>
+        ))}
+      </div>
+      {isPending && (
+        <div className="flex items-center gap-2 pt-1">
+          <button
+            onClick={() => onConfirm(proposal.id)}
+            disabled={busy}
+            className="bg-accent/90 hover:bg-accent text-canvas text-[12px] font-semibold px-3 py-1.5 rounded transition-colors disabled:opacity-40"
+          >
+            {busy ? '…' : 'ยืนยันและสั่งงาน'}
+          </button>
+          <button
+            onClick={() => onCancel(proposal.id)}
+            disabled={busy}
+            className="text-muted hover:text-danger text-[12px] px-2 py-1.5 transition-colors disabled:opacity-40"
+          >
+            ยกเลิก
+          </button>
+        </div>
+      )}
     </div>
   )
 }

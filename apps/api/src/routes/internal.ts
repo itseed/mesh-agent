@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { eq, and, ne, count } from 'drizzle-orm'
 import { tasks, taskComments } from '@meshagent/shared'
 import { env } from '../env.js'
+import { runLeadSynthesis, type LeadContextMessage } from '../lib/lead.js'
 
 const HISTORY_KEY = 'chat:lead:history'
 const HISTORY_LIMIT = 200
@@ -39,6 +40,80 @@ async function pushChatMessage(fastify: FastifyInstance, message: object) {
   await fastify.redis.rpush(HISTORY_KEY, str)
   await fastify.redis.ltrim(HISTORY_KEY, -HISTORY_LIMIT, -1)
   await fastify.redis.publish(CHAT_CHANNEL, JSON.stringify({ type: 'message', message }))
+}
+
+interface RawChatMessage {
+  role: 'user' | 'lead' | 'agent' | 'system'
+  content: string
+  meta?: { agentRole?: string; topicReset?: boolean }
+}
+
+async function loadRecentContext(fastify: FastifyInstance): Promise<LeadContextMessage[]> {
+  const raw = await fastify.redis.lrange(HISTORY_KEY, -100, -1)
+  const parsed = raw
+    .map((s: string): RawChatMessage | null => {
+      try {
+        return JSON.parse(s) as RawChatMessage
+      } catch {
+        return null
+      }
+    })
+    .filter((m): m is RawChatMessage => m !== null)
+
+  let startIdx = 0
+  for (let i = parsed.length - 1; i >= 0; i -= 1) {
+    if (parsed[i].meta?.topicReset) {
+      startIdx = i + 1
+      break
+    }
+  }
+
+  return parsed
+    .slice(startIdx)
+    .filter((m) => m.role !== 'system')
+    .slice(-20)
+    .map((m) => ({
+      role: m.role as 'user' | 'lead' | 'agent',
+      content: m.content,
+      agentRole: m.meta?.agentRole,
+    }))
+}
+
+async function synthesizeAfterCompletion(
+  fastify: FastifyInstance,
+  input: {
+    agentRole: string
+    success: boolean
+    summary: string
+    prUrl: string | null
+  },
+): Promise<void> {
+  await fastify.redis
+    .publish(CHAT_CHANNEL, JSON.stringify({ type: 'lead-status', status: 'thinking' }))
+    .catch(() => {})
+  try {
+    const context = await loadRecentContext(fastify)
+    const reply = await runLeadSynthesis({
+      agentRole: input.agentRole,
+      success: input.success,
+      summary: input.summary,
+      prUrl: input.prUrl,
+      context,
+    })
+    await pushChatMessage(fastify, {
+      id: crypto.randomUUID(),
+      role: 'lead' as const,
+      content: reply,
+      timestamp: Date.now(),
+      meta: { intent: 'chat' as const, synthesisFor: input.agentRole },
+    })
+  } catch (err) {
+    fastify.log.warn({ err, role: input.agentRole }, 'Lead synthesis failed; skipping')
+  } finally {
+    await fastify.redis
+      .publish(CHAT_CHANNEL, JSON.stringify({ type: 'lead-status', status: 'idle' }))
+      .catch(() => {})
+  }
 }
 
 export async function internalRoutes(fastify: FastifyInstance) {
@@ -124,6 +199,15 @@ export async function internalRoutes(fastify: FastifyInstance) {
     }
 
     await pushChatMessage(fastify, chatMsg)
+
+    // Lead debrief — fire-and-forget so the orchestrator response stays snappy.
+    // The synthesis pushes its own chat message via Redis pub/sub when ready.
+    void synthesizeAfterCompletion(fastify, {
+      agentRole: role,
+      success,
+      summary,
+      prUrl,
+    })
 
     return reply.status(200).send({ ok: true })
   })

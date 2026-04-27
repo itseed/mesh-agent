@@ -1,5 +1,16 @@
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
 
+export class ApiError extends Error {
+  readonly status: number
+  readonly body: any
+  constructor(message: string, status: number, body: any) {
+    super(message)
+    this.name = 'ApiError'
+    this.status = status
+    this.body = body
+  }
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
     ...init,
@@ -12,8 +23,8 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     },
   })
   if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: res.statusText }))
-    throw new Error(err.error ?? 'Request failed')
+    const body = await res.json().catch(() => ({ error: res.statusText }))
+    throw new ApiError(body?.error ?? 'Request failed', res.status, body)
   }
   if (res.status === 204) return undefined as T
   return res.json()
@@ -207,10 +218,19 @@ export const api = {
       projectId?: string
       images?: Array<{ name: string; mimeType: string; data: string }>
     }) =>
-      request<{ user: any; lead: any; dispatches: any[] }>('/chat', {
+      request<{ user: any; lead: any; proposal: any | null }>('/chat', {
         method: 'POST',
         body: JSON.stringify(data),
       }),
+    dispatch: (proposalId: string) =>
+      request<{ confirm: any; dispatches: any[] }>('/chat/dispatch', {
+        method: 'POST',
+        body: JSON.stringify({ proposalId }),
+      }),
+    cancelProposal: (proposalId: string) =>
+      request<void>(`/chat/proposal/${encodeURIComponent(proposalId)}`, { method: 'DELETE' }),
+    newTopic: () =>
+      request<{ marker: any }>('/chat/topic', { method: 'POST' }),
   },
   metrics: {
     health: () =>
