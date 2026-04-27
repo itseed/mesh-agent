@@ -100,15 +100,16 @@ export async function promptRoutes(fastify: FastifyInstance) {
   })
 
   fastify.get('/health/cursor', async () => {
+    const cursorBin = '/root/.local/bin/agent'
     try {
-      const { stdout } = await execFileAsync('cursor', ['--version'], {
+      const { stdout } = await execFileAsync(cursorBin, ['--version'], {
         encoding: 'utf8',
         timeout: 10_000,
         env: process.env,
       })
-      return { ok: true, version: stdout.trim(), cmd: 'cursor' }
+      return { ok: true, version: stdout.trim(), cmd: cursorBin }
     } catch (err: any) {
-      return { ok: false, error: err?.message ?? 'CLI not found', cmd: 'cursor' }
+      return { ok: false, error: err?.message ?? 'CLI not found', cmd: cursorBin }
     }
   })
 }
