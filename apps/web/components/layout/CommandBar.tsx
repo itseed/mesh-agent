@@ -106,6 +106,7 @@ export function CommandBar() {
   const [unread, setUnread] = useState(0)
   const [busyProposalId, setBusyProposalId] = useState<string | null>(null)
   const [leadThinking, setLeadThinking] = useState(false)
+  const [stoppedSessions, setStoppedSessions] = useState<Set<string>>(new Set())
   const fileInputRef = useRef<HTMLInputElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const openRef = useRef(open)
@@ -415,6 +416,11 @@ export function CommandBar() {
                     }
                     onConfirm={confirmProposal}
                     onCancel={cancelProposal}
+                    stoppedSessions={stoppedSessions}
+                    onStop={(sid) => {
+                      api.agents.stop(sid).catch(() => {})
+                      setStoppedSessions((prev) => new Set([...prev, sid]))
+                    }}
                   />
                 )
               })
@@ -585,6 +591,8 @@ interface ChatBubbleProps {
   busy: boolean
   onConfirm: (proposalId: string) => void
   onCancel: (proposalId: string) => void
+  stoppedSessions: Set<string>
+  onStop: (sessionId: string) => void
 }
 
 function TopicDivider({ label }: { label: string }) {
@@ -620,7 +628,7 @@ function LeadThinkingBubble() {
   )
 }
 
-function ChatBubble({ m, busy, onConfirm, onCancel }: ChatBubbleProps) {
+function ChatBubble({ m, busy, onConfirm, onCancel, stoppedSessions, onStop }: ChatBubbleProps) {
   const isUser = m.role === 'user'
   const isLead = m.role === 'lead'
   const role = m.meta?.agentRole
@@ -675,6 +683,14 @@ function ChatBubble({ m, busy, onConfirm, onCancel }: ChatBubbleProps) {
             >
               → ดู Pull Request
             </a>
+          )}
+          {m.role === 'agent' && m.meta?.sessionId && !stoppedSessions.has(m.meta.sessionId) && m.content.includes('เริ่มทำงานแล้ว') && (
+            <button
+              onClick={() => onStop(m.meta!.sessionId!)}
+              className="mt-1.5 text-[11px] text-danger/70 hover:text-danger border border-danger/20 hover:border-danger/50 px-2 py-0.5 rounded transition-colors"
+            >
+              ■ หยุดงาน
+            </button>
           )}
         </div>
         {proposal && (

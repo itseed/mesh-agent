@@ -79,6 +79,7 @@ function buildPrompt(
   message: string,
   context: LeadContextMessage[],
   imagePaths: string[],
+  projectContext?: { name: string; paths: Record<string, string> },
 ): string {
   const lines = [LEAD_SYSTEM_PROMPT, '', '## Conversation so far']
   if (context.length === 0) {
@@ -88,6 +89,14 @@ function buildPrompt(
       const label =
         m.role === 'user' ? 'User' : m.role === 'lead' ? 'Lead' : `Agent[${m.agentRole ?? 'agent'}]`
       lines.push(`${label}: ${m.content}`)
+    }
+  }
+  if (projectContext) {
+    lines.push('', '## Active project')
+    lines.push(`Name: ${projectContext.name}`)
+    lines.push('Working directories by role (use these exact paths in taskBrief.description):')
+    for (const [role, path] of Object.entries(projectContext.paths)) {
+      lines.push(`  ${role}: ${path}`)
     }
   }
   lines.push('', '## Current user message', message)
@@ -189,9 +198,10 @@ export async function runLead(
   message: string,
   context: LeadContextMessage[],
   imagePaths: string[] = [],
+  projectContext?: { name: string; paths: Record<string, string> },
 ): Promise<LeadDecision> {
   const cmd = process.env.CLAUDE_CMD ?? 'claude'
-  const prompt = buildPrompt(message, context, imagePaths)
+  const prompt = buildPrompt(message, context, imagePaths, projectContext)
   const { stdout } = await execFileAsync(cmd, ['--output-format', 'json', '-p', prompt], {
     encoding: 'utf8',
     timeout: 60_000,

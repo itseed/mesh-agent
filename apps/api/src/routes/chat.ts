@@ -125,34 +125,45 @@ async function resolveProjectContext(
   fastify: FastifyInstance,
   projectId: string | undefined,
   workingDir: string | undefined,
-): Promise<{ projectId: string | null; workingDir: string; baseBranch: string }> {
+): Promise<{ projectId: string | null; workingDir: string; baseBranch: string; projectName: string | null; projectPaths: Record<string, string> }> {
   let resolvedWorkingDir = workingDir
   let resolvedProjectId = projectId ?? null
   let baseBranch = 'main'
+  let projectName: string | null = null
+  let projectPaths: Record<string, string> = {}
 
-  if (!resolvedWorkingDir || !resolvedProjectId) {
-    const all = await fastify.db.select().from(projects)
-    const fallback = all[0] ?? null
-    if (fallback) {
-      resolvedProjectId = resolvedProjectId ?? fallback.id
-      baseBranch = fallback.baseBranch ?? 'main'
-      if (!resolvedWorkingDir) {
-        const firstPath = Object.values(fallback.paths ?? {})[0]
-        resolvedWorkingDir = firstPath ?? '/tmp'
-      }
-    }
-  } else {
+  if (resolvedProjectId) {
     const [proj] = await fastify.db
       .select()
       .from(projects)
       .where(eq(projects.id, resolvedProjectId))
       .limit(1)
-    if (proj) baseBranch = proj.baseBranch ?? 'main'
+    if (proj) {
+      baseBranch = proj.baseBranch ?? 'main'
+      projectName = proj.name
+      projectPaths = (proj.paths as Record<string, string>) ?? {}
+      if (!resolvedWorkingDir) {
+        resolvedWorkingDir = Object.values(projectPaths)[0] ?? '/tmp'
+      }
+    }
+  } else if (!resolvedWorkingDir) {
+    const all = await fastify.db.select().from(projects)
+    const fallback = all[0] ?? null
+    if (fallback) {
+      resolvedProjectId = fallback.id
+      baseBranch = fallback.baseBranch ?? 'main'
+      projectName = fallback.name
+      projectPaths = (fallback.paths as Record<string, string>) ?? {}
+      resolvedWorkingDir = Object.values(projectPaths)[0] ?? '/tmp'
+    }
   }
+
   return {
     projectId: resolvedProjectId,
     workingDir: resolvedWorkingDir ?? '/tmp',
     baseBranch,
+    projectName,
+    projectPaths,
   }
 }
 
@@ -332,9 +343,14 @@ export async function chatRoutes(fastify: FastifyInstance) {
 
     const recentContext = await loadRecentContext(fastify, body.message)
 
+    const projectForLead =
+      ctx.projectName && Object.keys(ctx.projectPaths).length > 0
+        ? { name: ctx.projectName, paths: ctx.projectPaths }
+        : undefined
+
     let decision: LeadDecision
     try {
-      decision = await runLead(body.message, recentContext, imagePaths)
+      decision = await runLead(body.message, recentContext, imagePaths, projectForLead)
     } catch (err) {
       fastify.log.warn({ err }, 'Lead LLM failed; using soft fallback')
       decision = fallbackDecision()
