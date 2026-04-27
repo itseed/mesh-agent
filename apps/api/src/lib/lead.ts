@@ -1,5 +1,6 @@
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
+import { readFileSync } from 'node:fs'
 
 const execFileAsync = promisify(execFile)
 
@@ -27,7 +28,7 @@ export interface LeadContextMessage {
   agentRole?: string
 }
 
-const LEAD_SYSTEM_PROMPT = `You are the Lead of a software development team using the MeshAgent platform. The user talks to you via a chat box. You manage a team of specialist agents (frontend, backend, mobile, devops, designer, qa, reviewer).
+const DEFAULT_LEAD_SYSTEM_PROMPT = `You are the Lead of a software development team using the MeshAgent platform. The user talks to you via a chat box. You manage a team of specialist agents (frontend, backend, mobile, devops, designer, qa, reviewer).
 
 Your job is to behave like a real tech lead during a stand-up:
 - If the user is asking a question, chatting, or thinking out loud → just talk back. Do not create work.
@@ -49,10 +50,30 @@ Output ONLY one valid JSON object — no markdown, no commentary, no extra text 
 Rules:
 - "chat": user is asking a question, greeting, or discussing — reply only, omit roles/taskBrief/questions.
 - "clarify": you need more info — set "questions" with 1–3 specific questions; omit roles/taskBrief.
-- "dispatch": ready to assign work — fill "roles" (1–4 of them) and "taskBrief". The "reply" should briefly summarize the plan and ask the user to confirm. Do NOT promise that work has started.
+- "dispatch": ready to assign work — fill "roles" and "taskBrief". The "reply" should briefly summarize the plan and ask the user to confirm. Do NOT promise that work has started.
+- Strongly prefer assigning ONE role. Only use multiple roles when the change truly spans separate areas (e.g. backend API + frontend integration) AND those areas can be worked on in parallel without conflicts. When in doubt, pick one role and let the user request more after that finishes.
 - Never invent role slugs outside the allowed list.
-- Pick the smallest viable set of roles. Don't add a reviewer or qa unless the user asked for review/testing or the change is risky.
+- Don't add a reviewer or qa unless the user asked for review/testing or the change is risky.
 - Keep "reply" concise (a few sentences max).`
+
+function loadLeadSystemPrompt(): string {
+  // Highest priority: literal env (good for docker-compose / .env)
+  const inline = process.env.LEAD_SYSTEM_PROMPT
+  if (inline && inline.trim()) return inline
+  // Next: a file path (good for editing without re-encoding multiline strings)
+  const file = process.env.LEAD_SYSTEM_PROMPT_FILE
+  if (file && file.trim()) {
+    try {
+      const text = readFileSync(file, 'utf8').trim()
+      if (text) return text
+    } catch (err) {
+      console.warn('[lead] Failed to read LEAD_SYSTEM_PROMPT_FILE, falling back to default:', err)
+    }
+  }
+  return DEFAULT_LEAD_SYSTEM_PROMPT
+}
+
+const LEAD_SYSTEM_PROMPT = loadLeadSystemPrompt()
 
 function buildPrompt(message: string, context: LeadContextMessage[]): string {
   const lines = [LEAD_SYSTEM_PROMPT, '', '## Conversation so far']
@@ -182,7 +203,7 @@ export interface SynthesisInput {
   context: LeadContextMessage[]
 }
 
-const SYNTHESIS_SYSTEM_PROMPT = `You are the Lead of a software development team. One of your specialist agents just finished a task. Your job is to give the user a short, conversational debrief — like a tech lead delivering an update at the end of a stand-up.
+const DEFAULT_SYNTHESIS_SYSTEM_PROMPT = `You are the Lead of a software development team. One of your specialist agents just finished a task. Your job is to give the user a short, conversational debrief — like a tech lead delivering an update at the end of a stand-up.
 
 Reply in the same language the user has been using in the conversation (default Thai if unclear).
 
@@ -195,6 +216,23 @@ Style:
 - Do NOT propose multi-step plans, do NOT list code changes, do NOT include the PR description verbatim.
 
 Output ONLY plain text — no JSON, no markdown formatting, no quotes around your reply. Just the message you'd send in chat.`
+
+function loadSynthesisSystemPrompt(): string {
+  const inline = process.env.LEAD_SYNTHESIS_PROMPT
+  if (inline && inline.trim()) return inline
+  const file = process.env.LEAD_SYNTHESIS_PROMPT_FILE
+  if (file && file.trim()) {
+    try {
+      const text = readFileSync(file, 'utf8').trim()
+      if (text) return text
+    } catch (err) {
+      console.warn('[lead] Failed to read LEAD_SYNTHESIS_PROMPT_FILE, falling back to default:', err)
+    }
+  }
+  return DEFAULT_SYNTHESIS_SYSTEM_PROMPT
+}
+
+const SYNTHESIS_SYSTEM_PROMPT = loadSynthesisSystemPrompt()
 
 function buildSynthesisPrompt(input: SynthesisInput): string {
   const lines = [SYNTHESIS_SYSTEM_PROMPT, '', '## Recent conversation']

@@ -404,12 +404,22 @@ export async function chatRoutes(fastify: FastifyInstance) {
         createdBy: userId,
       })
 
+      // If the orchestrator never accepted the dispatch, the task we just inserted
+      // has no session backing it — surface it as blocked in the kanban so it
+      // doesn't sit forever in 'in_progress' looking like real work.
+      if (!result.id && task?.id) {
+        await fastify.db
+          .update(tasks)
+          .set({ stage: 'backlog', status: 'blocked', updatedAt: new Date() })
+          .where(eq(tasks.id, task.id))
+      }
+
       const agentMsg: ChatMessage = {
         id: crypto.randomUUID(),
         role: 'agent',
         content: result.id
           ? `[${r.slug}] เริ่มทำงานแล้ว (session ${result.id.slice(0, 8)})`
-          : `[${r.slug}] ยังไม่สามารถเริ่ม session ได้ — ${result.error ?? 'orchestrator ไม่ตอบ'} (task บันทึกแล้ว)`,
+          : `[${r.slug}] ยังไม่สามารถเริ่ม session ได้ — ${result.error ?? 'orchestrator ไม่ตอบ'} (task ถูก mark blocked)`,
         timestamp: Date.now(),
         meta: {
           agentRole: r.slug,

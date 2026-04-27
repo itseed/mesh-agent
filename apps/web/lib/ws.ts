@@ -4,6 +4,67 @@ import { useEffect, useRef, useState } from 'react'
 const WS_BASE = process.env.NEXT_PUBLIC_WS_URL ?? 'ws://localhost:3001'
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
 
+// Reconnects with exponential backoff up to 30s. Calls onOpen each time the
+// connection comes up so callers can resync any state they may have missed.
+function connectWithReconnect(
+  url: string,
+  handlers: {
+    onMessage: (data: unknown) => void
+    onOpen?: (isReconnect: boolean) => void
+  },
+): () => void {
+  let ws: WebSocket | null = null
+  let reconnectTimer: ReturnType<typeof setTimeout> | null = null
+  let attempt = 0
+  let stopped = false
+  let opened = false
+
+  const connect = () => {
+    if (stopped) return
+    ws = new WebSocket(url)
+    ws.onopen = () => {
+      const isReconnect = attempt > 0
+      attempt = 0
+      opened = true
+      handlers.onOpen?.(isReconnect)
+    }
+    ws.onmessage = (event) => {
+      try {
+        handlers.onMessage(JSON.parse(event.data))
+      } catch {
+        /* ignore malformed payload */
+      }
+    }
+    ws.onclose = () => {
+      ws = null
+      if (stopped) return
+      attempt += 1
+      // 1s, 2s, 4s, … capped at 30s. Reset to 0 on next successful open.
+      const delay = Math.min(30_000, 1_000 * 2 ** Math.min(attempt - 1, 5))
+      reconnectTimer = setTimeout(connect, delay)
+    }
+    ws.onerror = () => {
+      // close handler will run; nothing to do here besides letting it
+    }
+  }
+
+  connect()
+
+  return () => {
+    stopped = true
+    if (reconnectTimer) clearTimeout(reconnectTimer)
+    if (ws) {
+      // Only close cleanly if it opened — closing a CONNECTING socket throws in some browsers.
+      try {
+        ws.close()
+      } catch {
+        /* ignore */
+      }
+    }
+    void opened
+  }
+}
+
 export interface AgentOutputEvent {
   channel?: string
   type?: string
@@ -69,25 +130,26 @@ export function useAgentOutput(sessionId: string | null) {
   return { lines, status }
 }
 
-export function useTaskEvents(onEvent: (event: { type: string; taskId?: string; projectId?: string; stage?: string }) => void) {
+export function useTaskEvents(
+  onEvent: (event: { type: string; taskId?: string; projectId?: string; stage?: string }) => void,
+) {
   const cbRef = useRef(onEvent)
   cbRef.current = onEvent
 
   useEffect(() => {
-    const ws = new WebSocket(`${WS_BASE}/ws?channels=tasks`)
-    ws.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data)
-        if (data.type?.startsWith('task.')) cbRef.current(data)
-      } catch {}
-    }
-    return () => { ws.close() }
+    return connectWithReconnect(`${WS_BASE}/ws?channels=tasks`, {
+      onMessage: (data: any) => {
+        if (data?.type?.startsWith?.('task.')) cbRef.current(data)
+      },
+    })
   }, [])
 }
 
 export interface ChatStreamHandlers {
   onMessage: (msg: any) => void
   onProposalUpdate?: (proposalId: string, status: string) => void
+  onLeadStatus?: (status: 'thinking' | 'idle') => void
+  onReconnect?: () => void
 }
 
 export function useChatStream(handlersOrOnMessage: ChatStreamHandlers | ((msg: any) => void)) {
@@ -99,19 +161,20 @@ export function useChatStream(handlersOrOnMessage: ChatStreamHandlers | ((msg: a
   ref.current = handlers
 
   useEffect(() => {
-    const ws = new WebSocket(`${WS_BASE}/ws?channels=chat`)
-    ws.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data)
+    return connectWithReconnect(`${WS_BASE}/ws?channels=chat`, {
+      onOpen: (isReconnect) => {
+        if (isReconnect) ref.current.onReconnect?.()
+      },
+      onMessage: (data: any) => {
+        if (!data?.type) return
         if (data.type === 'message' && data.message) {
           ref.current.onMessage(data.message)
         } else if (data.type === 'proposal-update' && data.proposalId && data.status) {
           ref.current.onProposalUpdate?.(data.proposalId, data.status)
+        } else if (data.type === 'lead-status' && data.status) {
+          ref.current.onLeadStatus?.(data.status)
         }
-      } catch {}
-    }
-    return () => {
-      ws.close()
-    }
+      },
+    })
   }, [])
 }
