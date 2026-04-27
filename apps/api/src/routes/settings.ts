@@ -1,9 +1,8 @@
 import { FastifyInstance } from 'fastify'
 import { z } from 'zod'
-import { execFileSync } from 'node:child_process'
 import { Octokit } from '@octokit/rest'
 import { eq } from 'drizzle-orm'
-import { projects } from '@meshagent/shared'
+import { projects, cliProviders } from '@meshagent/shared'
 import { env } from '../env.js'
 import { encryptSecret } from '../lib/crypto.js'
 import { TOKEN_KEY, readStoredToken } from '../lib/github-client.js'
@@ -40,14 +39,6 @@ export async function settingsRoutes(fastify: FastifyInstance) {
       }
     }
 
-    const cliCmdOverride = await fastify.redis.get('settings:claude:cmd')
-    const effectiveCmd = cliCmdOverride ?? process.env.CLAUDE_CMD ?? 'claude'
-    const cliSource = cliCmdOverride
-      ? 'override'
-      : process.env.CLAUDE_CMD && process.env.CLAUDE_CMD !== 'claude'
-        ? 'env'
-        : 'default'
-
     const reposBaseDir = (await fastify.redis.get('settings:repos:base-dir')) ?? null
 
     return {
@@ -58,23 +49,10 @@ export async function settingsRoutes(fastify: FastifyInstance) {
         user,
       },
       cli: {
-        cmd: effectiveCmd,
-        source: cliSource,
+        orchestratorUrl: env.ORCHESTRATOR_URL,
       },
       reposBaseDir,
     }
-  })
-
-  fastify.post('/settings/claude/cmd', { preHandler }, async (request, reply) => {
-    const { cmd } = z.object({ cmd: z.string().min(1).max(512) }).parse(request.body)
-    await fastify.redis.set('settings:claude:cmd', cmd)
-    await logAudit(fastify, request, { action: 'settings.claude.cmd.saved', target: cmd })
-    return { ok: true }
-  })
-
-  fastify.delete('/settings/claude/cmd', { preHandler }, async (_, reply) => {
-    await fastify.redis.del('settings:claude:cmd')
-    return { ok: true }
   })
 
   fastify.post('/settings/repos-base-dir', { preHandler }, async (request, reply) => {
@@ -89,18 +67,17 @@ export async function settingsRoutes(fastify: FastifyInstance) {
     return { ok: true }
   })
 
-  fastify.get('/settings/claude/test', { preHandler }, async () => {
-    const override = await fastify.redis.get('settings:claude:cmd')
-    const cmd = override ?? process.env.CLAUDE_CMD ?? 'claude'
+  fastify.get('/settings/claude/test', { preHandler }, async (_, reply) => {
     try {
-      const out = execFileSync(cmd, ['--version'], {
-        encoding: 'utf8',
-        timeout: 10_000,
-        env: { ...process.env },
-      }).trim()
-      return { ok: true, version: out, cmd }
+      const res = await fetch(`${env.ORCHESTRATOR_URL}/health/claude`, {
+        signal: AbortSignal.timeout(15_000),
+      })
+      if (!res.ok) {
+        return reply.status(502).send({ ok: false, error: 'Orchestrator error', cmd: 'unknown' })
+      }
+      return res.json()
     } catch (err: any) {
-      return { ok: false, error: err?.message ?? 'CLI not found', cmd }
+      return { ok: false, error: err?.message ?? 'Orchestrator unreachable', cmd: 'unknown' }
     }
   })
 
@@ -217,6 +194,86 @@ export async function settingsRoutes(fastify: FastifyInstance) {
       return data.map((b) => ({ name: b.name, protected: b.protected }))
     } catch (e: any) {
       return reply.status(502).send({ error: e.message ?? 'Failed to list branches' })
+    }
+  })
+
+  // CLI provider management
+  const CLI_PROVIDERS = ['claude', 'qwen', 'gemini', 'cursor'] as const
+  type ProviderSlug = typeof CLI_PROVIDERS[number]
+
+  const cliProviderUpdateSchema = z.object({
+    enabled: z.boolean().optional(),
+    isDefault: z.boolean().optional(),
+  })
+
+  const claudeTokenSchema = z.object({ token: z.string().min(1).max(4096) })
+
+  fastify.get('/settings/cli', { preHandler }, async () => {
+    const rows = await fastify.db.select().from(cliProviders)
+    const byProvider = new Map(rows.map((r) => [r.provider, r]))
+    return CLI_PROVIDERS.map((p) => {
+      const row = byProvider.get(p)
+      return {
+        provider: p,
+        enabled: row?.enabled ?? false,
+        isDefault: row?.isDefault ?? false,
+        createdAt: row?.createdAt ?? null,
+        updatedAt: row?.updatedAt ?? null,
+      }
+    })
+  })
+
+  fastify.put('/settings/cli/:provider', { preHandler }, async (request, reply) => {
+    const { provider } = request.params as { provider: string }
+    if (!CLI_PROVIDERS.includes(provider as ProviderSlug)) {
+      return reply.status(400).send({ error: `Unknown provider: ${provider}` })
+    }
+    const body = cliProviderUpdateSchema.parse(request.body)
+    if (Object.keys(body).length === 0) {
+      return reply.status(400).send({ error: 'Nothing to update' })
+    }
+
+    const [existing] = await fastify.db
+      .select()
+      .from(cliProviders)
+      .where(eq(cliProviders.provider, provider as ProviderSlug))
+      .limit(1)
+
+    let row
+    if (existing) {
+      ;[row] = await fastify.db
+        .update(cliProviders)
+        .set({ ...body, updatedAt: new Date() })
+        .where(eq(cliProviders.provider, provider as ProviderSlug))
+        .returning()
+    } else {
+      ;[row] = await fastify.db
+        .insert(cliProviders)
+        .values({ provider: provider as ProviderSlug, ...body })
+        .returning()
+    }
+
+    await logAudit(fastify, request, { action: 'settings.cli.provider.updated', target: provider, metadata: body as Record<string, unknown> })
+    return row
+  })
+
+  fastify.post('/settings/cli/claude/token', { preHandler }, async (request, reply) => {
+    const { token } = claudeTokenSchema.parse(request.body)
+    try {
+      const res = await fetch(`${env.ORCHESTRATOR_URL}/health/claude/token`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token }),
+        signal: AbortSignal.timeout(10_000),
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({})) as { error?: string }
+        return reply.status(502).send({ error: body.error ?? 'Orchestrator error' })
+      }
+      await logAudit(fastify, request, { action: 'settings.cli.claude.token.saved' })
+      return res.json()
+    } catch (e: any) {
+      return reply.status(502).send({ error: e?.message ?? 'Orchestrator unreachable' })
     }
   })
 
