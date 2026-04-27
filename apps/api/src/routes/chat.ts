@@ -10,7 +10,8 @@ const HISTORY_KEY = 'chat:lead:history'
 const HISTORY_LIMIT = 200
 const CHAT_CHANNEL = 'chat:events'
 const PROPOSAL_KEY_PREFIX = 'chat:proposal:'
-const PROPOSAL_TTL_SECONDS = 60 * 30 // 30 minutes
+const PROPOSAL_PENDING_TTL = 60 * 30 // 30 minutes for pending
+const PROPOSAL_RESOLVED_TTL = 60 * 60 * 24 * 7 // 7 days for consumed/cancelled (audit + UI status)
 
 const imageSchema = z.object({
   name: z.string().max(256),
@@ -32,9 +33,12 @@ const dispatchSchema = z.object({
   proposalId: z.string().min(1),
 })
 
+type ProposalStatus = 'pending' | 'consumed' | 'cancelled' | 'expired'
+
 interface StoredProposal {
   id: string
   createdAt: number
+  status: ProposalStatus
   userMessage: string
   imageNote: string
   projectId: string | null
@@ -46,6 +50,7 @@ interface StoredProposal {
 
 interface ProposalView {
   id: string
+  status: ProposalStatus
   taskBrief: { title: string; description: string }
   roles: { slug: string; reason?: string }[]
   projectId: string | null
@@ -126,12 +131,8 @@ async function resolveProjectContext(
 }
 
 async function storeProposal(fastify: FastifyInstance, p: StoredProposal): Promise<void> {
-  await fastify.redis.set(
-    `${PROPOSAL_KEY_PREFIX}${p.id}`,
-    JSON.stringify(p),
-    'EX',
-    PROPOSAL_TTL_SECONDS,
-  )
+  const ttl = p.status === 'pending' ? PROPOSAL_PENDING_TTL : PROPOSAL_RESOLVED_TTL
+  await fastify.redis.set(`${PROPOSAL_KEY_PREFIX}${p.id}`, JSON.stringify(p), 'EX', ttl)
 }
 
 async function loadProposal(
@@ -147,8 +148,73 @@ async function loadProposal(
   }
 }
 
-async function consumeProposal(fastify: FastifyInstance, id: string): Promise<void> {
-  await fastify.redis.del(`${PROPOSAL_KEY_PREFIX}${id}`)
+async function markProposal(
+  fastify: FastifyInstance,
+  id: string,
+  status: ProposalStatus,
+): Promise<StoredProposal | null> {
+  const proposal = await loadProposal(fastify, id)
+  if (!proposal) return null
+  proposal.status = status
+  await storeProposal(fastify, proposal)
+  await fastify.redis.publish(
+    CHAT_CHANNEL,
+    JSON.stringify({ type: 'proposal-update', proposalId: id, status }),
+  )
+  return proposal
+}
+
+function toProposalView(p: StoredProposal): ProposalView {
+  return {
+    id: p.id,
+    status: p.status,
+    taskBrief: p.taskBrief,
+    roles: p.roles,
+    projectId: p.projectId,
+    baseBranch: p.baseBranch,
+  }
+}
+
+async function enrichHistoryWithStatus(
+  fastify: FastifyInstance,
+  messages: ChatMessage[],
+): Promise<ChatMessage[]> {
+  const ids = Array.from(
+    new Set(
+      messages
+        .map((m) => m.meta?.proposal?.id)
+        .filter((id): id is string => typeof id === 'string'),
+    ),
+  )
+  if (ids.length === 0) return messages
+
+  const keys = ids.map((id) => `${PROPOSAL_KEY_PREFIX}${id}`)
+  const raws = (await fastify.redis.mget(...keys)) as (string | null)[]
+  const statusById = new Map<string, ProposalStatus>()
+  raws.forEach((raw, idx) => {
+    if (!raw) return
+    try {
+      const p = JSON.parse(raw) as StoredProposal
+      statusById.set(ids[idx], p.status ?? 'pending')
+    } catch {
+      // skip malformed
+    }
+  })
+
+  return messages.map((m) => {
+    const pid = m.meta?.proposal?.id
+    if (!pid) return m
+    const known = statusById.get(pid)
+    // Proposals not in Redis (TTL expired before user acted) are treated as expired
+    const status: ProposalStatus = known ?? 'expired'
+    return {
+      ...m,
+      meta: {
+        ...m.meta!,
+        proposal: { ...m.meta!.proposal!, status },
+      },
+    }
+  })
 }
 
 function fallbackDecision(): LeadDecision {
@@ -168,7 +234,8 @@ export async function chatRoutes(fastify: FastifyInstance) {
 
   fastify.get('/chat/history', { preHandler }, async () => {
     const raw = await fastify.redis.lrange(HISTORY_KEY, 0, -1)
-    return raw.map((s: string) => JSON.parse(s) as ChatMessage)
+    const messages = raw.map((s: string) => JSON.parse(s) as ChatMessage)
+    return enrichHistoryWithStatus(fastify, messages)
   })
 
   fastify.delete('/chat/history', { preHandler }, async (_, reply) => {
@@ -211,6 +278,7 @@ export async function chatRoutes(fastify: FastifyInstance) {
       const proposal: StoredProposal = {
         id: crypto.randomUUID(),
         createdAt: Date.now(),
+        status: 'pending',
         userMessage: body.message,
         imageNote,
         projectId: ctx.projectId,
@@ -220,13 +288,7 @@ export async function chatRoutes(fastify: FastifyInstance) {
         taskBrief: decision.taskBrief,
       }
       await storeProposal(fastify, proposal)
-      proposalView = {
-        id: proposal.id,
-        taskBrief: proposal.taskBrief,
-        roles: proposal.roles,
-        projectId: proposal.projectId,
-        baseBranch: proposal.baseBranch,
-      }
+      proposalView = toProposalView(proposal)
     }
 
     const leadMsg: ChatMessage = {
@@ -249,12 +311,21 @@ export async function chatRoutes(fastify: FastifyInstance) {
     const body = dispatchSchema.parse(request.body)
     const userId = (request.user as { id: string }).id
 
-    const proposal = await loadProposal(fastify, body.proposalId)
-    if (!proposal) {
-      return reply.status(404).send({ error: 'Proposal expired or not found' })
+    const existing = await loadProposal(fastify, body.proposalId)
+    if (!existing) {
+      return reply.status(410).send({ error: 'Proposal expired', status: 'expired' })
     }
-    // single-use: remove now so a double-click can't create duplicate work
-    await consumeProposal(fastify, body.proposalId)
+    if (existing.status !== 'pending') {
+      return reply.status(409).send({
+        error: `Proposal already ${existing.status}`,
+        status: existing.status,
+      })
+    }
+    // single-use: flip to consumed now so a double-click can't create duplicate work
+    const proposal = await markProposal(fastify, body.proposalId, 'consumed')
+    if (!proposal) {
+      return reply.status(410).send({ error: 'Proposal expired', status: 'expired' })
+    }
 
     const confirmMsg: ChatMessage = {
       id: crypto.randomUUID(),
@@ -341,9 +412,14 @@ export async function chatRoutes(fastify: FastifyInstance) {
 
   fastify.delete('/chat/proposal/:id', { preHandler }, async (request, reply) => {
     const { id } = request.params as { id: string }
-    const proposal = await loadProposal(fastify, id)
+    const existing = await loadProposal(fastify, id)
+    if (!existing) return reply.status(204).send()
+    if (existing.status !== 'pending') {
+      // already consumed or cancelled — no-op, idempotent
+      return reply.status(204).send()
+    }
+    const proposal = await markProposal(fastify, id, 'cancelled')
     if (!proposal) return reply.status(204).send()
-    await consumeProposal(fastify, id)
 
     const cancelMsg: ChatMessage = {
       id: crypto.randomUUID(),

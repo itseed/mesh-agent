@@ -15,8 +15,11 @@ const ROLE_DOT: Record<string, string> = {
   lead: '#facc15',
 }
 
+type ProposalStatus = 'pending' | 'consumed' | 'cancelled' | 'expired'
+
 interface ProposalView {
   id: string
+  status: ProposalStatus
   taskBrief: { title: string; description: string }
   roles: { slug: string; reason?: string }[]
   projectId: string | null
@@ -100,7 +103,6 @@ export function CommandBar() {
   const [sending, setSending] = useState(false)
   const [error, setError] = useState('')
   const [unread, setUnread] = useState(0)
-  const [resolvedProposals, setResolvedProposals] = useState<Set<string>>(new Set())
   const [busyProposalId, setBusyProposalId] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -140,7 +142,21 @@ export function CommandBar() {
       setUnread((u) => u + 1)
     }
   }, [])
-  useChatStream(handleStream)
+  const handleProposalUpdate = useCallback((proposalId: string, status: string) => {
+    setHistory((prev) =>
+      prev.map((m) => {
+        if (m.meta?.proposal?.id !== proposalId) return m
+        return {
+          ...m,
+          meta: {
+            ...m.meta,
+            proposal: { ...m.meta.proposal, status: status as ProposalStatus },
+          },
+        }
+      }),
+    )
+  }, [])
+  useChatStream({ onMessage: handleStream, onProposalUpdate: handleProposalUpdate })
 
   useEffect(() => {
     if (!open) return
@@ -223,7 +239,18 @@ export function CommandBar() {
     if (!confirm('ล้างประวัติแชท?')) return
     await api.chat.clear()
     setHistory([])
-    setResolvedProposals(new Set())
+  }
+
+  function applyProposalStatus(id: string, status: ProposalStatus) {
+    setHistory((prev) =>
+      prev.map((m) => {
+        if (m.meta?.proposal?.id !== id) return m
+        return {
+          ...m,
+          meta: { ...m.meta, proposal: { ...m.meta.proposal, status } },
+        }
+      }),
+    )
   }
 
   async function confirmProposal(id: string) {
@@ -231,13 +258,23 @@ export function CommandBar() {
     setError('')
     try {
       await api.chat.dispatch(id)
-      setResolvedProposals((prev) => {
-        const next = new Set(prev)
-        next.add(id)
-        return next
-      })
+      // server pushes proposal-update via WS; optimistic mark just in case
+      applyProposalStatus(id, 'consumed')
     } catch (e: any) {
-      setError(e.message ?? 'ยืนยันไม่สำเร็จ')
+      const msg = e?.message ?? ''
+      if (/expired/i.test(msg)) {
+        applyProposalStatus(id, 'expired')
+      } else if (/already/i.test(msg)) {
+        // refresh to pick up real status
+        try {
+          const list = await api.chat.history()
+          setHistory(list)
+        } catch {
+          /* ignore */
+        }
+      } else {
+        setError(msg || 'ยืนยันไม่สำเร็จ')
+      }
     } finally {
       setBusyProposalId(null)
     }
@@ -248,11 +285,7 @@ export function CommandBar() {
     setError('')
     try {
       await api.chat.cancelProposal(id)
-      setResolvedProposals((prev) => {
-        const next = new Set(prev)
-        next.add(id)
-        return next
-      })
+      applyProposalStatus(id, 'cancelled')
     } catch (e: any) {
       setError(e.message ?? 'ยกเลิกไม่สำเร็จ')
     } finally {
@@ -345,9 +378,6 @@ export function CommandBar() {
                 <ChatBubble
                   key={m.id}
                   m={m}
-                  resolved={
-                    m.meta?.proposal ? resolvedProposals.has(m.meta.proposal.id) : false
-                  }
                   busy={
                     m.meta?.proposal ? busyProposalId === m.meta.proposal.id : false
                   }
@@ -518,13 +548,12 @@ export function CommandBar() {
 
 interface ChatBubbleProps {
   m: ChatMessage
-  resolved: boolean
   busy: boolean
   onConfirm: (proposalId: string) => void
   onCancel: (proposalId: string) => void
 }
 
-function ChatBubble({ m, resolved, busy, onConfirm, onCancel }: ChatBubbleProps) {
+function ChatBubble({ m, busy, onConfirm, onCancel }: ChatBubbleProps) {
   const isUser = m.role === 'user'
   const isLead = m.role === 'lead'
   const role = m.meta?.agentRole
@@ -584,7 +613,6 @@ function ChatBubble({ m, resolved, busy, onConfirm, onCancel }: ChatBubbleProps)
         {proposal && (
           <ProposalCard
             proposal={proposal}
-            resolved={resolved}
             busy={busy}
             onConfirm={onConfirm}
             onCancel={onCancel}
@@ -597,18 +625,51 @@ function ChatBubble({ m, resolved, busy, onConfirm, onCancel }: ChatBubbleProps)
 
 interface ProposalCardProps {
   proposal: ProposalView
-  resolved: boolean
   busy: boolean
   onConfirm: (proposalId: string) => void
   onCancel: (proposalId: string) => void
 }
 
-function ProposalCard({ proposal, resolved, busy, onConfirm, onCancel }: ProposalCardProps) {
+const STATUS_BADGE: Record<
+  ProposalStatus,
+  { label: string; tone: 'info' | 'success' | 'muted' | 'warn' }
+> = {
+  pending: { label: 'รอยืนยัน', tone: 'info' },
+  consumed: { label: '✓ สั่งงานแล้ว', tone: 'success' },
+  cancelled: { label: '✕ ยกเลิกแล้ว', tone: 'muted' },
+  expired: { label: '⏱ หมดอายุ', tone: 'warn' },
+}
+
+function ProposalCard({ proposal, busy, onConfirm, onCancel }: ProposalCardProps) {
+  const status = proposal.status ?? 'pending'
+  const isPending = status === 'pending'
+  const isResolved = !isPending
+  const badge = STATUS_BADGE[status]
+  const toneClass =
+    badge.tone === 'success'
+      ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+      : badge.tone === 'warn'
+      ? 'bg-amber-500/10 text-amber-400 border-amber-500/30'
+      : badge.tone === 'info'
+      ? 'bg-accent/10 text-accent border-accent/30'
+      : 'bg-surface-2 text-dim border-border'
+
   return (
-    <div className="mt-2 bg-canvas border border-border-hi rounded-lg p-3 text-[12.5px] flex flex-col gap-2">
-      <div>
-        <div className="text-[11px] text-dim uppercase tracking-wider mb-0.5">Proposed task</div>
-        <div className="text-text font-semibold leading-snug">{proposal.taskBrief.title}</div>
+    <div
+      className={`mt-2 bg-canvas border rounded-lg p-3 text-[12.5px] flex flex-col gap-2 transition-opacity ${
+        isResolved ? 'border-border opacity-70' : 'border-border-hi'
+      }`}
+    >
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <div className="text-[11px] text-dim uppercase tracking-wider mb-0.5">Proposed task</div>
+          <div className="text-text font-semibold leading-snug">{proposal.taskBrief.title}</div>
+        </div>
+        <span
+          className={`shrink-0 inline-flex items-center text-[10.5px] font-medium uppercase tracking-wider border rounded-full px-2 py-0.5 ${toneClass}`}
+        >
+          {badge.label}
+        </span>
       </div>
       <p className="text-muted whitespace-pre-wrap leading-relaxed">
         {proposal.taskBrief.description}
@@ -628,9 +689,7 @@ function ProposalCard({ proposal, resolved, busy, onConfirm, onCancel }: Proposa
           </span>
         ))}
       </div>
-      {resolved ? (
-        <div className="text-[11px] text-dim italic">— จัดการแล้ว —</div>
-      ) : (
+      {isPending && (
         <div className="flex items-center gap-2 pt-1">
           <button
             onClick={() => onConfirm(proposal.id)}

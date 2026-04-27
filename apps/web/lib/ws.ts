@@ -85,20 +85,33 @@ export function useTaskEvents(onEvent: (event: { type: string; taskId?: string; 
   }, [])
 }
 
-export function useChatStream(onMessage: (msg: any) => void) {
-  const wsRef = useRef<WebSocket | null>(null)
+export interface ChatStreamHandlers {
+  onMessage: (msg: any) => void
+  onProposalUpdate?: (proposalId: string, status: string) => void
+}
+
+export function useChatStream(handlersOrOnMessage: ChatStreamHandlers | ((msg: any) => void)) {
+  const handlers: ChatStreamHandlers =
+    typeof handlersOrOnMessage === 'function'
+      ? { onMessage: handlersOrOnMessage }
+      : handlersOrOnMessage
+  const ref = useRef(handlers)
+  ref.current = handlers
 
   useEffect(() => {
     const ws = new WebSocket(`${WS_BASE}/ws?channels=chat`)
-    wsRef.current = ws
     ws.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data)
-        if (data.type === 'message' && data.message) onMessage(data.message)
+        if (data.type === 'message' && data.message) {
+          ref.current.onMessage(data.message)
+        } else if (data.type === 'proposal-update' && data.proposalId && data.status) {
+          ref.current.onProposalUpdate?.(data.proposalId, data.status)
+        }
       } catch {}
     }
     return () => {
       ws.close()
     }
-  }, [onMessage])
+  }, [])
 }
