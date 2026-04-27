@@ -62,10 +62,10 @@ function RoleCard({ role, session, onClick }: {
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-success opacity-50" />
               <span className="relative inline-flex w-2 h-2 rounded-full bg-success" />
             </span>
-            <span className="text-[11px] text-success font-medium">{isPending ? 'pending' : 'running'}</span>
+            <span className="text-[11px] text-success font-medium">{isPending ? 'Pending' : 'Running'}</span>
           </div>
         ) : (
-          <span className="text-[11px] text-muted">idle</span>
+          <span className="text-[11px] text-muted">Idle</span>
         )}
       </div>
 

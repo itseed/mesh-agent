@@ -55,7 +55,7 @@ export function AgentCard({ agent, recentLines, onClick }: AgentCardProps) {
       <div className="p-3 font-mono text-[13px] text-muted h-[72px] overflow-hidden scanlines bg-canvas/20">
         {recentLines.length === 0 ? (
           <span className="text-dim">
-            waiting for output<span className="cursor-blink">▋</span>
+            Waiting for output<span className="cursor-blink">▋</span>
           </span>
         ) : (
           recentLines.slice(-3).map((line, i) => (

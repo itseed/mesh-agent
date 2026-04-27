@@ -11,7 +11,7 @@ const ROLE_STYLE: Record<string, { bg: string; text: string }> = {
 function relativeTime(dateStr: string | undefined | null): string | null {
   if (!dateStr) return null
   const diff = Date.now() - new Date(dateStr).getTime()
-  if (diff < 60_000) return 'just now'
+  if (diff < 60_000) return 'Just now'
   if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}m ago`
   if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}h ago`
   if (diff < 7 * 86_400_000) return `${Math.floor(diff / 86_400_000)}d ago`
@@ -73,7 +73,7 @@ export function TaskCard({ task, projects, allTasks, onClick, onDelete, stageCol
       </div>
 
       {task.parentTaskId && (
-        <div className="text-[11px] text-dim mt-1 ml-3">subtask</div>
+        <div className="text-[11px] text-dim mt-1 ml-3">Subtask</div>
       )}
 
       <div className="flex items-center gap-1.5 mt-2 ml-3 flex-wrap">

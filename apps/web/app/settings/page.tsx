@@ -511,11 +511,11 @@ function SettingsPageInner() {
                         ? 'bg-success/10 border-success/25 text-success'
                         : 'bg-danger/10 border-danger/25 text-danger'
                     }`}>
-                      {p.loggedIn ? '● logged in' : '○ not logged in'}
+                      {p.loggedIn ? '● Logged in' : '○ Not logged in'}
                     </span>
                     {p.isDefault && (
                       <span className="text-[11px] bg-accent/10 border border-accent/25 text-accent px-2 py-0.5 rounded-full">
-                        default
+                        Default
                       </span>
                     )}
                   </div>

@@ -56,7 +56,7 @@ export function AgentOutputPanel({ sessionId, role, onClose }: AgentOutputPanelP
               <span className="w-2.5 h-2.5 rounded-full bg-success/60" />
             </div>
             <span className="text-[14px] font-medium" style={{ color: roleColor }}>{role}</span>
-            <span className="text-[13px] text-dim">— live output</span>
+            <span className="text-[13px] text-dim">— Live output</span>
           </div>
           <button
             onClick={onClose}
@@ -108,7 +108,7 @@ export function AgentOutputPanel({ sessionId, role, onClose }: AgentOutputPanelP
               }}
               className="text-[12px] text-dim hover:text-muted transition-colors"
             >
-              {copied ? '✓ copied' : 'copy'}
+              {copied ? '✓ Copied' : 'Copy'}
             </button>
             <span>session: {sessionId.slice(0, 8)}…</span>
           </div>

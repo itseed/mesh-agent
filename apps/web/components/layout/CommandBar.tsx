@@ -699,7 +699,7 @@ function ChatBubble({ m, busy, onConfirm, onCancel, stoppedSessions, onStop, onQ
       />
       <div className="max-w-[85%] flex-1 min-w-0">
         <div className="text-[11px] text-muted mb-0.5 font-medium uppercase tracking-wider">
-          {isLead ? 'Lead' : role ?? 'agent'}
+          {isLead ? 'Lead' : role ?? 'Agent'}
         </div>
         <div className="bg-surface-2 border border-border text-text rounded-2xl rounded-bl-sm px-3 py-2">
           <p className="text-[13.5px] whitespace-pre-wrap leading-relaxed">{m.content}</p>
