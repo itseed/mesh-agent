@@ -250,6 +250,19 @@ export function CommandBar() {
     }
   }
 
+  async function sendQuickReply(text: string) {
+    if (sending) return
+    setSending(true)
+    setError('')
+    try {
+      await api.chat.send({ message: text, projectId: selectedProjectId || undefined })
+    } catch (e: any) {
+      setError(e.message ?? 'ส่งไม่สำเร็จ')
+    } finally {
+      setSending(false)
+    }
+  }
+
   async function clearHistory() {
     if (!confirm('ล้างประวัติแชท?')) return
     await api.chat.clear()
@@ -421,6 +434,8 @@ export function CommandBar() {
                       api.agents.stop(sid).catch(() => {})
                       setStoppedSessions((prev) => new Set([...prev, sid]))
                     }}
+                    onQuickReply={sendQuickReply}
+                    replying={sending}
                   />
                 )
               })
@@ -593,6 +608,8 @@ interface ChatBubbleProps {
   onCancel: (proposalId: string) => void
   stoppedSessions: Set<string>
   onStop: (sessionId: string) => void
+  onQuickReply: (text: string) => void
+  replying: boolean
 }
 
 function TopicDivider({ label }: { label: string }) {
@@ -628,10 +645,14 @@ function LeadThinkingBubble() {
   )
 }
 
-function ChatBubble({ m, busy, onConfirm, onCancel, stoppedSessions, onStop }: ChatBubbleProps) {
+function ChatBubble({ m, busy, onConfirm, onCancel, stoppedSessions, onStop, onQuickReply, replying }: ChatBubbleProps) {
   const isUser = m.role === 'user'
   const isLead = m.role === 'lead'
   const role = m.meta?.agentRole
+  const isLeadQuestion =
+    isLead &&
+    !m.meta?.proposal &&
+    /[?？]|ไหม\s*[?]?\s*$/.test(m.content.trim())
 
   if (isUser) {
     return (
@@ -692,7 +713,29 @@ function ChatBubble({ m, busy, onConfirm, onCancel, stoppedSessions, onStop }: C
               ■ หยุดงาน
             </button>
           )}
+          {m.role === 'agent' && m.meta?.taskId && (m.content.includes('เสร็จแล้ว') || m.content.includes('✓')) && (
+            <a
+              href="/kanban"
+              className="mt-1.5 text-[11px] text-muted hover:text-accent border border-border hover:border-accent/40 px-2 py-0.5 rounded transition-colors inline-block"
+            >
+              ดู Task ใน Kanban →
+            </a>
+          )}
         </div>
+        {isLeadQuestion && (
+          <div className="flex gap-1.5 mt-1.5 flex-wrap">
+            {['ใช่ ดำเนินการเลย', 'ยังก่อน', 'บอกรายละเอียดเพิ่ม'].map((reply) => (
+              <button
+                key={reply}
+                onClick={() => onQuickReply(reply)}
+                disabled={replying}
+                className="text-[12px] px-2.5 py-1 rounded-full border border-border hover:border-accent/50 text-muted hover:text-text bg-canvas transition-all disabled:opacity-40"
+              >
+                {reply}
+              </button>
+            ))}
+          </div>
+        )}
         {proposal && (
           <ProposalCard
             proposal={proposal}
