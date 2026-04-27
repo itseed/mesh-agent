@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { usePathname } from 'next/navigation'
-import { api } from '@/lib/api'
+import { api, ApiError } from '@/lib/api'
 import { useChatStream } from '@/lib/ws'
 
 const ROLE_DOT: Record<string, string> = {
@@ -261,19 +261,17 @@ export function CommandBar() {
       // server pushes proposal-update via WS; optimistic mark just in case
       applyProposalStatus(id, 'consumed')
     } catch (e: any) {
-      const msg = e?.message ?? ''
-      if (/expired/i.test(msg)) {
-        applyProposalStatus(id, 'expired')
-      } else if (/already/i.test(msg)) {
-        // refresh to pick up real status
-        try {
-          const list = await api.chat.history()
-          setHistory(list)
-        } catch {
-          /* ignore */
+      if (e instanceof ApiError) {
+        const serverStatus = e.body?.status as ProposalStatus | undefined
+        if (e.status === 410) {
+          applyProposalStatus(id, 'expired')
+        } else if (e.status === 409 && serverStatus) {
+          applyProposalStatus(id, serverStatus)
+        } else {
+          setError(e.message || 'ยืนยันไม่สำเร็จ')
         }
       } else {
-        setError(msg || 'ยืนยันไม่สำเร็จ')
+        setError(e?.message ?? 'ยืนยันไม่สำเร็จ')
       }
     } finally {
       setBusyProposalId(null)

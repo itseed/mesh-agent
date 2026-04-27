@@ -173,3 +173,73 @@ export async function runLead(
   }
   return sanitizeDecision(parsed)
 }
+
+export interface SynthesisInput {
+  agentRole: string
+  success: boolean
+  summary: string
+  prUrl?: string | null
+  context: LeadContextMessage[]
+}
+
+const SYNTHESIS_SYSTEM_PROMPT = `You are the Lead of a software development team. One of your specialist agents just finished a task. Your job is to give the user a short, conversational debrief — like a tech lead delivering an update at the end of a stand-up.
+
+Reply in the same language the user has been using in the conversation (default Thai if unclear).
+
+Style:
+- 1–3 short sentences. No bullet lists, no headings.
+- Start by acknowledging what was done (or what failed).
+- If a PR exists, mention it once.
+- End with a concrete, useful next step the user might want — e.g. "ลองรัน QA ต่อไหม?", "อยากให้ frontend เชื่อมต่อ endpoint ใหม่นี้เลยไหม?", "เปิด PR review เลยนะ ดีไหม?". Phrase as a question so the user can just say yes/no.
+- If the agent failed, briefly note the failure and suggest either retry or asking for diagnosis.
+- Do NOT propose multi-step plans, do NOT list code changes, do NOT include the PR description verbatim.
+
+Output ONLY plain text — no JSON, no markdown formatting, no quotes around your reply. Just the message you'd send in chat.`
+
+function buildSynthesisPrompt(input: SynthesisInput): string {
+  const lines = [SYNTHESIS_SYSTEM_PROMPT, '', '## Recent conversation']
+  if (input.context.length === 0) {
+    lines.push('(no prior messages)')
+  } else {
+    for (const m of input.context) {
+      const label =
+        m.role === 'user' ? 'User' : m.role === 'lead' ? 'Lead' : `Agent[${m.agentRole ?? 'agent'}]`
+      lines.push(`${label}: ${m.content}`)
+    }
+  }
+  lines.push('')
+  lines.push('## Agent completion event')
+  lines.push(`Role: ${input.agentRole}`)
+  lines.push(`Outcome: ${input.success ? 'success' : 'failure'}`)
+  if (input.summary) lines.push(`Agent summary: ${input.summary}`)
+  if (input.prUrl) lines.push(`Pull request: ${input.prUrl}`)
+  lines.push('')
+  lines.push('Now write your debrief message to the user.')
+  return lines.join('\n')
+}
+
+export async function runLeadSynthesis(input: SynthesisInput): Promise<string> {
+  const cmd = process.env.CLAUDE_CMD ?? 'claude'
+  const prompt = buildSynthesisPrompt(input)
+  const { stdout } = await execFileAsync(cmd, ['--output-format', 'json', '-p', prompt], {
+    encoding: 'utf8',
+    timeout: 45_000,
+    maxBuffer: 2 * 1024 * 1024,
+    env: { ...process.env },
+  })
+  // CLI returns { result: "..." } — pull out plain text
+  let text = stdout.trim()
+  try {
+    const wrapper = JSON.parse(text)
+    if (typeof wrapper.result === 'string') text = wrapper.result.trim()
+  } catch {
+    // not wrapped
+  }
+  // strip code fences / surrounding quotes that some models emit despite the rule
+  text = text.replace(/^```[\w-]*\n?/, '').replace(/\n?```$/, '').trim()
+  if ((text.startsWith('"') && text.endsWith('"')) || (text.startsWith("'") && text.endsWith("'"))) {
+    text = text.slice(1, -1).trim()
+  }
+  if (!text) throw new Error('Lead synthesis returned empty text')
+  return text
+}

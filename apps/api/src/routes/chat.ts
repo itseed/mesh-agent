@@ -135,32 +135,50 @@ async function storeProposal(fastify: FastifyInstance, p: StoredProposal): Promi
   await fastify.redis.set(`${PROPOSAL_KEY_PREFIX}${p.id}`, JSON.stringify(p), 'EX', ttl)
 }
 
-async function loadProposal(
+// Atomic compare-and-set on proposal status. Prevents racing tabs / double-clicks
+// from each passing a `status === 'pending'` check before any of them write.
+// Returns the proposal as it stands AFTER the attempt:
+//   - null   → key missing (expired)
+//   - status === toStatus  → we won the race, caller may proceed
+//   - status !== toStatus  → someone else already moved it; caller must abort
+const TRANSITION_LUA = `
+local raw = redis.call('GET', KEYS[1])
+if not raw then return nil end
+local p = cjson.decode(raw)
+if p.status == ARGV[1] then
+  p.status = ARGV[2]
+  redis.call('SET', KEYS[1], cjson.encode(p), 'EX', tonumber(ARGV[3]))
+end
+return cjson.encode(p)
+`
+
+async function transitionProposal(
   fastify: FastifyInstance,
   id: string,
+  fromStatus: ProposalStatus,
+  toStatus: ProposalStatus,
 ): Promise<StoredProposal | null> {
-  const raw = await fastify.redis.get(`${PROPOSAL_KEY_PREFIX}${id}`)
-  if (!raw) return null
+  const result = (await fastify.redis.eval(
+    TRANSITION_LUA,
+    1,
+    `${PROPOSAL_KEY_PREFIX}${id}`,
+    fromStatus,
+    toStatus,
+    String(PROPOSAL_RESOLVED_TTL),
+  )) as string | null
+  if (!result) return null
+  let proposal: StoredProposal
   try {
-    return JSON.parse(raw) as StoredProposal
+    proposal = JSON.parse(result) as StoredProposal
   } catch {
     return null
   }
-}
-
-async function markProposal(
-  fastify: FastifyInstance,
-  id: string,
-  status: ProposalStatus,
-): Promise<StoredProposal | null> {
-  const proposal = await loadProposal(fastify, id)
-  if (!proposal) return null
-  proposal.status = status
-  await storeProposal(fastify, proposal)
-  await fastify.redis.publish(
-    CHAT_CHANNEL,
-    JSON.stringify({ type: 'proposal-update', proposalId: id, status }),
-  )
+  if (proposal.status === toStatus) {
+    await fastify.redis.publish(
+      CHAT_CHANNEL,
+      JSON.stringify({ type: 'proposal-update', proposalId: id, status: toStatus }),
+    )
+  }
   return proposal
 }
 
@@ -311,20 +329,16 @@ export async function chatRoutes(fastify: FastifyInstance) {
     const body = dispatchSchema.parse(request.body)
     const userId = (request.user as { id: string }).id
 
-    const existing = await loadProposal(fastify, body.proposalId)
-    if (!existing) {
-      return reply.status(410).send({ error: 'Proposal expired', status: 'expired' })
-    }
-    if (existing.status !== 'pending') {
-      return reply.status(409).send({
-        error: `Proposal already ${existing.status}`,
-        status: existing.status,
-      })
-    }
-    // single-use: flip to consumed now so a double-click can't create duplicate work
-    const proposal = await markProposal(fastify, body.proposalId, 'consumed')
+    // Atomic check-and-set: only the caller that flips pending→consumed proceeds.
+    const proposal = await transitionProposal(fastify, body.proposalId, 'pending', 'consumed')
     if (!proposal) {
       return reply.status(410).send({ error: 'Proposal expired', status: 'expired' })
+    }
+    if (proposal.status !== 'consumed') {
+      return reply.status(409).send({
+        error: `Proposal already ${proposal.status}`,
+        status: proposal.status,
+      })
     }
 
     const confirmMsg: ChatMessage = {
@@ -412,14 +426,12 @@ export async function chatRoutes(fastify: FastifyInstance) {
 
   fastify.delete('/chat/proposal/:id', { preHandler }, async (request, reply) => {
     const { id } = request.params as { id: string }
-    const existing = await loadProposal(fastify, id)
-    if (!existing) return reply.status(204).send()
-    if (existing.status !== 'pending') {
-      // already consumed or cancelled — no-op, idempotent
+    const proposal = await transitionProposal(fastify, id, 'pending', 'cancelled')
+    if (!proposal) return reply.status(204).send()
+    if (proposal.status !== 'cancelled') {
+      // already consumed or cancelled by another caller — idempotent no-op
       return reply.status(204).send()
     }
-    const proposal = await markProposal(fastify, id, 'cancelled')
-    if (!proposal) return reply.status(204).send()
 
     const cancelMsg: ChatMessage = {
       id: crypto.randomUUID(),
