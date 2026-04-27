@@ -1,8 +1,22 @@
 import { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 import { eq } from 'drizzle-orm'
+import { execSync, execFile } from 'node:child_process'
+import { promisify } from 'node:util'
+import { rmSync, existsSync } from 'node:fs'
+import path from 'node:path'
 import { projects, tasks } from '@meshagent/shared'
 import { resolveGitHubClient } from '../lib/github-client.js'
+import { env } from '../env.js'
+
+const execFileAsync = promisify(execFile)
+
+function formatBytes(bytes: number): string {
+  if (bytes === 0) return '0 B'
+  const units = ['B', 'KB', 'MB', 'GB', 'TB']
+  const i = Math.floor(Math.log(bytes) / Math.log(1024))
+  return `${(bytes / Math.pow(1024, i)).toFixed(1)} ${units[i]}`
+}
 
 const createProjectSchema = z.object({
   name: z.string().min(1).max(255),
@@ -21,6 +35,21 @@ export async function projectRoutes(fastify: FastifyInstance) {
   fastify.post('/projects', { preHandler }, async (request, reply) => {
     const body = createProjectSchema.parse(request.body)
     const [project] = await fastify.db.insert(projects).values(body).returning()
+
+    let workspacePath: string | null = null
+    if (body.githubRepos.length > 0) {
+      const repoUrl = `https://github.com/${body.githubRepos[0]}.git`
+      workspacePath = `${env.WORKSPACES_ROOT}/${project.id}/repo`
+      try {
+        execSync(`git clone --depth 1 ${repoUrl} ${workspacePath}`, { stdio: 'inherit' })
+        await fastify.db.update(projects).set({ workspacePath }).where(eq(projects.id, project.id))
+        project.workspacePath = workspacePath
+      } catch (e: any) {
+        fastify.log.warn({ err: e?.message, repoUrl }, 'Failed to clone repo — project created without workspace')
+        workspacePath = null
+      }
+    }
+
     reply.status(201)
     return project
   })
@@ -100,10 +129,31 @@ export async function projectRoutes(fastify: FastifyInstance) {
       .map((r) => r.value)
   })
 
+  fastify.get('/projects/:id/disk-usage', { preHandler }, async (request, reply) => {
+    const { id } = request.params as { id: string }
+    const [project] = await fastify.db.select().from(projects).where(eq(projects.id, id)).limit(1)
+    if (!project) return reply.status(404).send({ error: 'Not found' })
+    const projectDir = path.join(env.REPOS_BASE_DIR, id)
+    if (!existsSync(projectDir)) return { bytes: 0, human: '0 B' }
+    try {
+      const { stdout } = await execFileAsync('du', ['-sk', projectDir], { encoding: 'utf8' })
+      const kb = parseInt(String(stdout).trim().split('\t')[0], 10)
+      const bytes = isNaN(kb) ? 0 : kb * 1024
+      return { bytes, human: formatBytes(bytes) }
+    } catch {
+      return { bytes: 0, human: '0 B' }
+    }
+  })
+
   fastify.delete('/projects/:id', { preHandler }, async (request, reply) => {
     const { id } = request.params as { id: string }
     const existing = await fastify.db.select().from(projects).where(eq(projects.id, id)).limit(1)
     if (!existing.length) return reply.status(404).send({ error: 'Not found' })
+    if (existing[0].workspacePath) {
+      rmSync(`${env.WORKSPACES_ROOT}/${id}`, { recursive: true, force: true })
+    }
+    // Also remove repo clone dir from REPOS_BASE_DIR
+    rmSync(path.join(env.REPOS_BASE_DIR, id), { recursive: true, force: true })
     await fastify.db.delete(tasks).where(eq(tasks.projectId, id))
     await fastify.db.delete(projects).where(eq(projects.id, id))
     return reply.status(204).send()

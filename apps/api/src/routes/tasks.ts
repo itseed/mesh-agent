@@ -4,7 +4,9 @@ import { eq, desc, and } from 'drizzle-orm'
 import { tasks, taskComments, taskActivities, taskAttachments, projects, agentRoles } from '@meshagent/shared'
 import { logAudit } from '../lib/audit.js'
 import { analyzeTask, type AnalyzePlan } from '../lib/analyze.js'
+import path from 'node:path'
 import { dispatchAgent, buildGitInstructions } from '../lib/dispatch.js'
+import { env } from '../env.js'
 
 const TASKS_CHANNEL = 'tasks:events'
 
@@ -142,11 +144,15 @@ export async function taskRoutes(fastify: FastifyInstance) {
 
     let baseBranch = 'main'
     let projectPaths: Record<string, string> = {}
+    let projectWorkspacePath: string | null = null
+    let project: typeof projects.$inferSelect | null = null
     if (task.projectId) {
       const [proj] = await fastify.db.select().from(projects).where(eq(projects.id, task.projectId)).limit(1)
       if (proj) {
+        project = proj
         baseBranch = proj.baseBranch ?? 'main'
         projectPaths = (proj.paths as Record<string, string>) ?? {}
+        projectWorkspacePath = proj.workspacePath ?? null
       }
     }
 
@@ -157,7 +163,6 @@ export async function taskRoutes(fastify: FastifyInstance) {
     const created = []
     for (const issue of issues) {
       const role = issue.role ?? 'backend'
-      const agentWorkingDir = projectPaths[role] ?? fallbackDir
 
       const [subtask] = await fastify.db.insert(tasks).values({
         title: `[Fix] ${issue.title}`,
@@ -168,6 +173,13 @@ export async function taskRoutes(fastify: FastifyInstance) {
         projectId: task.projectId ?? null,
         parentTaskId: id,
       }).returning()
+
+      const repoSlug = project?.githubRepos?.[0] ?? null
+      const repoUrl = repoSlug ? `https://github.com/${repoSlug}.git` : null
+      const repoName = repoSlug?.split('/')[1] ?? 'repo'
+      const agentWorkingDir = repoUrl && project
+        ? path.join(env.REPOS_BASE_DIR, project.id, repoName)
+        : (projectPaths[role] ?? fallbackDir)
 
       const prompt = `แก้ไข code issue ที่พบจาก review:
 
@@ -182,7 +194,7 @@ ${gitInstructions}`
         projectId: task.projectId ?? null,
         taskId: subtask.id,
         createdBy: userId,
-      }, roleRow?.systemPrompt ?? undefined)
+      }, roleRow?.systemPrompt ?? undefined, repoUrl ?? undefined)
 
       await publishTaskEvent(fastify, 'task.created', { taskId: subtask.id, projectId: task.projectId })
       created.push(subtask)
@@ -411,14 +423,19 @@ ${gitInstructions}`
           if (!subtask) return
           const role = subtask.agentRole ?? 'reviewer'
           const paths = (project.paths ?? {}) as Record<string, string>
-          const workingDir = paths[role] ?? Object.values(paths)[0] ?? '/tmp'
+          const repoSlug = project.githubRepos?.[0] ?? null
+          const repoUrl = repoSlug ? `https://github.com/${repoSlug}.git` : null
+          const repoName = repoSlug?.split('/')[1] ?? 'repo'
+          const workingDir = repoUrl
+            ? path.join(env.REPOS_BASE_DIR, project.id, repoName)
+            : (paths[role] ?? Object.values(paths)[0] ?? '/tmp')
           const prompt = `${subtask.title}\n\n${subtask.description ?? ''}${gitInstructions}`
 
           const result = await dispatchAgent(role, workingDir, prompt, {
             projectId: task.projectId,
             taskId: subtask.id,
             createdBy: null,
-          })
+          }, undefined, repoUrl ?? undefined)
 
           if (result.id) {
             await fastify.db.update(tasks).set({ stage: 'in_progress' }).where(eq(tasks.id, subtask.id))

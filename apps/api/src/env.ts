@@ -54,6 +54,8 @@ const envSchema = z.object({
   MINIO_USE_SSL: z.preprocess((v) => v === 'true' || v === '1', z.boolean()).default(false),
   MINIO_BUCKET: z.string().default('mesh-agent'),
   CLAUDE_CMD: z.string().default('claude'),
+  WORKSPACES_ROOT: z.string().default('/workspaces'),
+  REPOS_BASE_DIR: z.string().default('/repos'),
 })
 
 const parsed = envSchema.parse(process.env)
