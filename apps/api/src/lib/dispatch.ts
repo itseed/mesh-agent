@@ -5,7 +5,7 @@ export async function dispatchAgent(
   role: string,
   workingDir: string,
   prompt: string,
-  context: { projectId?: string | null; taskId?: string | null; createdBy?: string | null },
+  context: { projectId?: string | null; taskId?: string | null; createdBy?: string | null; cliProvider?: string },
   systemPrompt?: string,
   repoUrl?: string,
 ): Promise<{ id: string | null; error?: string }> {

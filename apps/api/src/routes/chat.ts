@@ -1,7 +1,7 @@
 import { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 import { eq } from 'drizzle-orm'
-import { tasks, projects } from '@meshagent/shared'
+import { tasks, projects, agentSessions } from '@meshagent/shared'
 import { findRoleBySlug, ensureBuiltinRoles } from '../lib/roles.js'
 import { dispatchAgent, buildGitInstructions } from '../lib/dispatch.js'
 import { runLead, type LeadContextMessage, type LeadDecision } from '../lib/lead.js'
@@ -39,6 +39,7 @@ const sendSchema = z.object({
 
 const dispatchSchema = z.object({
   proposalId: z.string().min(1),
+  cli: z.enum(['claude', 'gemini', 'cursor']).optional(),
 })
 
 type ProposalStatus = 'pending' | 'consumed' | 'cancelled' | 'expired'
@@ -514,6 +515,7 @@ export async function chatRoutes(fastify: FastifyInstance) {
         projectId: proposal.projectId ?? null,
         taskId: task?.id ?? null,
         createdBy: userId,
+        cliProvider: body.cli,
       }, role?.systemPrompt ?? undefined)
 
       if (!result.id && task?.id) {
@@ -526,6 +528,13 @@ export async function chatRoutes(fastify: FastifyInstance) {
       if (result.id) {
         pendingSessions.push(result.id)
         await indexSession(fastify.redis, result.id, proposal.id)
+        if (body.cli) {
+          fastify.db
+            .update(agentSessions)
+            .set({ cliProvider: body.cli })
+            .where(eq(agentSessions.id, result.id))
+            .catch((err: unknown) => fastify.log.warn({ err, sessionId: result.id }, 'Failed to save cliProvider'))
+        }
       }
 
       const waveLabel = proposal.waves.length > 1 ? 'Wave 1' : ''

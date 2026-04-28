@@ -1,7 +1,7 @@
 import { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 import { eq, desc, and } from 'drizzle-orm'
-import { tasks, taskComments, taskActivities, taskAttachments, projects, agentRoles } from '@meshagent/shared'
+import { tasks, taskComments, taskActivities, taskAttachments, projects, agentRoles, agentSessions } from '@meshagent/shared'
 import { logAudit } from '../lib/audit.js'
 import { analyzeTask, type AnalyzePlan } from '../lib/analyze.js'
 import path from 'node:path'
@@ -52,6 +52,10 @@ const updateTaskSchema = z.object({
 })
 
 const stageSchema = z.object({ stage: z.enum(STAGES) })
+
+const startSchema = z.object({
+  cli: z.enum(['claude', 'gemini', 'cursor']).optional(),
+})
 
 const createCommentSchema = z.object({
   body: z.string().min(1).max(64 * 1024),
@@ -456,6 +460,8 @@ ${gitInstructions}`
     const { id } = request.params as { id: string }
     const userId = (request.user as { id: string }).id
 
+    const startBody = startSchema.parse(request.body ?? {})
+
     // 1. Load task
     const [task] = await fastify.db.select().from(tasks).where(eq(tasks.id, id)).limit(1)
     if (!task) return reply.status(404).send({ error: 'Task not found' })
@@ -560,6 +566,7 @@ ${gitInstructions}`
         projectId: task.projectId ?? null,
         taskId: agentTask?.id ?? null,
         createdBy: userId,
+        cliProvider: startBody.cli,
       }, role?.systemPrompt ?? undefined)
 
       if (!result.id && agentTask?.id) {
@@ -572,6 +579,13 @@ ${gitInstructions}`
       if (result.id) {
         pendingSessions.push(result.id)
         await indexSession(fastify.redis, result.id, id)
+        if (startBody.cli) {
+          fastify.db
+            .update(agentSessions)
+            .set({ cliProvider: startBody.cli })
+            .where(eq(agentSessions.id, result.id))
+            .catch((err: unknown) => fastify.log.warn({ err, sessionId: result.id }, 'Failed to save cliProvider'))
+        }
       }
     }
 
