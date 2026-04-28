@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs'
+import type { LeadWave } from './wave-store.js'
 
 const ORCHESTRATOR_URL = process.env.ORCHESTRATOR_URL ?? 'http://localhost:4802'
 
@@ -27,7 +28,8 @@ export interface LeadProposalRole {
 export interface LeadDecision {
   intent: LeadIntent
   reply: string
-  roles?: LeadProposalRole[]
+  waves?: LeadWave[]
+  roles?: LeadProposalRole[]   // backward compat — set to waves[0].roles on parse
   taskBrief?: {
     title: string
     description: string
@@ -46,7 +48,7 @@ const DEFAULT_LEAD_SYSTEM_PROMPT = `You are the Lead of a software development t
 Your job is to behave like a real tech lead during a stand-up:
 - If the user is asking a question, chatting, or thinking out loud → just talk back. Do not create work.
 - If the user's request is ambiguous, missing scope, or could be interpreted multiple ways → ask clarifying questions before committing to work.
-- Only when the request is concrete and ready to execute, propose a task brief plus the right team roles. Do NOT execute it yet — the user must confirm.
+- Only when the request is concrete and ready to execute, propose a task brief plus waves of work. Do NOT execute it yet — the user must confirm.
 
 You always reply in the same language the user used (Thai → Thai, English → English).
 
@@ -55,16 +57,20 @@ Output ONLY one valid JSON object — no markdown, no commentary, no extra text 
 {
   "intent": "chat" | "clarify" | "dispatch",
   "reply": "<your message to the user, conversational tone, in their language>",
-  "roles": [{ "slug": "frontend|backend|mobile|devops|designer|qa|reviewer", "reason": "..." }],
+  "waves": [
+    { "roles": [{ "slug": "frontend|backend|mobile|devops|designer|qa|reviewer", "reason": "..." }], "brief": "<what this wave accomplishes>" }
+  ],
   "taskBrief": { "title": "<short, <=80 chars>", "description": "<full task description for the agents>" },
   "questions": ["<clarifying question>", ...]
 }
 
 Rules:
-- "chat": user is asking a question, greeting, or discussing — reply only, omit roles/taskBrief/questions.
-- "clarify": you need more info — set "questions" with 1–3 specific questions; omit roles/taskBrief.
-- "dispatch": ready to assign work — fill "roles" and "taskBrief". The "reply" should briefly summarize the plan and ask the user to confirm. Do NOT promise that work has started.
-- Strongly prefer assigning ONE role. Only use multiple roles when the change truly spans separate areas (e.g. backend API + frontend integration) AND those areas can be worked on in parallel without conflicts. When in doubt, pick one role and let the user request more after that finishes.
+- "chat": user is asking a question, greeting, or discussing — reply only, omit waves/taskBrief/questions.
+- "clarify": you need more info — set "questions" with 1–3 specific questions; omit waves/taskBrief.
+- "dispatch": ready to assign work — fill "waves" and "taskBrief". The "reply" should briefly summarize the plan and ask the user to confirm. Do NOT promise that work has started.
+- Waves are sequential: Wave 0 dispatches immediately on confirm, Wave 1 starts only after Wave 0 finishes, etc.
+- Roles within the same wave run in parallel — only put roles in the same wave when they can truly work independently without conflicts.
+- Strongly prefer a single wave with one role. Only add a second wave when there is a clear sequential dependency (e.g. backend API must exist before frontend can integrate it).
 - Never invent role slugs outside the allowed list.
 - Don't add a reviewer or qa unless the user asked for review/testing or the change is risky.
 - Keep "reply" concise (a few sentences max).`
@@ -166,21 +172,47 @@ function sanitizeDecision(raw: unknown): LeadDecision {
   const decision: LeadDecision = { intent, reply }
 
   if (intent === 'dispatch') {
-    const rolesRaw = Array.isArray(obj.roles) ? obj.roles : []
-    const roles: LeadProposalRole[] = []
-    const seen = new Set<string>()
-    for (const r of rolesRaw) {
-      if (!r || typeof r !== 'object') continue
-      const slug = String((r as Record<string, unknown>).slug ?? '').toLowerCase()
-      if (!ALLOWED_ROLES.has(slug) || seen.has(slug)) continue
-      seen.add(slug)
-      const reason = (r as Record<string, unknown>).reason
-      roles.push({ slug, reason: typeof reason === 'string' ? reason : undefined })
+    const ALLOWED = ALLOWED_ROLES
+
+    // Helper: parse a raw roles array into LeadProposalRole[]
+    function parseRoles(raw: unknown[]): LeadProposalRole[] {
+      const out: LeadProposalRole[] = []
+      const seen = new Set<string>()
+      for (const r of raw) {
+        if (!r || typeof r !== 'object') continue
+        const slug = String((r as Record<string, unknown>).slug ?? '').toLowerCase()
+        if (!ALLOWED.has(slug) || seen.has(slug)) continue
+        seen.add(slug)
+        const reason = (r as Record<string, unknown>).reason
+        out.push({ slug, reason: typeof reason === 'string' ? reason : undefined })
+      }
+      return out
     }
-    if (roles.length === 0) {
-      throw new Error('Lead chose dispatch but returned no valid roles')
+
+    // Parse waves[] (new format)
+    const wavesRaw = Array.isArray(obj.waves) ? obj.waves : []
+    const waves: LeadWave[] = []
+    for (const w of wavesRaw) {
+      if (!w || typeof w !== 'object') continue
+      const wObj = w as Record<string, unknown>
+      const waveRoles = parseRoles(Array.isArray(wObj.roles) ? wObj.roles : [])
+      if (waveRoles.length === 0) continue
+      const brief = typeof wObj.brief === 'string' ? wObj.brief.trim() : ''
+      waves.push({ roles: waveRoles, brief })
     }
-    decision.roles = roles.slice(0, 4)
+
+    // Fallback: Lead sent old-style roles[] — wrap into single wave
+    if (waves.length === 0) {
+      const fallback = parseRoles(Array.isArray(obj.roles) ? obj.roles : [])
+      if (fallback.length > 0) waves.push({ roles: fallback, brief: '' })
+    }
+
+    if (waves.length === 0) {
+      throw new Error('Lead chose dispatch but returned no valid waves or roles')
+    }
+
+    decision.waves = waves.slice(0, 6)
+    decision.roles = waves[0].roles   // backward compat for UI paths not yet wave-aware
 
     const briefRaw = obj.taskBrief
     if (!briefRaw || typeof briefRaw !== 'object') {
@@ -189,9 +221,7 @@ function sanitizeDecision(raw: unknown): LeadDecision {
     const brief = briefRaw as Record<string, unknown>
     const title = typeof brief.title === 'string' ? brief.title.trim().slice(0, 80) : ''
     const description = typeof brief.description === 'string' ? brief.description.trim() : ''
-    if (!title || !description) {
-      throw new Error('Lead taskBrief missing title or description')
-    }
+    if (!title || !description) throw new Error('Lead taskBrief missing title or description')
     decision.taskBrief = { title, description }
   }
 
