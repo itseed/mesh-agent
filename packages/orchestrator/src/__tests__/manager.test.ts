@@ -41,6 +41,7 @@ describe('SessionManager', () => {
     store = makeStubStore()
     manager = new SessionManager({
       claudeCmd: 'echo',
+      defaultCliProvider: 'claude',
       store,
       streamer: stubStreamer,
       logger: pino({ level: 'silent' }),
@@ -69,6 +70,7 @@ describe('SessionManager', () => {
   it('enforces concurrency limit', async () => {
     const m = new SessionManager({
       claudeCmd: 'sleep',
+      defaultCliProvider: 'claude',
       store,
       streamer: stubStreamer,
       logger: pino({ level: 'silent' }),

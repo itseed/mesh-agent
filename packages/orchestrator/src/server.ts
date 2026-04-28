@@ -25,6 +25,7 @@ export async function buildServer() {
   const streamer = new Streamer(env.REDIS_URL)
   const manager = new SessionManager({
     claudeCmd: env.CLAUDE_CMD,
+    defaultCliProvider: env.DEFAULT_CLI_PROVIDER,
     store,
     streamer,
     logger: logger as any,

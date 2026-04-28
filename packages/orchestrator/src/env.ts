@@ -16,6 +16,7 @@ const envSchema = z.object({
   API_URL: z.string().url().default('http://localhost:3001'),
   INTERNAL_SECRET: z.string().default('dev-internal-secret'),
   REPOS_BASE_DIR: z.string().default('/repos'),
+  DEFAULT_CLI_PROVIDER: z.enum(['claude', 'gemini', 'cursor']).default('claude'),
 })
 
 export const env = envSchema.parse(process.env)

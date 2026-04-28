@@ -21,6 +21,7 @@ interface CreateSessionOpts {
 
 interface ManagerOptions {
   claudeCmd: string
+  defaultCliProvider: CliProvider
   store: SessionStore
   streamer: Streamer
   logger: pino.Logger
@@ -59,7 +60,7 @@ export class SessionManager {
       createdBy: input.createdBy,
       systemPrompt: input.systemPrompt,
       repoBaseDir: input.repoBaseDir,
-      cliProvider: input.cliProvider ?? undefined,
+      cliProvider: input.cliProvider ?? this.opts.defaultCliProvider,
     })
     this.sessions.set(session.id, session)
 
