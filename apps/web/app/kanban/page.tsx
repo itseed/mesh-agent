@@ -5,6 +5,7 @@ import { KanbanBoard } from '@/components/kanban/KanbanBoard'
 import { AuthGuard } from '@/components/layout/AuthGuard'
 import { api } from '@/lib/api'
 import { useTaskEvents } from '@/lib/ws'
+import { KanbanSkeleton } from '@/components/skeletons/KanbanSkeleton'
 
 export default function KanbanPage() {
   const [tasks, setTasks] = useState<any[]>([])
@@ -120,7 +121,7 @@ export default function KanbanPage() {
           </div>
 
           {loading ? (
-            <p className="text-muted text-[14px]"><span className="cursor-blink">▋</span> Loading…</p>
+            <KanbanSkeleton />
           ) : error ? (
             <p className="text-danger text-[14px]">✕ {error}</p>
           ) : tasks.filter((t) => !t.parentTaskId).length === 0 ? (

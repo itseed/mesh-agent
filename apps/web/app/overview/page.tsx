@@ -5,6 +5,7 @@ import { AppShell } from '@/components/layout/AppShell'
 import { AuthGuard } from '@/components/layout/AuthGuard'
 import { api } from '@/lib/api'
 import { ProviderBreakdownCard } from '@/components/overview/ProviderBreakdownCard'
+import { OverviewSkeleton } from '@/components/skeletons/OverviewSkeleton'
 
 const ROLE_DOT: Record<string, string> = {
   frontend: '#22d3ee',
@@ -198,7 +199,7 @@ export default function OverviewPage() {
           {error && <p className="text-danger text-[14px] mb-4">✕ {error}</p>}
 
           {loading ? (
-            <p className="text-muted text-[14px]"><span className="cursor-blink">▋</span> Loading…</p>
+            <OverviewSkeleton />
           ) : (
             <>
               {/* Workflow Guide */}

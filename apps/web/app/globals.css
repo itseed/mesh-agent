@@ -71,3 +71,34 @@ input:focus, textarea:focus, select:focus {
   outline: none;
   box-shadow: 0 0 0 1px rgba(88, 166, 255, 0.4);
 }
+
+/* Skeleton + shimmer */
+@keyframes shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+.skeleton {
+  position: relative;
+  overflow: hidden;
+  background-color: #121920;
+  border-radius: 4px;
+  isolation: isolate;
+}
+.skeleton::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(88, 166, 255, 0.06) 35%,
+    rgba(88, 166, 255, 0.14) 50%,
+    rgba(88, 166, 255, 0.06) 65%,
+    transparent 100%
+  );
+  animation: shimmer 1.6s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .skeleton::after { animation-duration: 3s; }
+}

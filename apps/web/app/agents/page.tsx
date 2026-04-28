@@ -5,6 +5,7 @@ import { AgentGrid } from '@/components/agents/AgentGrid'
 import { AgentOutputPanel } from '@/components/agents/AgentOutputPanel'
 import { AuthGuard } from '@/components/layout/AuthGuard'
 import { api } from '@/lib/api'
+import { AgentsSkeleton } from '@/components/skeletons/AgentsSkeleton'
 
 const HIST_STATUS_STYLE: Record<string, { color: string; label: string }> = {
   completed: { color: '#3fb950', label: 'done' },
@@ -113,7 +114,7 @@ export default function AgentsPage() {
           </div>
 
           {loading ? (
-            <p className="text-muted text-[14px]"><span className="cursor-blink">▋</span> Loading…</p>
+            <AgentsSkeleton />
           ) : error ? (
             <p className="text-danger text-[14px]">✕ {error}</p>
           ) : (
