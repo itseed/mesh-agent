@@ -22,6 +22,7 @@ interface ProposalView {
   status: ProposalStatus
   taskBrief: { title: string; description: string }
   roles: { slug: string; reason?: string }[]
+  waves?: { roles: { slug: string; reason?: string }[]; brief: string }[]
   projectId: string | null
   baseBranch: string
 }
@@ -815,21 +816,49 @@ function ProposalCard({ proposal, busy, onConfirm, onCancel }: ProposalCardProps
       <p className="text-muted whitespace-pre-wrap leading-relaxed">
         {proposal.taskBrief.description}
       </p>
-      <div className="flex flex-wrap gap-1.5">
-        {proposal.roles.map((r) => (
-          <span
-            key={r.slug}
-            title={r.reason}
-            className="inline-flex items-center gap-1 bg-surface-2 border border-border rounded-full px-2 py-0.5 text-[11px] text-text"
-          >
+      {proposal.waves && proposal.waves.length > 1 ? (
+        <div className="flex flex-col gap-1.5 mt-2">
+          {proposal.waves.map((wave, i) => (
+            <div key={i} className="flex items-start gap-2">
+              <span className="text-[11px] text-dim w-14 shrink-0 pt-0.5">Wave {i + 1}</span>
+              <div className="flex flex-col gap-0.5">
+                <div className="flex gap-1 flex-wrap">
+                  {wave.roles.map((r) => (
+                    <span
+                      key={r.slug}
+                      className="px-1.5 py-0.5 rounded text-[11px] font-medium"
+                      style={{
+                        backgroundColor: `${ROLE_DOT[r.slug] ?? '#888'}22`,
+                        color: ROLE_DOT[r.slug] ?? '#888',
+                      }}
+                    >
+                      {r.slug}
+                    </span>
+                  ))}
+                </div>
+                {wave.brief && (
+                  <span className="text-[11px] text-dim">{wave.brief}</span>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="flex gap-1 flex-wrap mt-1">
+          {proposal.roles.map((r) => (
             <span
-              className="w-1.5 h-1.5 rounded-full"
-              style={{ backgroundColor: ROLE_DOT[r.slug] ?? '#6a7a8e' }}
-            />
-            {r.slug}
-          </span>
-        ))}
-      </div>
+              key={r.slug}
+              className="px-1.5 py-0.5 rounded text-[12px] font-medium"
+              style={{
+                backgroundColor: `${ROLE_DOT[r.slug] ?? '#888'}22`,
+                color: ROLE_DOT[r.slug] ?? '#888',
+              }}
+            >
+              {r.slug}
+            </span>
+          ))}
+        </div>
+      )}
       {isPending && (
         <div className="flex items-center gap-2 pt-1">
           <button
