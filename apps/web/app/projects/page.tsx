@@ -366,7 +366,39 @@ function ProjectDetail({ project, onEdit, onDelete }: {
   onEdit: () => void
   onDelete: () => void
 }) {
-  const [tab, setTab] = useState<'details' | 'github'>('details')
+  const [tab, setTab] = useState<'details' | 'github' | 'context'>('details')
+  const [brief, setBrief] = useState('')
+  const [autoContext, setAutoContext] = useState('')
+  const [contextLoading, setContextLoading] = useState(false)
+  const [savingContext, setSavingContext] = useState(false)
+
+  useEffect(() => {
+    if (tab === 'context' && project?.id) {
+      setContextLoading(true)
+      api.projects.getContext(project.id)
+        .then((ctx) => {
+          setBrief(ctx.brief ?? '')
+          setAutoContext(ctx.autoContext ?? '')
+        })
+        .catch(() => {})
+        .finally(() => setContextLoading(false))
+    }
+  }, [tab, project?.id])
+
+  async function handleSaveContext() {
+    if (!project?.id) return
+    setSavingContext(true)
+    try {
+      const result = await api.projects.saveContext(project.id, brief)
+      setAutoContext(result.autoContext)
+    } catch (e: any) {
+      alert(e.message ?? 'Save failed')
+    } finally {
+      setSavingContext(false)
+    }
+  }
+
+  const TAB_LABELS: Record<string, string> = { details: 'Details', github: 'GitHub', context: 'Context' }
 
   return (
     <div className="flex flex-col h-full">
@@ -376,19 +408,57 @@ function ProjectDetail({ project, onEdit, onDelete }: {
         </div>
       </div>
       <div className="flex px-6 pt-3 border-b border-border shrink-0">
-        {(['details', 'github'] as const).map(t => (
+        {(['details', 'github', 'context'] as const).map(t => (
           <button key={t} type="button" onClick={() => setTab(t)}
             className={`px-4 py-2 text-[13px] font-medium border-b-2 transition-all -mb-px ${
               tab === t ? 'border-accent text-text' : 'border-transparent text-muted hover:text-text'
             }`}>
-            {t === 'github' ? 'GitHub' : 'Details'}
+            {TAB_LABELS[t]}
           </button>
         ))}
       </div>
       <div className="flex-1 overflow-y-auto p-6">
-        {tab === 'details'
-          ? <DetailsTab project={project} onEdit={onEdit} onDelete={onDelete} />
-          : <GitHubTab project={project} />}
+        {tab === 'details' ? (
+          <DetailsTab project={project} onEdit={onEdit} onDelete={onDelete} />
+        ) : tab === 'github' ? (
+          <GitHubTab project={project} />
+        ) : (
+          <div className="flex flex-col gap-4">
+            {contextLoading ? (
+              <p className="text-[13px] text-muted">Loading…</p>
+            ) : (
+              <>
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[12px] text-muted font-medium">Project Brief</label>
+                  <textarea
+                    value={brief}
+                    onChange={(e) => setBrief(e.target.value)}
+                    rows={6}
+                    placeholder="Describe this project for agents: tech stack, conventions, key files, architecture…"
+                    className="w-full bg-canvas border border-border text-text text-[13px] rounded px-3 py-2 placeholder-dim resize-none"
+                  />
+                  <p className="text-[11px] text-dim">Injected into every agent prompt for this project.</p>
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[12px] text-muted font-medium">Codebase Overview (auto-read)</label>
+                  <div className="w-full bg-canvas border border-border rounded px-3 py-2 text-[12px] text-muted min-h-[60px] whitespace-pre-wrap break-words">
+                    {autoContext
+                      ? autoContext.slice(0, 500) + (autoContext.length > 500 ? '\n…' : '')
+                      : 'No CLAUDE.md or README.md found in project directory.'}
+                  </div>
+                  <p className="text-[11px] text-dim">Auto-read from CLAUDE.md / README.md when you save.</p>
+                </div>
+                <button
+                  onClick={handleSaveContext}
+                  disabled={savingContext}
+                  className="self-start bg-accent/90 hover:bg-accent text-canvas text-[13px] font-semibold px-4 py-1.5 rounded transition-colors disabled:opacity-50"
+                >
+                  {savingContext ? 'Saving…' : 'Save & Refresh'}
+                </button>
+              </>
+            )}
+          </div>
+        )}
       </div>
     </div>
   )

@@ -106,6 +106,15 @@ export const api = {
       request<any>(`/projects/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
     delete: (id: string) => request<void>(`/projects/${id}`, { method: 'DELETE' }),
     github: (id: string) => request<any>(`/projects/${id}/github`),
+    getContext: (id: string) =>
+      request<{ projectId: string; brief: string; autoContext: string; updatedAt: string | null }>(
+        `/projects/${id}/context`,
+      ),
+    saveContext: (id: string, brief: string) =>
+      request<{ ok: boolean; autoContext: string }>(
+        `/projects/${id}/context`,
+        { method: 'POST', body: JSON.stringify({ brief }) },
+      ),
   },
   agents: {
     list: () => request<any[]>('/agents'),
