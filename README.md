@@ -266,6 +266,72 @@ Roles: `admin` (full access + user management), `member` (default), `viewer` (re
 
 ---
 
+## CLI Provider Authentication
+
+หลัง deploy แล้ว ต้อง login แต่ละ CLI provider ใน orchestrator container ก่อนใช้งาน
+
+### Claude
+
+**วิธีที่ 1 — Paste OAuth Token (แนะนำ)**
+
+รันบน local machine:
+
+```bash
+claude setup-token
+```
+
+Copy token ที่ได้ แล้วไปที่ **Settings → CLI → Claude → Paste OAuth Token**
+
+**วิธีที่ 2 — Interactive login ใน container**
+
+```bash
+docker exec -it <orchestrator-container> claude auth login
+# ทำตาม URL ที่แสดงเพื่อ authenticate
+```
+
+---
+
+### Gemini
+
+Gemini ใช้ Google OAuth — รัน `gemini` ครั้งแรกใน container แล้วจะแสดง URL ให้ visit:
+
+```bash
+docker exec -it <orchestrator-container> sh
+gemini
+# เปิด URL ที่แสดงในเบราว์เซอร์ → login Google account → done
+```
+
+หรือใช้ API Key แทน OAuth — เพิ่ม `GEMINI_API_KEY=your-key` ใน environment ของ orchestrator ใน docker-compose
+
+---
+
+### Cursor
+
+```bash
+docker exec -it <orchestrator-container> sh
+export PATH=$PATH:/root/.local/bin
+NO_OPEN_BROWSER=1 agent login
+# ทำตาม URL ที่แสดงเพื่อ authenticate
+```
+
+`NO_OPEN_BROWSER=1` ป้องกัน container พยายามเปิด browser อัตโนมัติ
+
+ตรวจสอบสถานะ:
+
+```bash
+agent status
+```
+
+---
+
+### หมายเหตุ
+
+- Login state ถูกเก็บใน Docker volumes (`claude_config`, `gemini_config`, `cursor_config`) — persist ข้าม container restart
+- ตรวจสอบสถานะ login ได้ที่ **Settings → CLI** ในเว็บแอป
+- ถ้า container ถูกลบและสร้างใหม่ (`docker compose down -v`) จะต้อง login ใหม่
+
+---
+
 ## Deployment (DigitalOcean)
 
 ดูรายละเอียดทั้งหมดได้ที่ [docs/superpowers/plans/2026-04-25-05-deployment.md](docs/superpowers/plans/2026-04-25-05-deployment.md)
