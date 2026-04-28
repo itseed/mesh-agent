@@ -32,6 +32,7 @@ export interface WaveState {
   imagePaths: string[]
   pendingSessions: string[]
   completedSessions: WaveCompletedSession[]
+  rootTaskId?: string    // NEW — task.id that triggered this wave run (for activity logging)
 }
 
 const WAVE_TTL = 86400 // 24 h
