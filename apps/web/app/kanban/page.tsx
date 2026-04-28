@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { AppShell } from '@/components/layout/AppShell'
 import { KanbanBoard } from '@/components/kanban/KanbanBoard'
 import { AuthGuard } from '@/components/layout/AuthGuard'
@@ -21,6 +21,9 @@ export default function KanbanPage() {
   const [newProject, setNewProject] = useState('')
   const [newPriority, setNewPriority] = useState('medium')
   const [creating, setCreating] = useState(false)
+  const [pendingFiles, setPendingFiles] = useState<File[]>([])
+  const [dragOver, setDragOver] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const fetchTasks = useCallback(async (projectId?: string | null) => {
     try {
@@ -54,16 +57,29 @@ export default function KanbanPage() {
     if (!newTitle.trim()) return
     setCreating(true)
     try {
-      await api.tasks.create({
+      const task = await api.tasks.create({
         title: newTitle.trim(),
         description: newDesc.trim() || undefined,
         projectId: newProject || activeProjectId || undefined,
         priority: newPriority,
       })
+      for (const file of pendingFiles) {
+        try {
+          const { uploadUrl } = await api.tasks.createAttachment(task.id, {
+            fileName: file.name,
+            fileSize: file.size,
+            mimeType: file.type || 'application/octet-stream',
+          })
+          await fetch(uploadUrl, { method: 'PUT', body: file })
+        } catch {
+          // best-effort: don't block task creation on upload failure
+        }
+      }
       setNewTitle('')
       setNewDesc('')
       setNewProject('')
       setNewPriority('medium')
+      setPendingFiles([])
       setShowModal(false)
       refresh()
     } catch (e: any) {
@@ -156,6 +172,55 @@ export default function KanbanPage() {
                   rows={3}
                   className="w-full bg-canvas border border-border text-text text-[13px] rounded px-3 py-2 placeholder-dim resize-none"
                 />
+
+                {/* File drop zone */}
+                <div
+                  onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
+                  onDragLeave={() => setDragOver(false)}
+                  onDrop={(e) => {
+                    e.preventDefault()
+                    setDragOver(false)
+                    const files = Array.from(e.dataTransfer.files)
+                    if (files.length) setPendingFiles((prev) => [...prev, ...files])
+                  }}
+                  onClick={() => fileInputRef.current?.click()}
+                  className={`w-full border border-dashed rounded px-3 py-3 text-center cursor-pointer transition-colors text-[12px] ${
+                    dragOver
+                      ? 'border-accent bg-accent/10 text-accent'
+                      : 'border-border text-dim hover:border-border-hi hover:text-muted'
+                  }`}
+                >
+                  Drop files here or click to attach
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    multiple
+                    className="hidden"
+                    onChange={(e) => {
+                      const files = Array.from(e.target.files ?? [])
+                      if (files.length) setPendingFiles((prev) => [...prev, ...files])
+                      e.target.value = ''
+                    }}
+                  />
+                </div>
+
+                {pendingFiles.length > 0 && (
+                  <ul className="flex flex-col gap-1">
+                    {pendingFiles.map((f, i) => (
+                      <li key={i} className="flex items-center justify-between text-[12px] text-muted bg-canvas border border-border rounded px-2 py-1">
+                        <span className="truncate max-w-[200px]">{f.name}</span>
+                        <button
+                          type="button"
+                          onClick={() => setPendingFiles((prev) => prev.filter((_, idx) => idx !== i))}
+                          className="text-dim hover:text-danger ml-2 shrink-0"
+                        >
+                          ✕
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+
                 <select
                   value={newProject}
                   onChange={(e) => setNewProject(e.target.value)}
@@ -178,7 +243,7 @@ export default function KanbanPage() {
                 <div className="flex gap-2 justify-end mt-1">
                   <button
                     type="button"
-                    onClick={() => setShowModal(false)}
+                    onClick={() => { setShowModal(false); setPendingFiles([]) }}
                     className="text-muted text-[14px] px-3 py-1.5 hover:text-text transition-colors"
                   >
                     Cancel
@@ -188,7 +253,7 @@ export default function KanbanPage() {
                     disabled={creating}
                     className="bg-accent/90 hover:bg-accent text-canvas text-[14px] font-semibold px-4 py-1.5 rounded transition-colors disabled:opacity-50"
                   >
-                    {creating ? '…' : 'Create'}
+                    {creating ? '…' : pendingFiles.length > 0 ? `Create + ${pendingFiles.length} file${pendingFiles.length > 1 ? 's' : ''}` : 'Create'}
                   </button>
                 </div>
               </form>
