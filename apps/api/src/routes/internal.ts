@@ -1,9 +1,21 @@
 import { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 import { eq, and, ne, count } from 'drizzle-orm'
-import { tasks, taskComments } from '@meshagent/shared'
+import { tasks, taskComments, projects } from '@meshagent/shared'
 import { env } from '../env.js'
 import { runLeadSynthesis, type LeadContextMessage } from '../lib/lead.js'
+import {
+  lookupSessionProposal,
+  getWaveState,
+  updateWaveState,
+  deleteWaveState,
+  removeSessionIndex,
+  indexSession,
+  type WaveState,
+} from '../lib/wave-store.js'
+import { runWaveEvaluation } from '../lib/lead-wave.js'
+import { dispatchAgent, buildGitInstructions } from '../lib/dispatch.js'
+import { findRoleBySlug } from '../lib/roles.js'
 
 const HISTORY_KEY = 'chat:lead:history'
 const HISTORY_LIMIT = 200
@@ -116,6 +128,96 @@ async function synthesizeAfterCompletion(
   }
 }
 
+async function dispatchNextWave(fastify: FastifyInstance, state: WaveState, waveIndex: number): Promise<string[]> {
+  const wave = state.waves[waveIndex]
+  if (!wave) return []
+
+  let projectPaths: Record<string, string> = {}
+  if (state.projectId) {
+    const [proj] = await fastify.db
+      .select()
+      .from(projects)
+      .where(eq(projects.id, state.projectId))
+      .limit(1)
+    if (proj) projectPaths = (proj.paths as Record<string, string>) ?? {}
+  }
+
+  // Inject previous wave summaries so agents have artifact context
+  const prevSummary = state.completedSessions
+    .map((s) => `[${s.role}] ${s.success ? '✓' : '✗'}: ${s.summary}`)
+    .join('\n')
+  const contextBlock = prevSummary
+    ? `\n\n## ผลงานจาก Wave ก่อนหน้า\n${prevSummary}\n\n## คำสั่งปัจจุบัน`
+    : ''
+
+  const imageBlock = state.imagePaths.length > 0
+    ? `\n\n## Attached images\n${state.imagePaths.map((p) => `- ${p}`).join('\n')}`
+    : ''
+
+  const gitInstructions = buildGitInstructions(state.baseBranch, state.branchSuffix)
+  const fullPrompt = `${contextBlock}\n${state.taskDescription}${imageBlock}${gitInstructions}`
+
+  const pendingSessions: string[] = []
+
+  for (const r of wave.roles) {
+    const role = await findRoleBySlug(fastify, r.slug)
+    if (!role) {
+      fastify.log.warn({ slug: r.slug }, 'dispatchNextWave: skipping unknown role')
+      continue
+    }
+
+    const agentWorkingDir = projectPaths[r.slug] ?? Object.values(projectPaths)[0] ?? '/tmp'
+
+    const [task] = await fastify.db
+      .insert(tasks)
+      .values({
+        title: state.taskTitle,
+        description: state.taskDescription,
+        stage: 'in_progress',
+        agentRole: r.slug,
+        projectId: state.projectId ?? null,
+      })
+      .returning()
+
+    if (task?.id) {
+      await fastify.redis.publish(
+        TASKS_CHANNEL,
+        JSON.stringify({ type: 'task.created', taskId: task.id, projectId: state.projectId ?? null }),
+      )
+    }
+
+    const result = await dispatchAgent(r.slug, agentWorkingDir, fullPrompt, {
+      projectId: state.projectId ?? null,
+      taskId: task?.id ?? null,
+      createdBy: state.createdBy,
+    }, role?.systemPrompt ?? undefined)
+
+    if (!result.id && task?.id) {
+      await fastify.db
+        .update(tasks)
+        .set({ stage: 'backlog', status: 'blocked', updatedAt: new Date() })
+        .where(eq(tasks.id, task.id))
+    }
+
+    if (result.id) {
+      pendingSessions.push(result.id)
+      await indexSession(fastify.redis, result.id, state.proposalId)
+    }
+
+    await pushChatMessage(fastify, {
+      id: crypto.randomUUID(),
+      role: 'agent' as const,
+      content: result.id
+        ? `[${r.slug}] Wave ${waveIndex} เริ่มทำงานแล้ว (session ${result.id.slice(0, 8)})`
+        : `[${r.slug}] ไม่สามารถเริ่ม session ได้ — ${result.error ?? 'orchestrator ไม่ตอบ'}`,
+      timestamp: Date.now(),
+      meta: { agentRole: r.slug, sessionId: result.id ?? undefined },
+    })
+  }
+
+  return pendingSessions
+}
+
 export async function internalRoutes(fastify: FastifyInstance) {
   fastify.post('/internal/agent-complete', async (request, reply) => {
     const secret = request.headers['x-internal-secret']
@@ -200,14 +302,96 @@ export async function internalRoutes(fastify: FastifyInstance) {
 
     await pushChatMessage(fastify, chatMsg)
 
-    // Lead debrief — fire-and-forget so the orchestrator response stays snappy.
-    // The synthesis pushes its own chat message via Redis pub/sub when ready.
-    void synthesizeAfterCompletion(fastify, {
-      agentRole: role,
-      success,
-      summary,
-      prUrl,
-    })
+    // Wave progression — if this session belongs to a wave, handle the wave logic.
+    // Otherwise fall through to the normal single-agent synthesis.
+    let handledByWave = false
+    try {
+      const proposalId = await lookupSessionProposal(fastify.redis, body.sessionId)
+      if (proposalId) {
+        handledByWave = true
+        await removeSessionIndex(fastify.redis, body.sessionId)
+        const state = await getWaveState(fastify.redis, proposalId)
+        if (state) {
+          state.completedSessions.push({
+            sessionId: body.sessionId,
+            role,
+            success,
+            summary,
+            exitCode: body.exitCode ?? null,
+          })
+          state.pendingSessions = state.pendingSessions.filter((id) => id !== body.sessionId)
+
+          if (state.pendingSessions.length > 0) {
+            // Still waiting for other agents in this wave — just persist updated state
+            await updateWaveState(fastify.redis, state)
+          } else {
+            // All agents in current wave done — evaluate
+            const hasNextWave = state.currentWave + 1 < state.waves.length
+            const evalResult = await runWaveEvaluation(state)
+
+            if (!hasNextWave) {
+              // Final wave complete
+              await pushChatMessage(fastify, {
+                id: crypto.randomUUID(),
+                role: 'lead' as const,
+                content: evalResult.message,
+                timestamp: Date.now(),
+              })
+              await deleteWaveState(fastify.redis, proposalId)
+            } else if (evalResult.ask) {
+              // Lead unsure — surface to user, stop auto-progression
+              await pushChatMessage(fastify, {
+                id: crypto.randomUUID(),
+                role: 'lead' as const,
+                content: evalResult.message,
+                timestamp: Date.now(),
+              })
+              await deleteWaveState(fastify.redis, proposalId)
+            } else if (evalResult.proceed) {
+              // Auto-proceed: push status message then dispatch next wave
+              await pushChatMessage(fastify, {
+                id: crypto.randomUUID(),
+                role: 'lead' as const,
+                content: evalResult.message,
+                timestamp: Date.now(),
+              })
+              const nextWaveIndex = state.currentWave + 1
+              const newPending = await dispatchNextWave(fastify, state, nextWaveIndex)
+              state.currentWave = nextWaveIndex
+              state.pendingSessions = newPending
+              state.completedSessions = []   // fresh slate for next wave
+              if (newPending.length > 0) {
+                await updateWaveState(fastify.redis, state)
+              } else {
+                await deleteWaveState(fastify.redis, proposalId)
+              }
+            } else {
+              // proceed: false, ask: false — treat as done
+              await pushChatMessage(fastify, {
+                id: crypto.randomUUID(),
+                role: 'lead' as const,
+                content: evalResult.message,
+                timestamp: Date.now(),
+              })
+              await deleteWaveState(fastify.redis, proposalId)
+            }
+          }
+        }
+      }
+    } catch (err) {
+      fastify.log.warn({ err, sessionId: body.sessionId }, 'Wave progression failed — falling through to synthesis')
+      handledByWave = false
+    }
+
+    // Single-agent synthesis only when not part of a wave
+    if (!handledByWave) {
+      void synthesizeAfterCompletion(fastify, {
+        agentRole: role,
+        success,
+        summary,
+        prUrl,
+      })
+    }
 
     return reply.status(200).send({ ok: true })
   })
