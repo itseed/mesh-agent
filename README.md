@@ -121,6 +121,8 @@ bash scripts/install.sh
 # Dev: เปิด http://localhost:4800
 ```
 
+> install.sh จะถามให้เลือก CLI provider ที่ต้องการใช้ (claude / gemini / cursor) และ login อัตโนมัติในขั้นตอนนั้น
+
 เปิด [http://localhost:4800](http://localhost:4800) แล้ว login ด้วย `AUTH_EMAIL` และ `AUTH_PASSWORD` ที่ตั้งระหว่าง install
 
 ![Login](docs/screenshots/login.png)
@@ -239,6 +241,7 @@ Lead เลือก role ที่เหมาะสมเองโดยอั
 | `MAX_CONCURRENT_SESSIONS` | — | `8` | Max simultaneous agent sessions |
 | `SESSION_IDLE_TIMEOUT_MS` | — | `3600000` | Auto-kill idle sessions (ms) |
 | `CLAUDE_CMD` | — | `claude` | Path to Claude Code CLI binary |
+| `DEFAULT_CLI_PROVIDER` | — | `claude` | CLI provider fallback เมื่อ task ไม่ระบุ provider (claude / gemini / cursor) |
 | `LEAD_SYSTEM_PROMPT` | — | — | Override Lead AI system prompt (inline) |
 | `LEAD_SYSTEM_PROMPT_FILE` | — | — | Path to file containing Lead system prompt |
 | `LEAD_SYNTHESIS_PROMPT` | — | — | Override Lead debrief system prompt |
@@ -362,8 +365,12 @@ Restore: `./scripts/db-restore.sh /var/backups/meshagent/meshagent-...sql.gz`
 meshagent/
 ├── apps/
 │   ├── web/                    # Next.js 14 PWA
-│   │   ├── app/                # App Router pages
-│   │   ├── components/         # React components
+│   │   ├── app/
+│   │   │   ├── page.tsx        # Landing page (unauthenticated) → redirect /overview (authenticated)
+│   │   │   └── ...             # App Router pages
+│   │   ├── components/
+│   │   │   ├── landing/        # Landing page components (Nav, Hero, Features, etc.)
+│   │   │   └── ...             # React components
 │   │   └── lib/                # API client, WebSocket hooks, auth
 │   └── api/                    # Fastify backend
 │       └── src/
