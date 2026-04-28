@@ -301,6 +301,19 @@ function DetailsTab({ project, onEdit, onDelete }: {
 }) {
   const repos: string[] = project.githubRepos ?? []
   const paths: Record<string, string> = project.paths ?? {}
+  const [diskUsage, setDiskUsage] = useState<{ bytes: number; human: string } | null>(null)
+  const [diskLoading, setDiskLoading] = useState(false)
+  const [diskError, setDiskError] = useState(false)
+
+  useEffect(() => {
+    if (!project?.id) return
+    setDiskLoading(true)
+    setDiskError(false)
+    api.projects.getDiskUsage(project.id)
+      .then(setDiskUsage)
+      .catch(() => setDiskError(true))
+      .finally(() => setDiskLoading(false))
+  }, [project?.id])
 
   return (
     <div className="flex flex-col gap-5">
@@ -343,6 +356,13 @@ function DetailsTab({ project, onEdit, onDelete }: {
         <span className="text-[11px] font-medium text-muted uppercase tracking-wider">Base branch</span>
         <span className="text-[12px] font-mono bg-canvas border border-border px-1.5 py-0.5 rounded text-muted">
           {project.baseBranch ?? 'main'}
+        </span>
+      </div>
+
+      <div className="flex items-center gap-2">
+        <span className="text-[11px] font-medium text-muted uppercase tracking-wider">Disk Usage</span>
+        <span className="text-[12px] font-mono bg-canvas border border-border px-1.5 py-0.5 rounded text-muted">
+          {diskLoading ? 'Loading…' : diskError ? '-' : (diskUsage?.human ?? '0 B')}
         </span>
       </div>
 

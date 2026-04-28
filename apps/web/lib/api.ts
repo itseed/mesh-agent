@@ -106,6 +106,8 @@ export const api = {
       request<any>(`/projects/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
     delete: (id: string) => request<void>(`/projects/${id}`, { method: 'DELETE' }),
     github: (id: string) => request<any>(`/projects/${id}/github`),
+    getDiskUsage: (id: string) =>
+      request<{ bytes: number; human: string }>(`/projects/${id}/disk-usage`),
     getContext: (id: string) =>
       request<{ projectId: string; brief: string; autoContext: string; updatedAt: string | null }>(
         `/projects/${id}/context`,
