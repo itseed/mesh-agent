@@ -454,6 +454,19 @@ export async function chatRoutes(fastify: FastifyInstance) {
         : ''
     const fullPrompt = `${contextBlock}\n${proposal.taskBrief.description}${proposal.imageNote}${imageBlock}${gitInstructions}`
 
+    // Build role→path map once before loop
+    let projectPaths: Record<string, string> = {}
+    if (proposal.projectId) {
+      const [proj] = await fastify.db
+        .select()
+        .from(projects)
+        .where(eq(projects.id, proposal.projectId))
+        .limit(1)
+      if (proj) {
+        projectPaths = (proj.paths as Record<string, string>) ?? {}
+      }
+    }
+
     const dispatched: ChatMessage[] = []
     for (const r of proposal.roles) {
       const role = await findRoleBySlug(fastify, r.slug)
@@ -462,18 +475,7 @@ export async function chatRoutes(fastify: FastifyInstance) {
         continue
       }
 
-      let agentWorkingDir = proposal.workingDir
-      if (proposal.projectId) {
-        const [proj] = await fastify.db
-          .select()
-          .from(projects)
-          .where(eq(projects.id, proposal.projectId))
-          .limit(1)
-        if (proj) {
-          const paths = (proj.paths as Record<string, string>) ?? {}
-          agentWorkingDir = paths[r.slug] ?? Object.values(paths)[0] ?? proposal.workingDir
-        }
-      }
+      const agentWorkingDir = projectPaths[r.slug] ?? Object.values(projectPaths)[0] ?? proposal.workingDir
 
       const [task] = await fastify.db
         .insert(tasks)
