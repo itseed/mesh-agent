@@ -6,6 +6,12 @@ import { findRoleBySlug, ensureBuiltinRoles } from '../lib/roles.js'
 import { dispatchAgent, buildGitInstructions } from '../lib/dispatch.js'
 import { runLead, type LeadContextMessage, type LeadDecision } from '../lib/lead.js'
 import { saveImagesForBucket } from '../lib/uploads.js'
+import {
+  saveWaveState,
+  indexSession,
+  type LeadWave,
+  type WaveState,
+} from '../lib/wave-store.js'
 
 const HISTORY_KEY = 'chat:lead:history'
 const HISTORY_LIMIT = 200
@@ -47,6 +53,7 @@ interface StoredProposal {
   workingDir: string
   baseBranch: string
   roles: { slug: string; reason?: string }[]
+  waves: LeadWave[]                              // NEW
   taskBrief: { title: string; description: string }
 }
 
@@ -383,6 +390,7 @@ export async function chatRoutes(fastify: FastifyInstance) {
         workingDir: ctx.workingDir,
         baseBranch: ctx.baseBranch,
         roles: decision.roles,
+        waves: decision.waves ?? [],       // NEW
         taskBrief: decision.taskBrief,
       }
       await storeProposal(fastify, proposal)
@@ -467,8 +475,13 @@ export async function chatRoutes(fastify: FastifyInstance) {
       }
     }
 
+    // Wave 0 roles — or fall back to flat roles for old proposals
+    const wave0Roles = proposal.waves.length > 0 ? proposal.waves[0].roles : proposal.roles
+
+    const pendingSessions: string[] = []
     const dispatched: ChatMessage[] = []
-    for (const r of proposal.roles) {
+
+    for (const r of wave0Roles) {
       const role = await findRoleBySlug(fastify, r.slug)
       if (!role) {
         fastify.log.warn({ slug: r.slug }, 'Skipping unknown role from proposal')
@@ -501,9 +514,6 @@ export async function chatRoutes(fastify: FastifyInstance) {
         createdBy: userId,
       }, role?.systemPrompt ?? undefined)
 
-      // If the orchestrator never accepted the dispatch, the task we just inserted
-      // has no session backing it — surface it as blocked in the kanban so it
-      // doesn't sit forever in 'in_progress' looking like real work.
       if (!result.id && task?.id) {
         await fastify.db
           .update(tasks)
@@ -511,21 +521,42 @@ export async function chatRoutes(fastify: FastifyInstance) {
           .where(eq(tasks.id, task.id))
       }
 
+      if (result.id) {
+        pendingSessions.push(result.id)
+        await indexSession(fastify.redis, result.id, proposal.id)
+      }
+
+      const waveLabel = proposal.waves.length > 1 ? 'Wave 1' : ''
       const agentMsg: ChatMessage = {
         id: crypto.randomUUID(),
         role: 'agent',
         content: result.id
-          ? `[${r.slug}] เริ่มทำงานแล้ว (session ${result.id.slice(0, 8)})`
+          ? `[${r.slug}]${waveLabel ? ` ${waveLabel}` : ''} เริ่มทำงานแล้ว (session ${result.id.slice(0, 8)})`
           : `[${r.slug}] ยังไม่สามารถเริ่ม session ได้ — ${result.error ?? 'orchestrator ไม่ตอบ'} (task ถูก mark blocked)`,
         timestamp: Date.now(),
-        meta: {
-          agentRole: r.slug,
-          sessionId: result.id ?? undefined,
-          taskId: task?.id,
-        },
+        meta: { agentRole: r.slug, sessionId: result.id ?? undefined, taskId: task?.id },
       }
       await pushHistory(fastify, agentMsg)
       dispatched.push(agentMsg)
+    }
+
+    // Save wave state only when there are multiple waves and at least one session started
+    if (proposal.waves.length > 1 && pendingSessions.length > 0) {
+      const waveState: WaveState = {
+        proposalId: proposal.id,
+        waves: proposal.waves,
+        currentWave: 0,
+        taskTitle: proposal.taskBrief.title,
+        taskDescription: proposal.taskBrief.description,
+        projectId: proposal.projectId,
+        baseBranch: proposal.baseBranch,
+        branchSuffix,
+        createdBy: userId,
+        imagePaths: proposal.imagePaths ?? [],
+        pendingSessions,
+        completedSessions: [],
+      }
+      await saveWaveState(fastify.redis, waveState)
     }
 
     return { confirm: confirmMsg, dispatches: dispatched }
