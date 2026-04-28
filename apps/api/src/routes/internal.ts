@@ -21,6 +21,7 @@ import {
   saveQgState,
   deleteQgState,
   parseVerdictJson,
+  triggerQualityGate,
   type QualityGateState,
 } from '../lib/quality-gate.js'
 import { runWaveEvaluation } from '../lib/lead-wave.js'
@@ -529,17 +530,47 @@ export async function internalRoutes(fastify: FastifyInstance) {
             }
 
             if (!hasNextWave) {
-              // Final wave complete
-              await pushChatMessage(fastify, {
-                id: crypto.randomUUID(),
-                role: 'lead' as const,
-                content: evalResult.message,
-                timestamp: Date.now(),
-              })
-              if (state.rootTaskId) {
+              // Final wave complete — attempt quality gate if any PRs were created
+              const prUrls = state.completedSessions
+                .map((s) => s.summary.match(/https:\/\/github\.com\/[^\s]+\/pull\/\d+/)?.[0])
+                .filter((u): u is string => Boolean(u))
+
+              let projectPaths: Record<string, string> = {}
+              if (state.projectId) {
+                const [proj] = await fastify.db
+                  .select()
+                  .from(projects)
+                  .where(eq(projects.id, state.projectId))
+                  .limit(1)
+                if (proj) projectPaths = (proj.paths as Record<string, string>) ?? {}
+              }
+
+              if (state.rootTaskId && prUrls.length > 0) {
+                // Hand off to Quality Gate — reviewer will move task to "done" on pass
                 await logTaskActivity(fastify, state.rootTaskId, 'wave.done', {
                   totalWaves: state.waves.length,
                 })
+                await triggerQualityGate(fastify, state.rootTaskId, prUrls, projectPaths, {
+                  projectId: state.projectId,
+                  baseBranch: state.baseBranch,
+                  branchSuffix: state.branchSuffix,
+                  createdBy: state.createdBy,
+                  taskTitle: state.taskTitle,
+                  taskDescription: state.taskDescription,
+                })
+              } else {
+                // No PRs or no rootTaskId — existing behavior
+                await pushChatMessage(fastify, {
+                  id: crypto.randomUUID(),
+                  role: 'lead' as const,
+                  content: evalResult.message,
+                  timestamp: Date.now(),
+                })
+                if (state.rootTaskId) {
+                  await logTaskActivity(fastify, state.rootTaskId, 'wave.done', {
+                    totalWaves: state.waves.length,
+                  })
+                }
               }
               await deleteWaveState(fastify.redis, proposalId)
             } else if (evalResult.ask) {
