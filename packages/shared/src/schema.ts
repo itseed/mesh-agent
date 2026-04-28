@@ -180,3 +180,29 @@ export const taskActivities = pgTable(
     createdAtIdx: index('task_activities_created_at_idx').on(t.createdAt),
   }),
 )
+
+export const projectContext = pgTable('project_context', {
+  projectId: text('project_id')
+    .primaryKey()
+    .references(() => projects.id, { onDelete: 'cascade' }),
+  brief: text('brief').notNull().default(''),
+  autoContext: text('auto_context').notNull().default(''),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+export const agentOutcomes = pgTable(
+  'agent_outcomes',
+  {
+    id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+    projectId: text('project_id')
+      .notNull()
+      .references(() => projects.id, { onDelete: 'cascade' }),
+    role: text('role').notNull(),
+    summary: text('summary').notNull(),
+    prUrl: text('pr_url'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (t) => ({
+    projectCreatedIdx: index('agent_outcomes_project_created_idx').on(t.projectId, t.createdAt),
+  }),
+)
