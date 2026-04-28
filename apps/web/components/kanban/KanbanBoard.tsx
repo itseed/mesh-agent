@@ -43,6 +43,15 @@ export function KanbanBoard({ initialTasks, projects, onRefresh }: KanbanBoardPr
     await api.tasks.delete(id)
   }
 
+  async function handleStart(id: string) {
+    try {
+      await api.tasks.start(id)
+      // Board refreshes via WebSocket task.stage event
+    } catch (e: any) {
+      alert(e.message ?? 'Start failed')
+    }
+  }
+
   // Only show root tasks (no parentTaskId) on the board
   const rootTasks = tasks.filter((t) => !t.parentTaskId)
   const byStage = (stage: string) => rootTasks.filter((t) => t.stage === stage)
@@ -59,6 +68,7 @@ export function KanbanBoard({ initialTasks, projects, onRefresh }: KanbanBoardPr
               projects={projects}
               allTasks={tasks}
               onDelete={handleDelete}
+              onStart={handleStart}
               onSelect={setSelectedTask}
             />
           ))}

@@ -92,6 +92,11 @@ export const api = {
       }),
     downloadUrl: (taskId: string, attachmentId: string) =>
       request<{ url: string }>(`/tasks/${taskId}/attachments/${attachmentId}/url`),
+    start: (id: string) =>
+      request<{ ok: boolean; waveCount: number; pendingSessions: string[] }>(
+        `/tasks/${id}/start`,
+        { method: 'POST' },
+      ),
   },
   projects: {
     list: () => request<any[]>('/projects'),

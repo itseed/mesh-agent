@@ -14,10 +14,11 @@ interface KanbanColumnProps {
   projects: any[]
   allTasks: any[]
   onDelete?: (id: string) => void
+  onStart?: (id: string) => void
   onSelect?: (task: any) => void
 }
 
-export function KanbanColumn({ stage, tasks, projects, allTasks, onDelete, onSelect }: KanbanColumnProps) {
+export function KanbanColumn({ stage, tasks, projects, allTasks, onDelete, onStart, onSelect }: KanbanColumnProps) {
   const meta = STAGE_META[stage] ?? { label: stage, color: '#6a7a8e', bg: 'transparent', border: 'transparent' }
 
   return (
@@ -62,6 +63,7 @@ export function KanbanColumn({ stage, tasks, projects, allTasks, onDelete, onSel
                       projects={projects}
                       allTasks={allTasks}
                       onDelete={onDelete}
+                      onStart={onStart}
                       onClick={() => onSelect?.(task)}
                       stageColor={meta.color}
                       isDragging={snapshot.isDragging}

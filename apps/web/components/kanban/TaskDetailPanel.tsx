@@ -108,6 +108,7 @@ export function TaskDetailPanel({ task, allTasks, onClose, onUpdate, onDelete }:
   const [reviewIssues, setReviewIssues] = useState<ReviewIssue[]>([])
   const [selectedIssues, setSelectedIssues] = useState<Set<number>>(new Set())
   const [fixingIssues, setFixingIssues] = useState(false)
+  const [starting, setStarting] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -270,6 +271,20 @@ export function TaskDetailPanel({ task, allTasks, onClose, onUpdate, onDelete }:
     try { plan = JSON.parse(leadComment.body) } catch {}
   }
 
+  async function handleStart() {
+    setStarting(true)
+    try {
+      await api.tasks.start(task.id)
+      setLocalTask((t: any) => ({ ...t, stage: 'in_progress' }))
+      const fresh = await api.tasks.activities(task.id)
+      setActivities(fresh)
+    } catch (e: any) {
+      alert(e.message ?? 'Start failed')
+    } finally {
+      setStarting(false)
+    }
+  }
+
   const TABS: Tab[] = ['overview', 'comments', 'subtasks', 'activity', 'attachments']
   const TAB_LABEL: Record<Tab, string> = {
     overview: 'Overview',
@@ -307,6 +322,16 @@ export function TaskDetailPanel({ task, allTasks, onClose, onUpdate, onDelete }:
             </div>
             <h2 className="text-[15px] font-semibold text-text leading-snug">{localTask.title}</h2>
           </div>
+          {localTask.stage === 'backlog' && !confirmDelete && (
+            <button
+              onClick={handleStart}
+              disabled={starting}
+              className="text-[12px] px-2.5 py-1 rounded border border-accent/40 text-accent hover:bg-accent/10 transition-colors disabled:opacity-50 shrink-0"
+              title="Let Lead analyze and dispatch agents"
+            >
+              {starting ? 'Starting…' : '▶ Start with Lead'}
+            </button>
+          )}
           {confirmDelete ? (
             <div className="flex items-center gap-2 shrink-0">
               <span className="text-[12px] text-danger">ลบ?</span>

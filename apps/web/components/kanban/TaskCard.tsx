@@ -31,11 +31,12 @@ interface TaskCardProps {
   allTasks?: any[]
   onClick?: () => void
   onDelete?: (id: string) => void
+  onStart?: (id: string) => void
   stageColor?: string
   isDragging?: boolean
 }
 
-export function TaskCard({ task, projects, allTasks, onClick, onDelete, stageColor, isDragging }: TaskCardProps) {
+export function TaskCard({ task, projects, allTasks, onClick, onDelete, onStart, stageColor, isDragging }: TaskCardProps) {
   const role = ROLE_STYLE[task.agentRole ?? '']
   const dotColor = PRIORITY_DOT[task.priority ?? ''] ?? null
   const project = projects?.find((p: any) => p.id === task.projectId)
@@ -62,14 +63,25 @@ export function TaskCard({ task, projects, allTasks, onClick, onDelete, stageCol
           )}
           <span className="text-text leading-snug">{task.title}</span>
         </div>
-        {onDelete && (
-          <button
-            onClick={(e) => { e.stopPropagation(); onDelete(task.id) }}
-            className="text-dim hover:text-danger opacity-0 group-hover:opacity-100 transition-all text-[13px] shrink-0"
-          >
-            ✕
-          </button>
-        )}
+        <div className="flex items-center gap-1 shrink-0">
+          {onStart && task.stage === 'backlog' && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onStart(task.id) }}
+              className="text-accent opacity-0 group-hover:opacity-100 transition-all text-[12px] px-1 hover:text-accent/70"
+              title="Start with Lead"
+            >
+              ▶
+            </button>
+          )}
+          {onDelete && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onDelete(task.id) }}
+              className="text-dim hover:text-danger opacity-0 group-hover:opacity-100 transition-all text-[13px] shrink-0"
+            >
+              ✕
+            </button>
+          )}
+        </div>
       </div>
 
       {task.parentTaskId && (
