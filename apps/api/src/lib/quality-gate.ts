@@ -4,6 +4,7 @@ import type { Redis } from 'ioredis'
 import { taskActivities } from '@meshagent/shared'
 import { dispatchAgent } from './dispatch.js'
 import { findRoleBySlug } from './roles.js'
+import { buildContextBlock } from './context-builder.js'
 
 const QG_TTL = 86400 // 24 h
 
@@ -129,12 +130,14 @@ export async function triggerQualityGate(
   const attempt = existing?.attempt ?? 0
 
   const reviewerWorkingDir = Object.values(projectPaths)[0] ?? '/tmp'
-  const prompt = buildReviewerPrompt({
+  const ctxBlock = await buildContextBlock(opts.projectId, fastify)
+  const reviewerPrompt = buildReviewerPrompt({
     taskTitle: opts.taskTitle,
     taskDescription: opts.taskDescription,
     prUrls,
     baseBranch: opts.baseBranch,
   })
+  const prompt = ctxBlock ? `${ctxBlock}\n\n${reviewerPrompt}` : reviewerPrompt
 
   const role = await findRoleBySlug(fastify, 'reviewer')
   const result = await dispatchAgent(

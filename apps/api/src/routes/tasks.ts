@@ -10,6 +10,7 @@ import { dispatchAgent, buildGitInstructions } from '../lib/dispatch.js'
 import { findRoleBySlug } from '../lib/roles.js'
 import { runLeadTask } from '../lib/lead-task.js'
 import { saveWaveState, indexSession, type WaveState } from '../lib/wave-store.js'
+import { buildContextBlock } from '../lib/context-builder.js'
 import { env } from '../env.js'
 
 const TASKS_CHANNEL = 'tasks:events'
@@ -528,7 +529,8 @@ ${gitInstructions}`
     const imageBlock = localFilePaths.length > 0
       ? `\n\n## Attached requirement files\nUse the Read tool on each path before starting work:\n${localFilePaths.map((p) => `- ${p}`).join('\n')}`
       : ''
-    const fullPrompt = `${taskBrief.description}${imageBlock}${gitInstructions}`
+    const projectCtxBlock = await buildContextBlock(task.projectId ?? null, fastify)
+    const fullPrompt = `${projectCtxBlock ? projectCtxBlock + '\n\n' : ''}${taskBrief.description}${imageBlock}${gitInstructions}`
 
     const wave0 = waves[0]
     const pendingSessions: string[] = []

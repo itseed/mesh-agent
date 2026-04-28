@@ -12,6 +12,7 @@ import {
   type LeadWave,
   type WaveState,
 } from '../lib/wave-store.js'
+import { buildContextBlock } from '../lib/context-builder.js'
 
 const HISTORY_KEY = 'chat:lead:history'
 const HISTORY_LIMIT = 200
@@ -460,7 +461,8 @@ export async function chatRoutes(fastify: FastifyInstance) {
       proposal.imagePaths && proposal.imagePaths.length > 0
         ? `\n\n## Attached images\nThe user attached the following image files. Use the Read tool on each absolute path before starting work — they may contain mockups, screenshots, or constraints critical to the task.\n${proposal.imagePaths.map((p) => `- ${p}`).join('\n')}`
         : ''
-    const fullPrompt = `${contextBlock}\n${proposal.taskBrief.description}${proposal.imageNote}${imageBlock}${gitInstructions}`
+    const projectCtxBlock = await buildContextBlock(proposal.projectId, fastify)
+    const fullPrompt = `${projectCtxBlock ? projectCtxBlock + '\n\n' : ''}${contextBlock}\n${proposal.taskBrief.description}${proposal.imageNote}${imageBlock}${gitInstructions}`
 
     // Build role→path map once before loop
     let projectPaths: Record<string, string> = {}

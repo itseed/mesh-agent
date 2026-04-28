@@ -1,7 +1,7 @@
 import { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 import { eq, and, ne, count } from 'drizzle-orm'
-import { tasks, taskComments, taskActivities, projects } from '@meshagent/shared'
+import { tasks, taskComments, taskActivities, projects, agentOutcomes } from '@meshagent/shared'
 import { env } from '../env.js'
 import { runLeadSynthesis, type LeadContextMessage } from '../lib/lead.js'
 import {
@@ -27,6 +27,7 @@ import {
 import { runWaveEvaluation } from '../lib/lead-wave.js'
 import { dispatchAgent, buildGitInstructions } from '../lib/dispatch.js'
 import { findRoleBySlug } from '../lib/roles.js'
+import { buildContextBlock } from '../lib/context-builder.js'
 
 const HISTORY_KEY = 'chat:lead:history'
 const HISTORY_LIMIT = 200
@@ -174,7 +175,7 @@ async function dispatchNextWave(fastify: FastifyInstance, state: WaveState, wave
   const prevSummary = state.completedSessions
     .map((s) => `[${s.role}] ${s.success ? '✓' : '✗'}: ${s.summary}`)
     .join('\n')
-  const contextBlock = prevSummary
+  const waveSummaryBlock = prevSummary
     ? `\n\n## ผลงานจาก Wave ก่อนหน้า\n${prevSummary}\n\n## คำสั่งปัจจุบัน`
     : ''
 
@@ -182,8 +183,9 @@ async function dispatchNextWave(fastify: FastifyInstance, state: WaveState, wave
     ? `\n\n## Attached images\n${state.imagePaths.map((p) => `- ${p}`).join('\n')}`
     : ''
 
+  const projectCtxBlock = await buildContextBlock(state.projectId, fastify)
   const gitInstructions = buildGitInstructions(state.baseBranch, state.branchSuffix)
-  const fullPrompt = `${contextBlock}\n${state.taskDescription}${imageBlock}${gitInstructions}`
+  const fullPrompt = `${projectCtxBlock ? projectCtxBlock + '\n\n' : ''}${waveSummaryBlock}\n${state.taskDescription}${imageBlock}${gitInstructions}`
 
   const pendingSessions: string[] = []
 
@@ -419,6 +421,15 @@ export async function internalRoutes(fastify: FastifyInstance) {
 
     const prUrl = extractPrUrl(outputLog)
     const summary = buildSummary(outputLog)
+
+    // Persist outcome for future context injection (fire-and-forget)
+    if (projectId) {
+      fastify.db
+        .insert(agentOutcomes)
+        .values({ projectId, role, summary, prUrl: prUrl ?? null })
+        .catch((err: unknown) => fastify.log.warn({ err, projectId, role }, 'Failed to insert agentOutcomes'))
+    }
+
     // When success + prUrl, QG controls the final "done" transition — keep in_progress
     const stage = success ? (prUrl ? 'in_progress' : 'done') : 'in_progress'
 
