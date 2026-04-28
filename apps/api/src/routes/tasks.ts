@@ -5,7 +5,11 @@ import { tasks, taskComments, taskActivities, taskAttachments, projects, agentRo
 import { logAudit } from '../lib/audit.js'
 import { analyzeTask, type AnalyzePlan } from '../lib/analyze.js'
 import path from 'node:path'
+import { mkdir, writeFile } from 'node:fs/promises'
 import { dispatchAgent, buildGitInstructions } from '../lib/dispatch.js'
+import { findRoleBySlug } from '../lib/roles.js'
+import { runLeadTask } from '../lib/lead-task.js'
+import { saveWaveState, indexSession, type WaveState } from '../lib/wave-store.js'
 import { env } from '../env.js'
 
 const TASKS_CHANNEL = 'tasks:events'
@@ -445,5 +449,173 @@ ${gitInstructions}`
     }
 
     return { task: { ...task, status: 'in_progress' }, subtasks }
+  })
+
+  fastify.post('/tasks/:id/start', { preHandler }, async (request, reply) => {
+    const { id } = request.params as { id: string }
+    const userId = (request.user as { id: string }).id
+
+    // 1. Load task
+    const [task] = await fastify.db.select().from(tasks).where(eq(tasks.id, id)).limit(1)
+    if (!task) return reply.status(404).send({ error: 'Task not found' })
+    if (task.stage !== 'backlog') {
+      return reply.status(409).send({ error: `Task is already ${task.stage} — cannot start again` })
+    }
+    if (!fastify.minio) {
+      return reply.status(503).send({ error: 'MinIO not configured — file attachments unavailable' })
+    }
+
+    // 2. Load attachments
+    const attachments = await fastify.db
+      .select()
+      .from(taskAttachments)
+      .where(eq(taskAttachments.taskId, id))
+
+    // 3. Download attachments to local tmp dir
+    const tmpDir = `/tmp/mesh-agent/tasks/${id}`
+    await mkdir(tmpDir, { recursive: true })
+    const localFilePaths: string[] = []
+
+    for (const att of attachments) {
+      const localPath = path.join(tmpDir, att.fileName)
+      try {
+        const url = await fastify.minio.presignedGetObject(fastify.minioBucket, att.storageKey, 300)
+        const res = await fetch(url)
+        if (!res.ok) throw new Error(`MinIO returned ${res.status}`)
+        await writeFile(localPath, Buffer.from(await res.arrayBuffer()))
+        localFilePaths.push(localPath)
+      } catch (err) {
+        fastify.log.warn({ err, storageKey: att.storageKey }, 'Failed to download attachment — skipping')
+      }
+    }
+
+    // 4. Load project paths
+    let projectPaths: Record<string, string> = {}
+    let baseBranch = 'main'
+    if (task.projectId) {
+      const [proj] = await fastify.db.select().from(projects).where(eq(projects.id, task.projectId)).limit(1)
+      if (proj) {
+        projectPaths = (proj.paths as Record<string, string>) ?? {}
+        baseBranch = proj.baseBranch ?? 'main'
+      }
+    }
+
+    // 5. Run Lead to plan waves
+    let leadResult: Awaited<ReturnType<typeof runLeadTask>>
+    try {
+      leadResult = await runLeadTask(task, localFilePaths, projectPaths)
+    } catch (err: any) {
+      fastify.log.error({ err, taskId: id }, 'Lead task planning failed')
+      return reply.status(502).send({ error: `Lead planning failed: ${err?.message ?? 'unknown'}` })
+    }
+
+    const { waves, taskBrief } = leadResult
+
+    // 6. Log: lead.wave.planned
+    await fastify.db.insert(taskActivities).values({
+      taskId: id,
+      actorId: null,
+      type: 'lead.wave.planned',
+      payload: {
+        waveCount: waves.length,
+        waves: waves.map((w) => ({ roles: w.roles.map((r) => r.slug), brief: w.brief })),
+      },
+    })
+
+    // 7. Dispatch Wave 0
+    const branchSuffix = Date.now().toString(36)
+    const gitInstructions = buildGitInstructions(baseBranch, branchSuffix)
+    const imageBlock = localFilePaths.length > 0
+      ? `\n\n## Attached requirement files\nUse the Read tool on each path before starting work:\n${localFilePaths.map((p) => `- ${p}`).join('\n')}`
+      : ''
+    const fullPrompt = `${taskBrief.description}${imageBlock}${gitInstructions}`
+
+    const wave0 = waves[0]
+    const pendingSessions: string[] = []
+
+    for (const r of wave0.roles) {
+      const role = await findRoleBySlug(fastify, r.slug)
+      if (!role) {
+        fastify.log.warn({ slug: r.slug }, 'start: skipping unknown role')
+        continue
+      }
+
+      const agentWorkingDir = projectPaths[r.slug] ?? Object.values(projectPaths)[0] ?? '/tmp'
+
+      const [agentTask] = await fastify.db
+        .insert(tasks)
+        .values({
+          title: taskBrief.title,
+          description: taskBrief.description,
+          stage: 'in_progress',
+          agentRole: r.slug,
+          projectId: task.projectId ?? null,
+          parentTaskId: id,
+        })
+        .returning()
+
+      const result = await dispatchAgent(r.slug, agentWorkingDir, fullPrompt, {
+        projectId: task.projectId ?? null,
+        taskId: agentTask?.id ?? null,
+        createdBy: userId,
+      }, role?.systemPrompt ?? undefined)
+
+      if (!result.id && agentTask?.id) {
+        await fastify.db
+          .update(tasks)
+          .set({ stage: 'backlog', status: 'blocked', updatedAt: new Date() })
+          .where(eq(tasks.id, agentTask.id))
+      }
+
+      if (result.id) {
+        pendingSessions.push(result.id)
+        await indexSession(fastify.redis, result.id, id)
+      }
+    }
+
+    if (pendingSessions.length === 0) {
+      return reply.status(500).send({ error: 'No agents could be dispatched' })
+    }
+
+    // 8. Log: wave.dispatched (wave 0)
+    await fastify.db.insert(taskActivities).values({
+      taskId: id,
+      actorId: null,
+      type: 'wave.dispatched',
+      payload: { waveIndex: 0, roles: wave0.roles.map((r) => r.slug) },
+    })
+
+    // 9. Save WaveState (only if multiple waves)
+    if (waves.length > 1) {
+      const waveState: WaveState = {
+        proposalId: id,
+        waves,
+        currentWave: 0,
+        taskTitle: taskBrief.title,
+        taskDescription: taskBrief.description,
+        projectId: task.projectId ?? null,
+        baseBranch,
+        branchSuffix,
+        createdBy: userId,
+        imagePaths: localFilePaths,
+        pendingSessions,
+        completedSessions: [],
+        rootTaskId: id,
+      }
+      await saveWaveState(fastify.redis, waveState)
+    }
+
+    // 10. Update task stage
+    await fastify.db
+      .update(tasks)
+      .set({ stage: 'in_progress', updatedAt: new Date() })
+      .where(eq(tasks.id, id))
+
+    await fastify.redis.publish(
+      'tasks:events',
+      JSON.stringify({ type: 'task.stage', taskId: id, stage: 'in_progress', projectId: task.projectId ?? null }),
+    )
+
+    return { ok: true, waveCount: waves.length, pendingSessions }
   })
 }
