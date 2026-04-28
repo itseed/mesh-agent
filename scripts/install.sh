@@ -41,7 +41,83 @@ else
 fi
 echo
 
-# ── 3. Interactive prompts ────────────────────────────────────────────────────
+# ── 3. CLI Provider Setup ─────────────────────────────────────────────────────
+echo "Which CLI providers do you want to use? (space-separated numbers)"
+echo "  1) Claude Code  (claude)"
+echo "  2) Gemini CLI   (gemini)"
+echo "  3) Cursor       (agent)"
+echo
+read -r -p "Enter numbers [default: 1]: " CLI_CHOICES
+CLI_CHOICES="${CLI_CHOICES:-1}"
+
+SELECTED_CLIS=()
+DEFAULT_CLI_PROVIDER=""
+
+for choice in $CLI_CHOICES; do
+  case "$choice" in
+    1) SELECTED_CLIS+=("claude") ;;
+    2) SELECTED_CLIS+=("gemini") ;;
+    3) SELECTED_CLIS+=("cursor") ;;
+    *) warn "Unknown choice: $choice — skipping" ;;
+  esac
+done
+
+[[ ${#SELECTED_CLIS[@]} -eq 0 ]] && SELECTED_CLIS=("claude")
+DEFAULT_CLI_PROVIDER="${SELECTED_CLIS[0]}"
+
+for cli in "${SELECTED_CLIS[@]}"; do
+  echo
+  info "Setting up: $cli"
+
+  case "$cli" in
+    claude)
+      if ! command -v claude >/dev/null 2>&1; then
+        warn "claude not found. Install: https://claude.ai/code"
+        read -r -p "Press Enter once installed, or Ctrl+C to abort..."
+        command -v claude >/dev/null 2>&1 || die "claude still not found. Aborting."
+      fi
+      if claude whoami >/dev/null 2>&1; then
+        ok "Claude: already authenticated ($(claude whoami 2>/dev/null | head -1))"
+      else
+        info "Claude: not logged in — starting login..."
+        claude login || die "Claude login failed."
+        ok "Claude: authenticated"
+      fi
+      ;;
+
+    gemini)
+      if ! command -v gemini >/dev/null 2>&1; then
+        warn "gemini not found. Install: https://github.com/google-gemini/gemini-cli"
+        read -r -p "Press Enter once installed, or Ctrl+C to abort..."
+        command -v gemini >/dev/null 2>&1 || die "gemini still not found. Aborting."
+      fi
+      if gemini --version >/dev/null 2>&1 && gemini -p "" 2>&1 | grep -qiE "auth|login|credential|sign.in"; then
+        info "Gemini: not authenticated — starting login..."
+        gemini auth login || die "Gemini login failed."
+        ok "Gemini: authenticated"
+      else
+        ok "Gemini: ready"
+      fi
+      ;;
+
+    cursor)
+      if ! command -v agent >/dev/null 2>&1; then
+        warn "Cursor background agent ('agent' binary) not found."
+        warn "Open Cursor IDE → Settings → Install 'agent' CLI tool, then press Enter."
+        read -r -p "Press Enter once installed, or Ctrl+C to abort..."
+        command -v agent >/dev/null 2>&1 || { warn "agent binary still not found — skipping Cursor (you can set up later)"; continue; }
+      fi
+      warn "Cursor auth is managed through the Cursor IDE — ensure you are signed in."
+      ok "Cursor: binary found"
+      ;;
+  esac
+done
+
+echo
+ok "CLI setup complete. Default provider: ${DEFAULT_CLI_PROVIDER}"
+echo
+
+# ── 4. Interactive prompts ────────────────────────────────────────────────────
 read -r -p "Admin email [admin@example.com]: " AUTH_EMAIL
 AUTH_EMAIL="${AUTH_EMAIL:-admin@example.com}"
 
@@ -67,7 +143,7 @@ if $PROD_MODE; then
 fi
 echo
 
-# ── 4. Generate secrets ───────────────────────────────────────────────────────
+# ── 5. Generate secrets ───────────────────────────────────────────────────────
 info "Generating secrets..."
 JWT_SECRET="$(openssl rand -base64 48)"
 TOKEN_ENCRYPTION_KEY="$(openssl rand -hex 32)"
@@ -81,7 +157,7 @@ fi
 ok "Secrets generated."
 echo
 
-# ── 5. Write .env ─────────────────────────────────────────────────────────────
+# ── 6. Write .env ─────────────────────────────────────────────────────────────
 ENV_FILE="$(pwd)/.env"
 
 if [[ -f "$ENV_FILE" ]]; then
@@ -112,7 +188,7 @@ LOG_LEVEL=info
 MAX_CONCURRENT_SESSIONS=16
 SESSION_IDLE_TIMEOUT_MS=3600000
 CLAUDE_CMD=claude
-ANTHROPIC_API_KEY=
+DEFAULT_CLI_PROVIDER=${DEFAULT_CLI_PROVIDER}
 GITHUB_TOKEN=
 GITHUB_WEBHOOK_SECRET=
 GITHUB_OAUTH_CLIENT_ID=
@@ -125,6 +201,7 @@ AUTH_EMAIL=${AUTH_EMAIL}
 AUTH_PASSWORD=${AUTH_PASSWORD}
 JWT_SECRET=${JWT_SECRET}
 TOKEN_ENCRYPTION_KEY=${TOKEN_ENCRYPTION_KEY}
+DEFAULT_CLI_PROVIDER=${DEFAULT_CLI_PROVIDER}
 EOF
 fi
 
@@ -132,14 +209,14 @@ chmod 600 "$ENV_FILE"
 ok ".env written."
 echo
 
-# ── 6. Start Docker services ──────────────────────────────────────────────────
+# ── 7. Start Docker services ──────────────────────────────────────────────────
 info "Starting Docker services..."
 docker compose -f "$COMPOSE_FILE" pull --quiet 2>/dev/null || true
 docker compose -f "$COMPOSE_FILE" up -d --build
 ok "Services started."
 echo
 
-# ── 7. Wait for DB ────────────────────────────────────────────────────────────
+# ── 8. Wait for DB ────────────────────────────────────────────────────────────
 info "Waiting for database to be healthy..."
 DB_USER_CHECK="meshagent"
 $PROD_MODE && DB_USER_CHECK="${DB_USER:-meshagent}"
@@ -157,13 +234,13 @@ $READY || die "Database did not become healthy within 60 seconds. Check: docker 
 ok "Database is ready."
 echo
 
-# ── 8. Run migrations ─────────────────────────────────────────────────────────
+# ── 9. Run migrations ─────────────────────────────────────────────────────────
 info "Running DB migrations..."
 docker compose -f "$COMPOSE_FILE" exec -T api sh -c "cd /app/packages/shared && pnpm run db:migrate"
 ok "Migrations complete."
 echo
 
-# ── 9. Success ────────────────────────────────────────────────────────────────
+# ── 10. Success ───────────────────────────────────────────────────────────────
 if $PROD_MODE; then
   APP_URL="https://${DOMAIN}"
 else
