@@ -419,7 +419,8 @@ export async function internalRoutes(fastify: FastifyInstance) {
 
     const prUrl = extractPrUrl(outputLog)
     const summary = buildSummary(outputLog)
-    const stage = success ? (prUrl ? 'review' : 'done') : 'in_progress'
+    // When success + prUrl, QG controls the final "done" transition — keep in_progress
+    const stage = success ? (prUrl ? 'in_progress' : 'done') : 'in_progress'
 
     // 1. Update task stage + save output as comment
     if (taskId) {
@@ -624,14 +625,53 @@ export async function internalRoutes(fastify: FastifyInstance) {
       handledByWave = false
     }
 
-    // Single-agent synthesis only when not part of a wave
+    // Single-agent completion — trigger QG if PR was created, otherwise synthesize
     if (!handledByWave) {
-      void synthesizeAfterCompletion(fastify, {
-        agentRole: role,
-        success,
-        summary,
-        prUrl,
-      })
+      if (success && prUrl && taskId) {
+        // Load task + project to get paths for QG
+        void (async () => {
+          try {
+            const [task] = await fastify.db
+              .select()
+              .from(tasks)
+              .where(eq(tasks.id, taskId))
+              .limit(1)
+            if (!task) return
+
+            let projectPaths: Record<string, string> = {}
+            let baseBranch = 'main'
+            if (task.projectId) {
+              const [proj] = await fastify.db
+                .select()
+                .from(projects)
+                .where(eq(projects.id, task.projectId))
+                .limit(1)
+              if (proj) {
+                projectPaths = (proj.paths as Record<string, string>) ?? {}
+                baseBranch = proj.baseBranch ?? 'main'
+              }
+            }
+
+            await triggerQualityGate(fastify, taskId, [prUrl], projectPaths, {
+              projectId: task.projectId ?? null,
+              baseBranch,
+              branchSuffix: Date.now().toString(36),
+              createdBy: 'system',
+              taskTitle: task.title ?? '',
+              taskDescription: task.description ?? '',
+            })
+          } catch (err) {
+            fastify.log.warn({ err, taskId }, 'Single-agent QG trigger failed — skipping')
+          }
+        })()
+      } else {
+        void synthesizeAfterCompletion(fastify, {
+          agentRole: role,
+          success,
+          summary,
+          prUrl,
+        })
+      }
     }
 
     return reply.status(200).send({ ok: true })
