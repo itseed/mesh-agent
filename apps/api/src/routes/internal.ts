@@ -1,7 +1,7 @@
 import { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 import { eq, and, ne, count } from 'drizzle-orm'
-import { tasks, taskComments, projects } from '@meshagent/shared'
+import { tasks, taskComments, taskActivities, projects } from '@meshagent/shared'
 import { env } from '../env.js'
 import { runLeadSynthesis, type LeadContextMessage } from '../lib/lead.js'
 import {
@@ -125,6 +125,23 @@ async function synthesizeAfterCompletion(
     await fastify.redis
       .publish(CHAT_CHANNEL, JSON.stringify({ type: 'lead-status', status: 'idle' }))
       .catch(() => {})
+  }
+}
+
+async function logTaskActivity(
+  fastify: FastifyInstance,
+  taskId: string,
+  type: string,
+  payload: Record<string, unknown>,
+): Promise<void> {
+  try {
+    await fastify.db.insert(taskActivities).values({ taskId, actorId: null, type, payload })
+    await fastify.redis.publish(
+      TASKS_CHANNEL,
+      JSON.stringify({ type: 'task.activity', taskId, activityType: type }),
+    )
+  } catch (err) {
+    fastify.log.warn({ err, taskId, type }, 'Failed to log task activity')
   }
 }
 
@@ -329,6 +346,17 @@ export async function internalRoutes(fastify: FastifyInstance) {
             const hasNextWave = state.currentWave + 1 < state.waves.length
             const evalResult = await runWaveEvaluation(state)
 
+            // Log wave.completed for root task (if any)
+            if (state.rootTaskId) {
+              const waveSuccess = state.completedSessions.every((s) => s.success)
+              const waveSummary = state.completedSessions.map((s) => `[${s.role}] ${s.summary}`).join('; ')
+              await logTaskActivity(fastify, state.rootTaskId, 'wave.completed', {
+                waveIndex: state.currentWave,
+                success: waveSuccess,
+                summary: waveSummary,
+              })
+            }
+
             if (!hasNextWave) {
               // Final wave complete
               await pushChatMessage(fastify, {
@@ -337,6 +365,11 @@ export async function internalRoutes(fastify: FastifyInstance) {
                 content: evalResult.message,
                 timestamp: Date.now(),
               })
+              if (state.rootTaskId) {
+                await logTaskActivity(fastify, state.rootTaskId, 'wave.done', {
+                  totalWaves: state.waves.length,
+                })
+              }
               await deleteWaveState(fastify.redis, proposalId)
             } else if (evalResult.ask) {
               // Lead unsure — surface to user, stop auto-progression
@@ -360,6 +393,12 @@ export async function internalRoutes(fastify: FastifyInstance) {
               state.currentWave = nextWaveIndex
               state.pendingSessions = newPending
               state.completedSessions = []   // fresh slate for next wave
+              if (state.rootTaskId) {
+                await logTaskActivity(fastify, state.rootTaskId, 'wave.dispatched', {
+                  waveIndex: nextWaveIndex,
+                  roles: state.waves[nextWaveIndex]?.roles.map((r) => r.slug) ?? [],
+                })
+              }
               if (newPending.length > 0) {
                 await updateWaveState(fastify.redis, state)
               } else {
