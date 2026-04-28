@@ -1,5 +1,9 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 220">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
   <defs>
+    <linearGradient id="capGrad" x1="100" y1="20" x2="100" y2="108" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#F0EAE0"/>
+      <stop offset="100%" stop-color="#D4C8B0"/>
+    </linearGradient>
     <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
       <feGaussianBlur stdDeviation="2.5" result="blur"/>
       <feMerge>
@@ -9,42 +13,28 @@
     </filter>
   </defs>
 
-  <!-- Mushroom cap (cream dome, ~130px wide, ~76px tall) -->
-  <ellipse cx="100" cy="62" rx="65" ry="38" fill="#F5F0E8"/>
+  <!-- Stem drawn first so cap naturally overlaps its top -->
+  <rect x="82" y="104" width="36" height="38" rx="6" fill="#A07840"/>
 
-  <!-- Cap highlight (subtle sheen) -->
-  <ellipse cx="88" cy="50" rx="28" ry="14" fill="white" opacity="0.22"/>
+  <!-- Mushroom cap — dominant dome, 180px wide, gradient warm off-white -->
+  <path d="M 10,90 C 10,5 190,5 190,90 Q 148,108 100,108 Q 52,108 10,90 Z"
+        fill="url(#capGrad)"/>
 
-  <!-- Cap spots (brown) -->
-  <circle cx="84" cy="50" r="8"   fill="#A08060" opacity="0.60"/>
-  <circle cx="118" cy="46" r="6"  fill="#A08060" opacity="0.60"/>
-  <circle cx="130" cy="66" r="7"  fill="#A08060" opacity="0.55"/>
-  <circle cx="71"  cy="68" r="5"  fill="#A08060" opacity="0.55"/>
+  <!-- Eyes on cap — horizontal ellipses, calm and focused -->
+  <ellipse cx="80"  cy="76" rx="11" ry="8" fill="#1A1A2E"/>
+  <ellipse cx="120" cy="76" rx="11" ry="8" fill="#1A1A2E"/>
 
-  <!-- Stem (~40px wide, ~50px tall, earthy) -->
-  <rect x="80" y="97" width="40" height="50" rx="8" fill="#C4956A"/>
+  <!-- Mycelium threads — symmetric 5-branch fan from stem base -->
+  <path d="M 100,142 Q 100,168 100,192"     fill="none" stroke="#3fb950" stroke-width="1" opacity="0.6"/>
+  <path d="M 93,142  Q 76,165 65,186"       fill="none" stroke="#3fb950" stroke-width="1" opacity="0.6"/>
+  <path d="M 87,140  Q 58,160 36,176"       fill="none" stroke="#3fb950" stroke-width="1" opacity="0.6"/>
+  <path d="M 107,142 Q 124,165 135,186"     fill="none" stroke="#3fb950" stroke-width="1" opacity="0.6"/>
+  <path d="M 113,140 Q 142,160 164,176"     fill="none" stroke="#3fb950" stroke-width="1" opacity="0.6"/>
 
-  <!-- Face — just below cap rim -->
-  <!-- Left eye -->
-  <circle cx="88"  cy="116" r="9" fill="white"/>
-  <circle cx="88"  cy="116" r="5" fill="#0d1117"/>
-  <!-- Right eye -->
-  <circle cx="112" cy="116" r="9" fill="white"/>
-  <circle cx="112" cy="116" r="5" fill="#0d1117"/>
-  <!-- Smile arc -->
-  <path d="M86,128 Q100,139 114,128" fill="none" stroke="#0d1117" stroke-width="2" stroke-linecap="round"/>
-
-  <!-- Mycelium threads from stem base (5 quadratic bezier curves) -->
-  <path d="M 90,147 Q 64,163 38,180"  fill="none" stroke="#4DFFB4" stroke-width="1.5" opacity="0.7"/>
-  <path d="M 85,144 Q 50,150 22,163"  fill="none" stroke="#4DFFB4" stroke-width="1.5" opacity="0.7"/>
-  <path d="M 100,147 Q 100,178 100,210" fill="none" stroke="#4DFFB4" stroke-width="1.5" opacity="0.7"/>
-  <path d="M 115,144 Q 150,150 178,163" fill="none" stroke="#4DFFB4" stroke-width="1.5" opacity="0.7"/>
-  <path d="M 110,147 Q 136,163 162,180" fill="none" stroke="#4DFFB4" stroke-width="1.5" opacity="0.7"/>
-
-  <!-- Agent node dots (glowing endpoints) -->
-  <circle cx="38"  cy="180" r="4" fill="#58a6ff" filter="url(#glow)"/>
-  <circle cx="22"  cy="163" r="4" fill="#3fb950" filter="url(#glow)"/>
-  <circle cx="100" cy="210" r="4" fill="#d2a8ff" filter="url(#glow)"/>
-  <circle cx="178" cy="163" r="4" fill="#f0883e" filter="url(#glow)"/>
-  <circle cx="162" cy="180" r="4" fill="#4DFFB4" filter="url(#glow)"/>
+  <!-- Agent node endpoints — glowing, palette colors -->
+  <circle cx="100" cy="192" r="3.5" fill="#d2a8ff" filter="url(#glow)"/>
+  <circle cx="65"  cy="186" r="3.5" fill="#3fb950"  filter="url(#glow)"/>
+  <circle cx="36"  cy="176" r="3.5" fill="#58a6ff"  filter="url(#glow)"/>
+  <circle cx="135" cy="186" r="3.5" fill="#f0883e"  filter="url(#glow)"/>
+  <circle cx="164" cy="176" r="3.5" fill="#4DFFB4"  filter="url(#glow)"/>
 </svg>
