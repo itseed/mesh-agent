@@ -4,8 +4,10 @@ import { eq } from 'drizzle-orm'
 import { execSync, execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import { rmSync, existsSync } from 'node:fs'
+import { readFile } from 'node:fs/promises'
+import { join } from 'node:path'
 import path from 'node:path'
-import { projects, tasks } from '@meshagent/shared'
+import { projects, tasks, projectContext } from '@meshagent/shared'
 import { resolveGitHubClient } from '../lib/github-client.js'
 import { env } from '../env.js'
 
@@ -157,5 +159,61 @@ export async function projectRoutes(fastify: FastifyInstance) {
     await fastify.db.delete(tasks).where(eq(tasks.projectId, id))
     await fastify.db.delete(projects).where(eq(projects.id, id))
     return reply.status(204).send()
+  })
+
+  fastify.get('/projects/:id/context', { preHandler }, async (request, reply) => {
+    const { id } = request.params as { id: string }
+    const [ctx] = await fastify.db
+      .select()
+      .from(projectContext)
+      .where(eq(projectContext.projectId, id))
+      .limit(1)
+    return ctx ?? { projectId: id, brief: '', autoContext: '', updatedAt: null }
+  })
+
+  fastify.post('/projects/:id/context', { preHandler }, async (request, reply) => {
+    const { id } = request.params as { id: string }
+    const { brief = '' } = (request.body ?? {}) as { brief?: string }
+
+    // Load project to find read directory
+    const [project] = await fastify.db
+      .select()
+      .from(projects)
+      .where(eq(projects.id, id))
+      .limit(1)
+    if (!project) return reply.status(404).send({ error: 'Project not found' })
+
+    const readDir =
+      project.workspacePath ??
+      Object.values(project.paths as Record<string, string> ?? {})[0] ??
+      null
+
+    // Auto-read CLAUDE.md + README.md (best-effort)
+    let autoContext = ''
+    if (readDir) {
+      const candidates = ['CLAUDE.md', 'README.md']
+      const chunks: string[] = []
+      for (const filename of candidates) {
+        try {
+          const content = await readFile(join(readDir, filename), 'utf-8')
+          if (content.trim()) chunks.push(content.trim())
+          if (chunks.join('\n\n').length >= 4000) break
+        } catch {
+          // file not found or unreadable — skip
+        }
+      }
+      autoContext = chunks.join('\n\n---\n\n').slice(0, 4000)
+    }
+
+    // Upsert projectContext row
+    await fastify.db
+      .insert(projectContext)
+      .values({ projectId: id, brief: brief.trim(), autoContext, updatedAt: new Date() })
+      .onConflictDoUpdate({
+        target: projectContext.projectId,
+        set: { brief: brief.trim(), autoContext, updatedAt: new Date() },
+      })
+
+    return { ok: true, autoContext }
   })
 }
