@@ -457,22 +457,47 @@ export function CommandBar() {
             {leadThinking && <LeadThinkingBubble />}
           </div>
 
-          {/* Project selector */}
-          {projects.length > 0 && (
-            <div className="px-3 pt-2 pb-0 border-t border-border flex items-center gap-2">
-              <span className="text-[11px] text-dim shrink-0">Project:</span>
-              <select
-                value={selectedProjectId}
-                onChange={e => setSelectedProjectId(e.target.value)}
-                className="flex-1 bg-canvas border border-border text-text text-[12px] rounded px-2 py-1 focus:border-accent/60 min-w-0"
+          {/* Project selector + execution mode */}
+          <div className="px-3 pt-2 pb-0 border-t border-border flex items-center gap-2">
+            {projects.length > 0 && (
+              <>
+                <span className="text-[11px] text-dim shrink-0">Project:</span>
+                <select
+                  value={selectedProjectId}
+                  onChange={e => setSelectedProjectId(e.target.value)}
+                  className="flex-1 bg-canvas border border-border text-text text-[12px] rounded px-2 py-1 focus:border-accent/60 min-w-0"
+                >
+                  <option value="">— ไม่ระบุ —</option>
+                  {projects.map((p: any) => (
+                    <option key={p.id} value={p.id}>{p.name}</option>
+                  ))}
+                </select>
+              </>
+            )}
+            <div className="ml-auto flex items-center gap-0.5 rounded-lg bg-canvas border border-border p-0.5 shrink-0">
+              <button
+                type="button"
+                onClick={() => setExecutionMode('cloud')}
+                title="Cloud execution"
+                className={`flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium transition-colors ${
+                  executionMode === 'cloud' ? 'bg-accent/20 text-accent' : 'text-dim hover:text-muted'
+                }`}
               >
-                <option value="">— ไม่ระบุ —</option>
-                {projects.map((p: any) => (
-                  <option key={p.id} value={p.id}>{p.name}</option>
-                ))}
-              </select>
+                ☁ Cloud
+              </button>
+              <button
+                type="button"
+                onClick={() => setExecutionMode('local')}
+                disabled={!companionConnected}
+                title={companionConnected ? 'Local execution' : 'Companion not connected'}
+                className={`flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium transition-colors disabled:opacity-30 disabled:cursor-not-allowed ${
+                  executionMode === 'local' ? 'bg-accent/20 text-accent' : 'text-dim hover:text-muted'
+                }`}
+              >
+                💻 Local
+              </button>
             </div>
-          )}
+          </div>
 
           {/* Attachments preview */}
           {(attachments.length > 0 || textFiles.length > 0) && (
@@ -550,29 +575,6 @@ export function CommandBar() {
                   fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
               </svg>
             </button>
-            <div className="flex items-center gap-0.5 rounded-lg bg-canvas border border-border p-0.5 shrink-0 self-end mb-0.5">
-              <button
-                type="button"
-                onClick={() => setExecutionMode('cloud')}
-                title="Cloud execution"
-                className={`flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium transition-colors ${
-                  executionMode === 'cloud' ? 'bg-accent/20 text-accent' : 'text-dim hover:text-muted'
-                }`}
-              >
-                ☁ Cloud
-              </button>
-              <button
-                type="button"
-                onClick={() => setExecutionMode('local')}
-                disabled={!companionConnected}
-                title={companionConnected ? 'Local execution' : 'Companion not connected'}
-                className={`flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium transition-colors disabled:opacity-30 disabled:cursor-not-allowed ${
-                  executionMode === 'local' ? 'bg-accent/20 text-accent' : 'text-dim hover:text-muted'
-                }`}
-              >
-                💻 Local
-              </button>
-            </div>
             <textarea
               placeholder="พิมพ์คำสั่งให้ Lead… (Enter เพื่อส่ง, Shift+Enter ขึ้นบรรทัดใหม่)"
               value={message}
