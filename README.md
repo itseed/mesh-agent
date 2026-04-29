@@ -56,6 +56,16 @@ graph TB
 
     GitHub -->|webhook| API
     API -->|Octokit| GitHub
+
+    subgraph Local["User Machine (Local Execution)"]
+        CompanionCLI["mesh-companion CLI"]
+        LocalAgent["Agent (claude/gemini local)"]
+        LocalFiles["Local Files"]
+    end
+
+    API -->|WebSocket tunnel| CompanionCLI
+    CompanionCLI -->|agent.spawn| LocalAgent
+    LocalAgent -->|read/write| LocalFiles
 ```
 
 ---
@@ -86,6 +96,9 @@ graph TB
 | **CLI Provider Selection** | เลือก claude / gemini / cursor ต่อ agent session จาก Agents page |
 | **Provider Breakdown** | Overview page แสดง sessions, success rate, avg duration แยกต่อ CLI provider |
 | **Repo Lifecycle** | Auto clone + git worktree ต่อ task, cleanup หลัง session จบ |
+| **Companion** | mesh-companion CLI เชื่อม local machine กับ platform ผ่าน WebSocket tunnel — ติดตั้งครั้งเดียว connect ได้ทุกที่ |
+| **Local Execution** | Cloud/Local toggle ใน chat — Local mode: agent รันบนเครื่องของคุณ แก้ไฟล์ local โดยตรง ไม่ต้อง commit/push |
+| **Folder Browser** | Browse filesystem ผ่าน companion เพื่อ set local project paths แบบ drag & drop |
 
 ---
 
@@ -126,6 +139,37 @@ bash scripts/install.sh
 เปิด [http://localhost:4800](http://localhost:4800) แล้ว login ด้วย `AUTH_EMAIL` และ `AUTH_PASSWORD` ที่ตั้งระหว่าง install
 
 ![Login](docs/screenshots/login.png)
+
+---
+
+## mesh-companion (Local Execution)
+
+mesh-companion คือ CLI ที่รันบนเครื่องของคุณ เชื่อมต่อกับ MeshAgent platform ผ่าน WebSocket tunnel ให้ agent รันโดยตรงบน local machine และ browse filesystem ผ่าน UI
+
+### ติดตั้ง
+
+```bash
+npm install -g https://github.com/itseed/mesh-agent/releases/download/v0.1.3/meshagent-companion-0.1.3.tgz
+```
+
+### เชื่อมต่อ
+
+1. ไปที่ **Settings → Companion** แล้วกด **Generate Token**
+2. Copy token แล้วรัน:
+
+```bash
+mesh-companion connect http://localhost:4801 --token <your-token>
+```
+
+> Production: เปลี่ยน localhost:4801 เป็น URL ของ server
+
+### ใช้งาน Local Mode
+
+เมื่อ companion connected:
+- Chat input จะมี toggle **☁ Cloud / 💻 Local**
+- เลือก **Local** → agent spawn บนเครื่องของคุณ แก้ไฟล์ local โดยตรง
+- เลือก **Cloud** → agent รันบน server เหมือนเดิม
+- ตั้ง **LOCAL PATHS** ใน project settings (via Folder Browser) เพื่อให้แต่ละ role รู้ working directory ที่ถูกต้อง
 
 ---
 
@@ -380,7 +424,14 @@ meshagent/
 │           └── ws/             # WebSocket handler + pub/sub
 ├── packages/
 │   ├── shared/                 # Types + Drizzle schema (shared)
-│   └── orchestrator/           # Agent session manager
+│   ├── companion/              # mesh-companion CLI
+│   │   └── src/
+│   │       ├── cli.ts          # CLI entrypoint (connect command)
+│   │       ├── client.ts       # WebSocket JSON-RPC client + handler registry
+│   │       └── handlers/
+│   │           ├── fs.ts       # fs.list, fs.stat, fs.homedir
+│   │           └── agent.ts    # agent.spawn, agent.stdout, agent.kill
+│   └── orchestrator/           # Agent session manager (cloud)
 │       └── src/
 │           ├── session.ts      # AgentSession (subprocess + streaming + CLI provider)
 │           ├── manager.ts      # SessionManager + worktree cleanup
@@ -478,6 +529,27 @@ sequenceDiagram
     API-->>Web: subtasks created (WebSocket push)
 ```
 
+### Local Execution Flow
+
+```mermaid
+sequenceDiagram
+    actor User
+    participant Web as Next.js
+    participant API as Fastify API
+    participant CM as CompanionManager
+    participant Comp as mesh-companion (local)
+    participant CLI as Claude/Gemini (local)
+
+    User->>Web: เลือก Local mode + ส่ง message
+    Web->>API: POST /chat { message, executionMode: 'local' }
+    API->>CM: companionManager.call(userId, 'agent.spawn', { sessionId, workingDir, prompt })
+    CM->>Comp: JSON-RPC over WebSocket
+    Comp->>CLI: spawn claude --dangerously-skip-permissions --print
+    CLI-->>Comp: stdout (local files modified directly)
+    Comp-->>CM: { sessionId }
+    API-->>Web: agent session created
+```
+
 ### Authentication Flow
 
 ```mermaid
@@ -507,5 +579,5 @@ sequenceDiagram
 
 ## Roadmap
 
-- **v1** — Server-based platform (current)
-- **v2** — Local Companion CLI (hybrid mode: agents รันบน local machine ผ่าน WebSocket tunnel)
+- **v1** — Server-based platform ✅
+- **v2** — Local Companion: agents รันบน local machine ผ่าน WebSocket tunnel ✅
