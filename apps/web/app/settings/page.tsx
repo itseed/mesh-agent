@@ -536,7 +536,7 @@ function SettingsPageInner() {
               <div className="text-[13px] font-semibold text-text mb-3">Install &amp; connect</div>
               <pre className="bg-surface-2 border border-border rounded-lg p-3 text-[11px] text-success font-mono whitespace-pre overflow-x-auto">
 {`npm install -g @meshagent/companion
-mesh-companion connect ${typeof window !== 'undefined' ? window.location.origin : 'https://your-server.com'} --token <your-token>`}
+mesh-companion connect ${process.env.NEXT_PUBLIC_API_URL ?? 'https://your-api.com'} --token <your-token>`}
               </pre>
             </div>
           </div>
