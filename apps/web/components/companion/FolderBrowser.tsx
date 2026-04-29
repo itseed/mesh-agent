@@ -32,15 +32,14 @@ export function FolderBrowser({ initialPath = '/' }: FolderBrowserProps) {
     try {
       const res = await api.companion.fsList(path)
       setEntries(res.entries)
-      setCurrentPath(path)
-    } catch (e: any) {
-      setError(e.message ?? 'Failed to load directory')
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Failed to load directory')
     } finally {
       setLoading(false)
     }
   }, [])
 
-  useEffect(() => { load(currentPath) }, [])  // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { load(currentPath) }, [currentPath, load])
 
   const crumbs = buildBreadcrumbs(currentPath)
 
@@ -53,7 +52,7 @@ export function FolderBrowser({ initialPath = '/' }: FolderBrowserProps) {
             {i > 0 && <span className="text-dim text-[11px]">/</span>}
             <button
               type="button"
-              onClick={() => load(crumb.path)}
+              onClick={() => setCurrentPath(crumb.path)}
               className={`text-[11px] hover:text-accent transition-colors ${
                 i === crumbs.length - 1 ? 'text-text font-medium' : 'text-muted'
               }`}
@@ -98,7 +97,7 @@ export function FolderBrowser({ initialPath = '/' }: FolderBrowserProps) {
                     e.dataTransfer.setData('text/plain', fullPath)
                     e.dataTransfer.effectAllowed = 'copy'
                   } : undefined}
-                  onClick={isDir ? () => load(fullPath) : undefined}
+                  onClick={isDir ? () => setCurrentPath(fullPath) : undefined}
                   className={`flex items-center gap-2 px-2 py-1.5 rounded text-[12px] transition-colors ${
                     isDir
                       ? 'cursor-grab active:cursor-grabbing hover:bg-surface-2 text-text'
