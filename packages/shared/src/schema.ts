@@ -207,12 +207,18 @@ export const agentOutcomes = pgTable(
   }),
 )
 
-export const companionTokens = pgTable('companion_tokens', {
-  id:         text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
-  userId:     text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
-  label:      text('label').notNull().default('default'),
-  tokenHash:  text('token_hash').notNull(),
-  prefix:     text('prefix').notNull(),
-  createdAt:  timestamp('created_at').notNull().defaultNow(),
-  lastSeenAt: timestamp('last_seen_at'),
-})
+export const companionTokens = pgTable(
+  'companion_tokens',
+  {
+    id:         text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+    userId:     text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+    label:      text('label').notNull().default('default'),
+    tokenHash:  text('token_hash').notNull().unique(),
+    prefix:     text('prefix').notNull(),
+    createdAt:  timestamp('created_at').notNull().defaultNow(),
+    lastSeenAt: timestamp('last_seen_at'),
+  },
+  (t) => ({
+    userIdx: index('companion_tokens_user_idx').on(t.userId),
+  }),
+)

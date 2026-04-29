@@ -64,6 +64,13 @@
       "when": 1746118400000,
       "tag": "0008_companion_tokens",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1746204800000,
+      "tag": "0009_companion_tokens_fix",
+      "breakpoints": true
     }
   ]
 }
