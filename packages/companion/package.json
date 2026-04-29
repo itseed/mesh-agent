@@ -1,10 +1,10 @@
 {
   "name": "@meshagent/companion",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "MeshAgent local companion daemon",
   "type": "module",
   "bin": {
-    "mesh-companion": "./dist/cli.js"
+    "mesh-companion": "dist/cli.js"
   },
   "scripts": {
     "build": "tsc",
