@@ -35,6 +35,7 @@ const sendSchema = z.object({
   workingDir: z.string().max(1024).optional(),
   projectId: z.string().optional(),
   images: z.array(imageSchema).max(8).optional(),
+  executionMode: z.enum(['cloud', 'local']).optional().default('cloud'),
 })
 
 const dispatchSchema = z.object({
@@ -55,8 +56,9 @@ interface StoredProposal {
   workingDir: string
   baseBranch: string
   roles: { slug: string; reason?: string }[]
-  waves: LeadWave[]                              // NEW
+  waves: LeadWave[]
   taskBrief: { title: string; description: string }
+  executionMode: 'cloud' | 'local'
 }
 
 interface ProposalView {
@@ -392,8 +394,9 @@ export async function chatRoutes(fastify: FastifyInstance) {
         workingDir: ctx.workingDir,
         baseBranch: ctx.baseBranch,
         roles: decision.roles,
-        waves: decision.waves ?? [],       // NEW
+        waves: decision.waves ?? [],
         taskBrief: decision.taskBrief,
+        executionMode: body.executionMode ?? 'cloud',
       }
       await storeProposal(fastify, proposal)
       proposalView = toProposalView(proposal)
@@ -491,7 +494,9 @@ export async function chatRoutes(fastify: FastifyInstance) {
         continue
       }
 
-      const agentWorkingDir = projectPaths[r.slug] ?? Object.values(projectPaths)[0] ?? proposal.workingDir
+      const agentWorkingDir = proposal.executionMode === 'local'
+        ? (projectPaths[r.slug] ?? Object.values(projectPaths)[0] ?? proposal.workingDir)
+        : (projectPaths[r.slug] ?? Object.values(projectPaths)[0] ?? proposal.workingDir)
 
       const [task] = await fastify.db
         .insert(tasks)
@@ -516,6 +521,9 @@ export async function chatRoutes(fastify: FastifyInstance) {
         taskId: task?.id ?? null,
         createdBy: userId,
         cliProvider: body.cli,
+        executionMode: proposal.executionMode,
+        userId,
+        db: fastify.db,
       }, role?.systemPrompt ?? undefined)
 
       if (!result.id && task?.id) {
