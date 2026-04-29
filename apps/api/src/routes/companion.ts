@@ -131,6 +131,8 @@ export async function companionRoutes(fastify: FastifyInstance) {
     } catch (err: any) {
       if (err.message === 'No companion connected for this user')
         return reply.status(503).send({ error: 'Companion not connected' })
+      if (err.message?.startsWith('Companion RPC timeout') || err.message?.startsWith('Failed to send RPC'))
+        return reply.status(500).send({ error: 'Request timed out' })
       return reply.status(500).send({ error: err.message })
     }
   })
@@ -149,6 +151,8 @@ export async function companionRoutes(fastify: FastifyInstance) {
     } catch (err: any) {
       if (err.message === 'No companion connected for this user')
         return reply.status(503).send({ error: 'Companion not connected' })
+      if (err.message?.startsWith('Companion RPC timeout') || err.message?.startsWith('Failed to send RPC'))
+        return reply.status(500).send({ error: 'Request timed out' })
       return reply.status(500).send({ error: err.message })
     }
   })

@@ -112,6 +112,14 @@ describe('Companion fs proxy routes', () => {
     expect(res.statusCode).toBe(400)
   })
 
+  it('GET /companion/fs/stat returns 400 when path is missing', async () => {
+    const res = await server.inject({
+      method: 'GET', url: '/companion/fs/stat',
+      headers: { authorization: `Bearer ${adminToken}` },
+    })
+    expect(res.statusCode).toBe(400)
+  })
+
   it('GET /companion/fs/list returns 401 without auth', async () => {
     const res = await server.inject({ method: 'GET', url: '/companion/fs/list?path=/' })
     expect(res.statusCode).toBe(401)
