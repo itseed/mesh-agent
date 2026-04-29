@@ -475,6 +475,8 @@ function SettingsPageInner() {
                       const [status, tokens] = await Promise.all([api.companion.status(), api.companion.listTokens()])
                       setCompanionStatus(status)
                       setCompanionTokens(tokens)
+                    } catch (e: any) {
+                      setError(e.message ?? 'Failed to generate token')
                     } finally {
                       setGeneratingToken(false)
                     }
@@ -501,9 +503,13 @@ function SettingsPageInner() {
                     )}
                     <button
                       onClick={async () => {
-                        await api.companion.revokeToken(companionTokens[0].id)
-                        setNewToken(null)
-                        setCompanionTokens(await api.companion.listTokens())
+                        try {
+                          await api.companion.revokeToken(companionTokens[0].id)
+                          setNewToken(null)
+                          setCompanionTokens(await api.companion.listTokens())
+                        } catch (e: any) {
+                          setError(e.message ?? 'Failed to revoke token')
+                        }
                       }}
                       className="text-[11px] text-danger hover:text-danger/80"
                     >
