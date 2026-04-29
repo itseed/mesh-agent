@@ -127,6 +127,14 @@ function SettingsPageInner() {
   useEffect(() => { refresh() }, [refresh])
 
   useEffect(() => {
+    api.companion.status().then(s => setCompanionStatus(s)).catch(() => {})
+    const interval = setInterval(() => {
+      api.companion.status().then(s => setCompanionStatus(s)).catch(() => {})
+    }, 5000)
+    return () => clearInterval(interval)
+  }, [])
+
+  useEffect(() => {
     if (searchParams.get('connected') === '1') setInfo('เชื่อมต่อ GitHub สำเร็จแล้ว')
   }, [searchParams])
 
