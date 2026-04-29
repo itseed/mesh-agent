@@ -70,3 +70,50 @@ describe('Companion token routes', () => {
     expect(res.statusCode).toBe(401)
   })
 })
+
+describe('Companion fs proxy routes', () => {
+  let server: Awaited<ReturnType<typeof buildServer>>
+  let adminToken: string
+
+  beforeAll(async () => {
+    server = await buildServer()
+    const res = await server.inject({
+      method: 'POST', url: '/auth/login',
+      payload: { email: 'admin@example.com', password: 'changeme123' },
+    })
+    adminToken = res.json().token
+  })
+
+  afterAll(async () => { await server.close() })
+
+  it('GET /companion/fs/list returns 503 when no companion connected', async () => {
+    const res = await server.inject({
+      method: 'GET', url: '/companion/fs/list?path=/',
+      headers: { authorization: `Bearer ${adminToken}` },
+    })
+    expect(res.statusCode).toBe(503)
+    expect(res.json().error).toBe('Companion not connected')
+  })
+
+  it('GET /companion/fs/stat returns 503 when no companion connected', async () => {
+    const res = await server.inject({
+      method: 'GET', url: '/companion/fs/stat?path=/',
+      headers: { authorization: `Bearer ${adminToken}` },
+    })
+    expect(res.statusCode).toBe(503)
+    expect(res.json().error).toBe('Companion not connected')
+  })
+
+  it('GET /companion/fs/list returns 400 when path is missing', async () => {
+    const res = await server.inject({
+      method: 'GET', url: '/companion/fs/list',
+      headers: { authorization: `Bearer ${adminToken}` },
+    })
+    expect(res.statusCode).toBe(400)
+  })
+
+  it('GET /companion/fs/list returns 401 without auth', async () => {
+    const res = await server.inject({ method: 'GET', url: '/companion/fs/list?path=/' })
+    expect(res.statusCode).toBe(401)
+  })
+})

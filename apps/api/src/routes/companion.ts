@@ -116,4 +116,40 @@ export async function companionRoutes(fastify: FastifyInstance) {
       )
     })
   })
+
+  // Proxy fs.list to companion daemon
+  fastify.get('/companion/fs/list', { preHandler }, async (request, reply) => {
+    const { id: userId } = request.user as { id: string }
+    const parseResult = z.object({ path: z.string().min(1) }).safeParse(request.query)
+    if (!parseResult.success) return reply.status(400).send({ error: 'path query param required' })
+    const { path } = parseResult.data
+    try {
+      const result = await companionManager.call<{ entries: { name: string; type: string }[] }>(
+        userId, 'fs.list', { path }
+      )
+      return result
+    } catch (err: any) {
+      if (err.message === 'No companion connected for this user')
+        return reply.status(503).send({ error: 'Companion not connected' })
+      return reply.status(500).send({ error: err.message })
+    }
+  })
+
+  // Proxy fs.stat to companion daemon
+  fastify.get('/companion/fs/stat', { preHandler }, async (request, reply) => {
+    const { id: userId } = request.user as { id: string }
+    const parseResult = z.object({ path: z.string().min(1) }).safeParse(request.query)
+    if (!parseResult.success) return reply.status(400).send({ error: 'path query param required' })
+    const { path } = parseResult.data
+    try {
+      const result = await companionManager.call<{ exists: boolean; readable: boolean; type: string | null }>(
+        userId, 'fs.stat', { path }
+      )
+      return result
+    } catch (err: any) {
+      if (err.message === 'No companion connected for this user')
+        return reply.status(503).send({ error: 'Companion not connected' })
+      return reply.status(500).send({ error: err.message })
+    }
+  })
 }
