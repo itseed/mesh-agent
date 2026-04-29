@@ -4,6 +4,7 @@ import { useSearchParams } from 'next/navigation'
 import { AppShell } from '@/components/layout/AppShell'
 import { AuthGuard } from '@/components/layout/AuthGuard'
 import { api } from '@/lib/api'
+import { SettingsSkeleton } from '@/components/skeletons/SettingsSkeleton'
 
 interface GhStatus {
   connected: boolean
@@ -22,7 +23,7 @@ const PROVIDER_LOGIN_INSTRUCTIONS: Record<string, string> = {
 
 export default function SettingsPage() {
   return (
-    <Suspense fallback={null}>
+    <Suspense fallback={<SettingsSkeleton />}>
       <SettingsPageInner />
     </Suspense>
   )
