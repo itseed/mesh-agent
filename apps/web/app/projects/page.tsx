@@ -639,6 +639,7 @@ export default function ProjectsPage() {
     setERepos(project.githubRepos ?? [])
     setEPaths(pathsToEntries(project.paths))
     setBrowserOpen(false)
+    setDropTargetIdx(null)
     api.companion.status()
       .then(s => setCompanionConnected(s.connected))
       .catch(() => setCompanionConnected(false))
