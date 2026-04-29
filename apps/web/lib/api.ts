@@ -271,4 +271,17 @@ export const api = {
         costUsd: number
       }>('/metrics/tokens'),
   },
+  companion: {
+    listTokens: () =>
+      request<{ id: string; label: string; prefix: string; createdAt: string; lastSeenAt: string | null }[]>('/companion/tokens'),
+    createToken: (label = 'default') =>
+      request<{ id: string; prefix: string; token: string }>('/companion/tokens', {
+        method: 'POST',
+        body: JSON.stringify({ label }),
+      }),
+    revokeToken: (id: string) =>
+      request<{ ok: boolean }>(`/companion/tokens/${id}`, { method: 'DELETE' }),
+    status: () =>
+      request<{ connected: boolean; connectedAt: string | null }>('/companion/status'),
+  },
 }
