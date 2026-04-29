@@ -11,7 +11,9 @@ export interface FsStatResult { exists: boolean; readable: boolean; type: 'dir' 
 function safePath(p: string): string {
   const resolved = path.resolve(p)
   const home = os.homedir()
-  if (!resolved.startsWith(home) && resolved !== '/') {
+  const inHome = resolved === home || resolved.startsWith(home + '/')
+  const isAncestor = resolved === '/' || home.startsWith(resolved + '/')
+  if (!inHome && !isAncestor) {
     throw new Error('Path outside allowed root')
   }
   return resolved
