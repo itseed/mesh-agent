@@ -31,7 +31,7 @@ export default function SettingsPage() {
 
 function SettingsPageInner() {
   const searchParams = useSearchParams()
-  const [activeTab, setActiveTab] = useState<'skills' | 'github' | 'providers'>('providers')
+  const [activeTab, setActiveTab] = useState<'skills' | 'github' | 'providers' | 'companion'>('providers')
 
   const [status, setStatus] = useState<GhStatus | null>(null)
   const [tokenInput, setTokenInput] = useState('')
@@ -61,6 +61,13 @@ function SettingsPageInner() {
   const [savingToken, setSavingToken] = useState(false)
   const [tokenInfo, setTokenInfo] = useState('')
   const [tokenError, setTokenError] = useState('')
+
+  // Companion tab state
+  const [companionStatus, setCompanionStatus] = useState<{ connected: boolean; connectedAt: string | null } | null>(null)
+  const [companionTokens, setCompanionTokens] = useState<{ id: string; label: string; prefix: string; lastSeenAt: string | null }[]>([])
+  const [generatingToken, setGeneratingToken] = useState(false)
+  const [newToken, setNewToken] = useState<string | null>(null)
+  const [copiedToken, setCopiedToken] = useState(false)
 
   // Claude CLI tab state
   const [cliTesting, setCliTesting] = useState(false)
@@ -104,6 +111,14 @@ function SettingsPageInner() {
       } catch {
         // keep whatever state providers is in
       }
+
+      // Load companion status + tokens
+      const [compStatus, compTokens] = await Promise.all([
+        api.companion.status().catch(() => null),
+        api.companion.listTokens().catch(() => []),
+      ])
+      setCompanionStatus(compStatus)
+      setCompanionTokens(compTokens)
     } catch (e: any) {
       setError(e.message)
     }
@@ -237,7 +252,7 @@ function SettingsPageInner() {
 
           {/* Tab bar */}
           <div className="flex gap-0 mb-6 border-b border-border">
-            {([['providers', 'CLI'], ['skills', 'Agent Skills'], ['github', 'GitHub']] as const).map(([id, label]) => (
+            {([['providers', 'CLI'], ['skills', 'Agent Skills'], ['github', 'GitHub'], ['companion', 'Companion']] as const).map(([id, label]) => (
               <button
                 key={id}
                 onClick={() => setActiveTab(id)}
@@ -430,6 +445,87 @@ function SettingsPageInner() {
               ))}
             </div>
           </section>
+          )}
+
+          {/* Companion tab */}
+          {activeTab === 'companion' && (
+          <div className="space-y-4">
+            {/* Connection status */}
+            <div className="bg-surface border border-border rounded-xl p-5">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <div className="text-[14px] font-semibold text-text">Local Companion</div>
+                  <div className="text-[12px] text-muted mt-0.5">Connect your local machine to run agents locally</div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className={`w-2 h-2 rounded-full ${companionStatus?.connected ? 'bg-success shadow-[0_0_6px_#3fb950]' : 'bg-dim'}`} />
+                  <span className={`text-[12px] ${companionStatus?.connected ? 'text-success' : 'text-dim'}`}>
+                    {companionStatus?.connected ? 'Connected' : 'Not connected'}
+                  </span>
+                </div>
+              </div>
+
+              {companionTokens.length === 0 ? (
+                <button
+                  onClick={async () => {
+                    setGeneratingToken(true)
+                    try {
+                      const res = await api.companion.createToken('default')
+                      setNewToken(res.token)
+                      const [status, tokens] = await Promise.all([api.companion.status(), api.companion.listTokens()])
+                      setCompanionStatus(status)
+                      setCompanionTokens(tokens)
+                    } finally {
+                      setGeneratingToken(false)
+                    }
+                  }}
+                  disabled={generatingToken}
+                  className="w-full py-2 text-[13px] bg-accent/10 hover:bg-accent/20 text-accent border border-accent/30 rounded-lg transition-colors disabled:opacity-50"
+                >
+                  {generatingToken ? 'Generating...' : '+ Generate token'}
+                </button>
+              ) : (
+                <div className="bg-surface-2 border border-border rounded-lg p-3 space-y-2">
+                  <div className="text-[11px] text-muted mb-1">Connection token</div>
+                  <div className="flex items-center gap-2">
+                    <code className="flex-1 text-[12px] text-text font-mono">
+                      {newToken ?? `${companionTokens[0].prefix}••••••••••`}
+                    </code>
+                    {newToken && (
+                      <button
+                        onClick={() => { navigator.clipboard.writeText(newToken); setCopiedToken(true); setTimeout(() => setCopiedToken(false), 2000) }}
+                        className="text-[11px] text-accent hover:text-accent/80"
+                      >
+                        {copiedToken ? 'Copied!' : 'Copy'}
+                      </button>
+                    )}
+                    <button
+                      onClick={async () => {
+                        await api.companion.revokeToken(companionTokens[0].id)
+                        setNewToken(null)
+                        setCompanionTokens(await api.companion.listTokens())
+                      }}
+                      className="text-[11px] text-danger hover:text-danger/80"
+                    >
+                      Revoke
+                    </button>
+                  </div>
+                  {newToken && (
+                    <p className="text-[11px] text-warning">Save this token — it won&apos;t be shown again.</p>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Install instructions */}
+            <div className="bg-surface border border-border rounded-xl p-5">
+              <div className="text-[13px] font-semibold text-text mb-3">Install &amp; connect</div>
+              <pre className="bg-surface-2 border border-border rounded-lg p-3 text-[11px] text-success font-mono whitespace-pre overflow-x-auto">
+{`npm install -g @meshagent/companion
+mesh-companion connect ${typeof window !== 'undefined' ? window.location.origin : 'https://your-server.com'} --token <your-token>`}
+              </pre>
+            </div>
+          </div>
           )}
 
           {/* CLI Providers tab */}
