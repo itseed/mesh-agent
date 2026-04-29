@@ -145,7 +145,7 @@ export async function companionRoutes(fastify: FastifyInstance) {
     if (!parseResult.success) return reply.status(400).send({ error: 'path query param required' })
     const { path } = parseResult.data
     try {
-      const result = await companionManager.call<{ exists: boolean; readable: boolean; type: string | null }>(
+      const result = await companionManager.call<{ exists: boolean; readable: boolean; type: 'dir' | 'file' | null }>(
         userId, 'fs.stat', { path }
       )
       return result
