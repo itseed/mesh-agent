@@ -83,6 +83,7 @@ export const agentSessions = pgTable(
     projectId: text('project_id').references(() => projects.id),
     taskId: text('task_id'),
     cliProvider: text('cli_provider'),
+    executionMode: text('execution_mode').notNull().default('cloud'),
     pid: integer('pid'),
     exitCode: integer('exit_code'),
     error: text('error'),
