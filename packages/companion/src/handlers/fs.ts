@@ -47,3 +47,9 @@ export async function fsStat(params: FsStatParams): Promise<FsStatResult> {
     throw e
   }
 }
+
+export interface FsHomedirResult { path: string }
+
+export async function fsHomedir(): Promise<FsHomedirResult> {
+  return { path: os.homedir() }
+}

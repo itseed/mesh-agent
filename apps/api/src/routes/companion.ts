@@ -138,6 +138,20 @@ export async function companionRoutes(fastify: FastifyInstance) {
     }
   })
 
+  // Proxy fs.homedir to companion daemon
+  fastify.get('/companion/fs/homedir', { preHandler }, async (request, reply) => {
+    const { id: userId } = request.user as { id: string }
+    try {
+      const result = await companionManager.call<{ path: string }>(userId, 'fs.homedir', {})
+      return result
+    } catch (err: any) {
+      if (err.message === 'No companion connected for this user')
+        return reply.status(503).send({ error: 'Companion not connected' })
+      fastify.log.error(err, 'companion fs proxy error')
+      return reply.status(500).send({ error: 'Internal error' })
+    }
+  })
+
   // Proxy fs.stat to companion daemon
   fastify.get('/companion/fs/stat', { preHandler }, async (request, reply) => {
     const { id: userId } = request.user as { id: string }
