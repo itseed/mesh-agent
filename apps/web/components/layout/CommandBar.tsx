@@ -108,6 +108,8 @@ export function CommandBar() {
   const [busyProposalId, setBusyProposalId] = useState<string | null>(null)
   const [leadThinking, setLeadThinking] = useState(false)
   const [stoppedSessions, setStoppedSessions] = useState<Set<string>>(new Set())
+  const [executionMode, setExecutionMode] = useState<'cloud' | 'local'>('cloud')
+  const [companionConnected, setCompanionConnected] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const openRef = useRef(open)
@@ -182,6 +184,16 @@ export function CommandBar() {
     return () => clearTimeout(t)
   }, [history, open, leadThinking])
 
+  useEffect(() => {
+    const check = () =>
+      api.companion.status()
+        .then(s => setCompanionConnected(s.connected))
+        .catch(() => setCompanionConnected(false))
+    check()
+    const t = setInterval(check, 10_000)
+    return () => clearInterval(t)
+  }, [])
+
   async function handleFiles(files: FileList | null) {
     if (!files || files.length === 0) return
     setError('')
@@ -238,6 +250,7 @@ export function CommandBar() {
         data: a.data,
       })),
       projectId: selectedProjectId || undefined,
+      executionMode,
     }
     try {
       await api.chat.send(payload)
@@ -256,7 +269,7 @@ export function CommandBar() {
     setSending(true)
     setError('')
     try {
-      await api.chat.send({ message: text, projectId: selectedProjectId || undefined })
+      await api.chat.send({ message: text, projectId: selectedProjectId || undefined, executionMode })
     } catch (e: any) {
       setError(e.message ?? 'ส่งไม่สำเร็จ')
     } finally {
@@ -537,6 +550,29 @@ export function CommandBar() {
                   fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
               </svg>
             </button>
+            <div className="flex items-center gap-0.5 rounded-lg bg-canvas border border-border p-0.5 shrink-0 self-end mb-0.5">
+              <button
+                type="button"
+                onClick={() => setExecutionMode('cloud')}
+                title="Cloud execution"
+                className={`flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium transition-colors ${
+                  executionMode === 'cloud' ? 'bg-accent/20 text-accent' : 'text-dim hover:text-muted'
+                }`}
+              >
+                ☁ Cloud
+              </button>
+              <button
+                type="button"
+                onClick={() => setExecutionMode('local')}
+                disabled={!companionConnected}
+                title={companionConnected ? 'Local execution' : 'Companion not connected'}
+                className={`flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium transition-colors disabled:opacity-30 disabled:cursor-not-allowed ${
+                  executionMode === 'local' ? 'bg-accent/20 text-accent' : 'text-dim hover:text-muted'
+                }`}
+              >
+                💻 Local
+              </button>
+            </div>
             <textarea
               placeholder="พิมพ์คำสั่งให้ Lead… (Enter เพื่อส่ง, Shift+Enter ขึ้นบรรทัดใหม่)"
               value={message}

@@ -240,6 +240,7 @@ export const api = {
       workingDir?: string
       projectId?: string
       images?: Array<{ name: string; mimeType: string; data: string }>
+      executionMode?: 'cloud' | 'local'
     }) =>
       request<{ user: any; lead: any; proposal: any | null }>('/chat', {
         method: 'POST',
