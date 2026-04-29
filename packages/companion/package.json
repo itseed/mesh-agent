@@ -1,0 +1,23 @@
+{
+  "name": "@meshagent/companion",
+  "version": "0.1.0",
+  "description": "MeshAgent local companion daemon",
+  "type": "module",
+  "bin": {
+    "mesh-companion": "./dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx src/cli.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "commander": "^12.0.0",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/ws": "^8.5.10",
+    "tsx": "^4.7.0",
+    "typescript": "^5.4.0"
+  }
+}
