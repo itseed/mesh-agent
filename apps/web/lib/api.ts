@@ -292,5 +292,6 @@ export const api = {
       request<{ exists: boolean; readable: boolean; type: 'dir' | 'file' | null }>(
         `/companion/fs/stat?path=${encodeURIComponent(path)}`
       ),
+    homedir: () => request<{ path: string }>('/companion/fs/homedir'),
   },
 }

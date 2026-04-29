@@ -54,14 +54,14 @@ function PathRows({
   return (
     <div>
       <div className="flex items-center justify-between mb-1">
-        <span className="text-[12px] text-muted uppercase tracking-wider">Paths</span>
+        <span className="text-[12px] text-muted uppercase tracking-wider">Local Paths</span>
         <button type="button"
           onClick={() => onChange([...rows, { key: '', value: '' }])}
           className="text-[13px] text-accent hover:text-accent/80">
           + add row
         </button>
       </div>
-      <p className="text-[11px] text-dim mb-2">working directory ของแต่ละ agent role — เช่น <span className="font-mono text-muted">frontend → /Users/.../project/web</span></p>
+      <p className="text-[11px] text-dim mb-2">paths บนเครื่องของคุณสำหรับ Local mode — Cloud mode ใช้ GitHub repo path อัตโนมัติ</p>
       {rows.map((p, i) => {
         const isDropTarget = dropTargetIdx === i
         return (
@@ -558,6 +558,7 @@ export default function ProjectsPage() {
   const [deleting, setDeleting] = useState(false)
 
   const [reposBaseDir, setReposBaseDir] = useState<string | null>(null)
+  const [homedir, setHomedir] = useState('/')
 
   const fetchProjects = useCallback(async () => {
     try {
@@ -643,7 +644,12 @@ export default function ProjectsPage() {
     setBrowserOpen(false)
     setDropTargetIdx(null)
     api.companion.status()
-      .then(s => setCompanionConnected(s.connected))
+      .then(s => {
+        setCompanionConnected(s.connected)
+        if (s.connected) {
+          api.companion.homedir().then(r => setHomedir(r.path)).catch(() => {})
+        }
+      })
       .catch(() => setCompanionConnected(false))
   }
 
@@ -718,7 +724,12 @@ export default function ProjectsPage() {
                   setCBrowserOpen(false)
                   setCDropTargetIdx(null)
                   api.companion.status()
-                    .then(s => setCompanionConnected(s.connected))
+                    .then(s => {
+                      setCompanionConnected(s.connected)
+                      if (s.connected) {
+                        api.companion.homedir().then(r => setHomedir(r.path)).catch(() => {})
+                      }
+                    })
                     .catch(() => setCompanionConnected(false))
                 }}
                 className="text-[12px] bg-accent/15 hover:bg-accent/25 border border-accent/25 text-accent font-semibold px-2.5 py-1 rounded transition-all"
@@ -846,7 +857,7 @@ export default function ProjectsPage() {
                   </div>
                   {cBrowserOpen && (
                     <div className="w-72 shrink-0">
-                      <FolderBrowser initialPath={reposBaseDir ?? '/'} />
+                      <FolderBrowser initialPath={homedir} />
                     </div>
                   )}
                 </div>
@@ -914,7 +925,7 @@ export default function ProjectsPage() {
                   </div>
                   {browserOpen && (
                     <div className="w-72 shrink-0">
-                      <FolderBrowser initialPath={reposBaseDir ?? '/'} />
+                      <FolderBrowser initialPath={homedir} />
                     </div>
                   )}
                 </div>
