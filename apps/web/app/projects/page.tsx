@@ -22,14 +22,6 @@ function buildPathsMap(entries: PathEntry[]) {
   )
 }
 
-function guessRole(repoName: string): string {
-  const n = repoName.toLowerCase()
-  if (/web|front|ui|next|react/.test(n)) return 'frontend'
-  if (/api|back|server|service/.test(n)) return 'backend'
-  if (/mobile|app|ios|android|rn/.test(n)) return 'mobile'
-  if (/infra|ops|deploy|docker|k8s/.test(n)) return 'devops'
-  return repoName
-}
 
 const INPUT_CLS = 'bg-canvas border border-border text-text text-[14px] rounded px-2.5 py-1.5 placeholder-dim w-full'
 
@@ -578,16 +570,6 @@ export default function ProjectsPage() {
   useEffect(() => {
     api.settings.get().then(s => setReposBaseDir(s.reposBaseDir ?? null)).catch(() => {})
   }, [])
-
-  useEffect(() => {
-    if (cRepos.length === 0) { setCPaths([{ key: '', value: '' }]); return }
-    const base = reposBaseDir ?? '/repos'
-    const suggested = cRepos.map(r => {
-      const folderName = r.split('/')[1] ?? r
-      return { key: guessRole(folderName), value: `${base}/${folderName}` }
-    })
-    setCPaths(suggested)
-  }, [cRepos, reposBaseDir])
 
   useEffect(() => {
     if (cRepos.length === 0) { setCBranches([]); return }
