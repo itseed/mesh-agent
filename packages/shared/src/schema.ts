@@ -206,3 +206,13 @@ export const agentOutcomes = pgTable(
     projectCreatedIdx: index('agent_outcomes_project_created_idx').on(t.projectId, t.createdAt),
   }),
 )
+
+export const companionTokens = pgTable('companion_tokens', {
+  id:         text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+  userId:     text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  label:      text('label').notNull().default('default'),
+  tokenHash:  text('token_hash').notNull(),
+  prefix:     text('prefix').notNull(),
+  createdAt:  timestamp('created_at').notNull().defaultNow(),
+  lastSeenAt: timestamp('last_seen_at'),
+})
