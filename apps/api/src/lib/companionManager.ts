@@ -58,7 +58,13 @@ class CompanionManager {
       }, timeoutMs)
 
       this.pendingRequests.set(id, { resolve: resolve as (r: unknown) => void, reject, timer })
-      conn.ws.socket.send(msg)
+      try {
+        conn.ws.socket.send(msg)
+      } catch (err: any) {
+        clearTimeout(timer)
+        this.pendingRequests.delete(id)
+        reject(new Error(`Failed to send RPC request: ${err.message}`))
+      }
     })
   }
 
