@@ -33,16 +33,21 @@ export default function AgentsPage() {
   const [outputPanel, setOutputPanel] = useState<{ id: string; role: string } | null>(null)
   const [sessionDetail, setSessionDetail] = useState<{ id: string; role: string } | null>(null)
 
+  const HISTORY_PAGE = 20
+  const [historyLimit, setHistoryLimit] = useState(HISTORY_PAGE)
+  const [hasMore, setHasMore] = useState(false)
+
   const fetchAgents = useCallback(async () => {
     try {
       const [data, hist, roleList, projectList] = await Promise.all([
         api.agents.list(),
-        api.agents.history(20),
+        api.agents.history(historyLimit),
         api.agents.listRoles(),
         api.projects.list(),
       ])
       setAgents(data)
       setHistory(hist)
+      setHasMore(hist.length === historyLimit)
       setRoles(roleList)
       setProjects(projectList)
       setError('')
@@ -51,13 +56,17 @@ export default function AgentsPage() {
     } finally {
       setLoading(false)
     }
+  }, [historyLimit])
+
+  const handleLoadMore = useCallback(() => {
+    setHistoryLimit(prev => prev + HISTORY_PAGE)
   }, [])
 
   useEffect(() => {
     fetchAgents()
     const id = setInterval(fetchAgents, 5000)
     return () => clearInterval(id)
-  }, [fetchAgents])
+  }, [fetchAgents, historyLimit])
 
   const running = agents.filter(
     (a) => a.status === 'running' || a.status === 'pending',
@@ -85,6 +94,14 @@ export default function AgentsPage() {
           )
         })}
       </div>
+      {hasMore && (
+        <button
+          onClick={handleLoadMore}
+          className="mt-3 w-full py-2 text-[13px] text-muted hover:text-text border border-border hover:border-border-hi rounded-lg transition-colors"
+        >
+          Load more
+        </button>
+      )}
     </div>
   )
 
