@@ -4,6 +4,7 @@ import { AppShell } from '@/components/layout/AppShell'
 import { AuthGuard } from '@/components/layout/AuthGuard'
 import { api } from '@/lib/api'
 import { PageLoader } from '@/components/ui/PageLoader'
+import { FolderBrowser } from '@/components/companion/FolderBrowser'
 
 /* ── types ── */
 interface PathEntry { key: string; value: string }
@@ -37,10 +38,18 @@ function PathRows({
   rows,
   onChange,
   baseDir,
+  dropTargetIdx,
+  onRowDragOver,
+  onRowDrop,
+  onRowDragLeave,
 }: {
   rows: PathEntry[]
   onChange: (next: PathEntry[]) => void
   baseDir?: string | null
+  dropTargetIdx?: number | null
+  onRowDragOver?: (idx: number) => void
+  onRowDrop?: (idx: number, path: string) => void
+  onRowDragLeave?: () => void
 }) {
   return (
     <div>
@@ -53,39 +62,58 @@ function PathRows({
         </button>
       </div>
       <p className="text-[11px] text-dim mb-2">working directory ของแต่ละ agent role — เช่น <span className="font-mono text-muted">frontend → /Users/.../project/web</span></p>
-      {rows.map((p, i) => (
-        <div key={i} className="flex gap-1.5 mb-1.5">
-          <input type="text" placeholder="เช่น frontend" value={p.key}
-            onChange={e => onChange(rows.map((x, idx) => idx === i ? { ...x, key: e.target.value } : x))}
-            className={`${INPUT_CLS} flex-[0_0_35%]`} />
-          {baseDir ? (
-            <div className="flex items-center flex-1 bg-canvas border border-border rounded overflow-hidden">
-              <span className="text-[13px] text-dim font-mono px-2 py-1.5 border-r border-border shrink-0 whitespace-nowrap">
-                {baseDir}/
-              </span>
-              <input
-                type="text"
-                placeholder="folder-name"
-                value={p.value.startsWith(baseDir + '/') ? p.value.slice(baseDir.length + 1) : p.value}
-                onChange={e => {
-                  const full = e.target.value.startsWith('/') ? e.target.value : `${baseDir}/${e.target.value}`
-                  onChange(rows.map((x, idx) => idx === i ? { ...x, value: full } : x))
-                }}
-                className="flex-1 bg-transparent text-text text-[13px] px-2 py-1.5 outline-none font-mono"
-              />
-            </div>
-          ) : (
-            <input type="text" placeholder="/Users/me/project/web" value={p.value}
-              onChange={e => onChange(rows.map((x, idx) => idx === i ? { ...x, value: e.target.value } : x))}
-              className={`${INPUT_CLS} flex-1`} />
-          )}
-          {rows.length > 1 && (
-            <button type="button"
-              onClick={() => onChange(rows.filter((_, idx) => idx !== i))}
-              className="text-muted hover:text-danger text-[13px] px-1 transition-colors">✕</button>
-          )}
-        </div>
-      ))}
+      {rows.map((p, i) => {
+        const isDropTarget = dropTargetIdx === i
+        return (
+          <div
+            key={i}
+            className={`flex gap-1.5 mb-1.5 rounded transition-all ${
+              isDropTarget ? 'ring-2 ring-accent/50 bg-accent/5 p-1 -mx-1' : ''
+            }`}
+            onDragOver={onRowDragOver ? (e) => { e.preventDefault(); onRowDragOver(i) } : undefined}
+            onDrop={onRowDrop ? (e) => { e.preventDefault(); onRowDrop(i, e.dataTransfer.getData('text/plain')) } : undefined}
+            onDragLeave={onRowDragLeave}
+          >
+            {isDropTarget ? (
+              <div className="flex-1 flex items-center justify-center py-2 text-[12px] text-accent border-2 border-dashed border-accent/40 rounded">
+                Drop folder here
+              </div>
+            ) : (
+              <>
+                <input type="text" placeholder="เช่น frontend" value={p.key}
+                  onChange={e => onChange(rows.map((x, idx) => idx === i ? { ...x, key: e.target.value } : x))}
+                  className={`${INPUT_CLS} flex-[0_0_35%]`} />
+                {baseDir ? (
+                  <div className="flex items-center flex-1 bg-canvas border border-border rounded overflow-hidden">
+                    <span className="text-[13px] text-dim font-mono px-2 py-1.5 border-r border-border shrink-0 whitespace-nowrap">
+                      {baseDir}/
+                    </span>
+                    <input
+                      type="text"
+                      placeholder="folder-name"
+                      value={p.value.startsWith(baseDir + '/') ? p.value.slice(baseDir.length + 1) : p.value}
+                      onChange={e => {
+                        const full = e.target.value.startsWith('/') ? e.target.value : `${baseDir}/${e.target.value}`
+                        onChange(rows.map((x, idx) => idx === i ? { ...x, value: full } : x))
+                      }}
+                      className="flex-1 bg-transparent text-text text-[13px] px-2 py-1.5 outline-none font-mono"
+                    />
+                  </div>
+                ) : (
+                  <input type="text" placeholder="/Users/me/project/web" value={p.value}
+                    onChange={e => onChange(rows.map((x, idx) => idx === i ? { ...x, value: e.target.value } : x))}
+                    className={`${INPUT_CLS} flex-1`} />
+                )}
+                {rows.length > 1 && (
+                  <button type="button"
+                    onClick={() => onChange(rows.filter((_, idx) => idx !== i))}
+                    className="text-muted hover:text-danger text-[13px] px-1 transition-colors">✕</button>
+                )}
+              </>
+            )}
+          </div>
+        )
+      })}
     </div>
   )
 }
@@ -481,10 +509,10 @@ function ProjectDetail({ project, onEdit, onDelete }: {
 }
 
 /* ── Modal wrapper ── */
-function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
+function Modal({ title, onClose, children, wide }: { title: string; onClose: () => void; children: React.ReactNode; wide?: boolean }) {
   return (
     <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
-      <div className="bg-surface border border-border-hi rounded-xl w-full max-w-lg glow-border fade-up flex flex-col max-h-[90vh]">
+      <div className={`bg-surface border border-border-hi rounded-xl w-full glow-border fade-up flex flex-col max-h-[90vh] transition-all duration-200 ${wide ? 'max-w-5xl' : 'max-w-lg'}`}>
         <div className="flex items-center justify-between px-5 pt-5 pb-0 shrink-0">
           <h2 className="text-[15px] font-semibold text-text">{title}</h2>
           <button type="button" onClick={onClose} className="text-muted hover:text-text text-[14px] transition-colors">✕</button>
@@ -519,6 +547,9 @@ export default function ProjectsPage() {
   const [eRepos, setERepos] = useState<string[]>([])
   const [ePaths, setEPaths] = useState<PathEntry[]>([{ key: '', value: '' }])
   const [saving, setSaving] = useState(false)
+  const [browserOpen, setBrowserOpen] = useState(false)
+  const [companionConnected, setCompanionConnected] = useState(false)
+  const [dropTargetIdx, setDropTargetIdx] = useState<number | null>(null)
 
   // delete state
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
@@ -607,6 +638,22 @@ export default function ProjectsPage() {
     setEBranch(project.baseBranch ?? 'main')
     setERepos(project.githubRepos ?? [])
     setEPaths(pathsToEntries(project.paths))
+    setBrowserOpen(false)
+    api.companion.status()
+      .then(s => setCompanionConnected(s.connected))
+      .catch(() => setCompanionConnected(false))
+  }
+
+  function closeEdit() {
+    setEditProject(null)
+    setBrowserOpen(false)
+    setDropTargetIdx(null)
+  }
+
+  const handleRowDrop = (idx: number, droppedPath: string) => {
+    if (!droppedPath) return
+    setEPaths(prev => prev.map((e, i) => i === idx ? { ...e, value: droppedPath } : e))
+    setDropTargetIdx(null)
   }
 
   async function handleSaveEdit(e: React.FormEvent) {
@@ -619,7 +666,7 @@ export default function ProjectsPage() {
         name: eName.trim(), paths: buildPathsMap(ePaths), githubRepos: eRepos,
         baseBranch: eBranch.trim() || 'main',
       })
-      setEditProject(null)
+      closeEdit()
       fetchProjects()
     } catch (e: any) {
       setError(e.message)
@@ -772,7 +819,7 @@ export default function ProjectsPage() {
 
         {/* ── Edit modal ── */}
         {editProject && (
-          <Modal title="Edit project" onClose={() => setEditProject(null)}>
+          <Modal title="Edit project" onClose={closeEdit} wide={browserOpen}>
             <form onSubmit={handleSaveEdit} className="flex flex-col gap-4">
               <input type="text" placeholder="Project name" value={eName}
                 onChange={e => setEName(e.target.value)}
@@ -796,9 +843,38 @@ export default function ProjectsPage() {
                   {eBranches.map(b => <option key={b} value={b} />)}
                 </datalist>
               </div>
-              <PathRows rows={ePaths} onChange={setEPaths} baseDir={reposBaseDir} />
+              {/* Paths section — becomes split when browser open */}
+              <div>
+                <div className={browserOpen ? 'flex gap-4' : undefined}>
+                  <div className={browserOpen ? 'flex-1 min-w-0' : undefined}>
+                    <PathRows
+                      rows={ePaths}
+                      onChange={setEPaths}
+                      baseDir={reposBaseDir}
+                      dropTargetIdx={browserOpen ? dropTargetIdx : undefined}
+                      onRowDragOver={browserOpen ? setDropTargetIdx : undefined}
+                      onRowDrop={browserOpen ? handleRowDrop : undefined}
+                      onRowDragLeave={browserOpen ? () => setDropTargetIdx(null) : undefined}
+                    />
+                    {companionConnected && (
+                      <button
+                        type="button"
+                        onClick={() => setBrowserOpen(b => !b)}
+                        className="mt-2 text-[12px] text-accent hover:text-accent/80 flex items-center gap-1"
+                      >
+                        {browserOpen ? '← Close Browser' : '📁 Open Folder Browser'}
+                      </button>
+                    )}
+                  </div>
+                  {browserOpen && (
+                    <div className="w-72 shrink-0">
+                      <FolderBrowser initialPath={reposBaseDir ?? '/'} />
+                    </div>
+                  )}
+                </div>
+              </div>
               <div className="flex gap-2 justify-end pt-1">
-                <button type="button" onClick={() => setEditProject(null)}
+                <button type="button" onClick={closeEdit}
                   className="text-muted text-[14px] px-3 py-1.5 hover:text-text transition-colors">Cancel</button>
                 <button type="submit" disabled={saving}
                   className="bg-accent/90 hover:bg-accent text-canvas text-[14px] font-semibold px-4 py-1.5 rounded transition-colors disabled:opacity-50">
