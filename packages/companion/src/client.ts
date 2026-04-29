@@ -1,5 +1,6 @@
 import WebSocket from 'ws'
 import { fsList, fsStat } from './handlers/fs.js'
+import { agentSpawn, agentStdout, agentKill } from './handlers/agent.js'
 
 interface RpcRequest { jsonrpc: '2.0'; id: string; method: string; params: unknown }
 interface RpcResponse { jsonrpc: '2.0'; id: string; result?: unknown; error?: { code: number; message: string } }
@@ -10,6 +11,9 @@ const RECONNECT_DELAY_MS = 5_000
 const HANDLERS: Record<string, (params: any) => Promise<unknown>> = {
   'fs.list': fsList,
   'fs.stat': fsStat,
+  'agent.spawn': agentSpawn,
+  'agent.stdout': agentStdout,
+  'agent.kill': agentKill,
   'companion.ping': async () => ({}),
 }
 
