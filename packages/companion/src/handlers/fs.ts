@@ -2,7 +2,7 @@ import { readdir, stat } from 'node:fs/promises'
 import path from 'node:path'
 
 export interface FsListParams { path: string }
-export interface FsListResult { entries: { name: string; type: 'dir' | 'file'; size?: number }[] }
+export interface FsListResult { entries: { name: string; type: 'dir' | 'file' }[] }
 
 export interface FsStatParams { path: string }
 export interface FsStatResult { exists: boolean; readable: boolean; type: 'dir' | 'file' | null }
