@@ -44,7 +44,7 @@ export function FolderBrowser({ initialPath = '/' }: FolderBrowserProps) {
   const crumbs = buildBreadcrumbs(currentPath)
 
   return (
-    <div className="flex flex-col h-full bg-canvas border border-border rounded-lg overflow-hidden">
+    <div className="flex flex-col h-[360px] bg-canvas border border-border rounded-lg overflow-hidden">
       {/* Breadcrumb */}
       <div className="flex items-center gap-1 px-3 py-2 border-b border-border bg-surface shrink-0 overflow-x-auto">
         {crumbs.map((crumb, i) => (
