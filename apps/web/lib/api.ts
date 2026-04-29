@@ -283,5 +283,13 @@ export const api = {
       request<{ ok: boolean }>(`/companion/tokens/${id}`, { method: 'DELETE' }),
     status: () =>
       request<{ connected: boolean; connectedAt: string | null }>('/companion/status'),
+    fsList: (path: string) =>
+      request<{ entries: { name: string; type: 'dir' | 'file' }[] }>(
+        `/companion/fs/list?path=${encodeURIComponent(path)}`
+      ),
+    fsStat: (path: string) =>
+      request<{ exists: boolean; readable: boolean; type: 'dir' | 'file' | null }>(
+        `/companion/fs/stat?path=${encodeURIComponent(path)}`
+      ),
   },
 }
