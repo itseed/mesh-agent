@@ -47,9 +47,11 @@ export async function companionRoutes(fastify: FastifyInstance) {
   fastify.delete('/companion/tokens/:id', { preHandler }, async (request, reply) => {
     const { id: userId } = request.user as { id: string }
     const { id } = request.params as { id: string }
-    await fastify.db
+    const deleted = await fastify.db
       .delete(companionTokens)
       .where(and(eq(companionTokens.id, id), eq(companionTokens.userId, userId)))
+      .returning({ id: companionTokens.id })
+    if (deleted.length === 0) return reply.status(404).send({ error: 'Token not found' })
     return reply.send({ ok: true })
   })
 
@@ -64,7 +66,6 @@ export async function companionRoutes(fastify: FastifyInstance) {
     const rawToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : ''
 
     if (!rawToken.startsWith('mesh_comp_')) {
-      connection.socket.send(JSON.stringify({ error: 'Unauthorized' }))
       connection.socket.close(1008, 'Unauthorized')
       return
     }
@@ -78,7 +79,6 @@ export async function companionRoutes(fastify: FastifyInstance) {
     const match = rows.find(r => bcrypt.compareSync(rawToken, r.tokenHash))
 
     if (!match) {
-      connection.socket.send(JSON.stringify({ error: 'Unauthorized' }))
       connection.socket.close(1008, 'Unauthorized')
       return
     }
