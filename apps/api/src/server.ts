@@ -13,6 +13,7 @@ import { authRoutes } from './routes/auth.js'
 import { taskRoutes } from './routes/tasks.js'
 import { projectRoutes } from './routes/projects.js'
 import { agentRoutes } from './routes/agents.js'
+import websocket from '@fastify/websocket'
 import { wsHandler } from './ws/handler.js'
 import { githubRoutes } from './routes/github.js'
 import { settingsRoutes } from './routes/settings.js'
@@ -82,6 +83,7 @@ export async function buildServer() {
     }
   })
 
+  await fastify.register(websocket)
   await fastify.register(dbPlugin)
   await fastify.register(redisPlugin)
   await fastify.register(minioPlugin)

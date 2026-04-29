@@ -25,8 +25,6 @@ async function authenticateSocket(
 }
 
 export async function wsHandler(fastify: FastifyInstance) {
-  await fastify.register(import('@fastify/websocket'))
-
   fastify.get('/ws', { websocket: true }, async (connection: SocketStream, request) => {
     const user = await authenticateSocket(
       fastify,

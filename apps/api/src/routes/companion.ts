@@ -76,7 +76,13 @@ export async function companionRoutes(fastify: FastifyInstance) {
       .select()
       .from(companionTokens)
       .where(eq(companionTokens.prefix, prefix))
-    const match = rows.find(r => bcrypt.compareSync(rawToken, r.tokenHash))
+    let match: typeof rows[number] | undefined
+    for (const row of rows) {
+      if (await bcrypt.compare(rawToken, row.tokenHash)) {
+        match = row
+        break
+      }
+    }
 
     if (!match) {
       connection.socket.close(1008, 'Unauthorized')
