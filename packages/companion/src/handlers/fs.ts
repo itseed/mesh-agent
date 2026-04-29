@@ -1,5 +1,6 @@
 import { readdir, stat } from 'node:fs/promises'
 import path from 'node:path'
+import os from 'node:os'
 
 export interface FsListParams { path: string }
 export interface FsListResult { entries: { name: string; type: 'dir' | 'file' }[] }
@@ -8,8 +9,12 @@ export interface FsStatParams { path: string }
 export interface FsStatResult { exists: boolean; readable: boolean; type: 'dir' | 'file' | null }
 
 function safePath(p: string): string {
-  if (p.includes('..')) throw new Error('Path traversal not allowed')
-  return path.resolve(p)
+  const resolved = path.resolve(p)
+  const home = os.homedir()
+  if (!resolved.startsWith(home) && resolved !== '/') {
+    throw new Error('Path outside allowed root')
+  }
+  return resolved
 }
 
 export async function fsList(params: FsListParams): Promise<FsListResult> {

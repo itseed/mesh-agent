@@ -124,7 +124,7 @@ export async function companionRoutes(fastify: FastifyInstance) {
     if (!parseResult.success) return reply.status(400).send({ error: 'path query param required' })
     const { path } = parseResult.data
     try {
-      const result = await companionManager.call<{ entries: { name: string; type: string }[] }>(
+      const result = await companionManager.call<{ entries: { name: string; type: 'dir' | 'file' }[] }>(
         userId, 'fs.list', { path }
       )
       return result
@@ -133,7 +133,8 @@ export async function companionRoutes(fastify: FastifyInstance) {
         return reply.status(503).send({ error: 'Companion not connected' })
       if (err.message?.startsWith('Companion RPC timeout') || err.message?.startsWith('Failed to send RPC'))
         return reply.status(500).send({ error: 'Request timed out' })
-      return reply.status(500).send({ error: err.message })
+      fastify.log.error(err, 'companion fs proxy error')
+      return reply.status(500).send({ error: 'Internal error' })
     }
   })
 
@@ -153,7 +154,8 @@ export async function companionRoutes(fastify: FastifyInstance) {
         return reply.status(503).send({ error: 'Companion not connected' })
       if (err.message?.startsWith('Companion RPC timeout') || err.message?.startsWith('Failed to send RPC'))
         return reply.status(500).send({ error: 'Request timed out' })
-      return reply.status(500).send({ error: err.message })
+      fastify.log.error(err, 'companion fs proxy error')
+      return reply.status(500).send({ error: 'Internal error' })
     }
   })
 }
