@@ -538,6 +538,8 @@ export default function ProjectsPage() {
   const [cRepos, setCRepos] = useState<string[]>([])
   const [cPaths, setCPaths] = useState<PathEntry[]>([{ key: '', value: '' }])
   const [creating, setCreating] = useState(false)
+  const [cBrowserOpen, setCBrowserOpen] = useState(false)
+  const [cDropTargetIdx, setCDropTargetIdx] = useState<number | null>(null)
 
   // edit state
   const [editProject, setEditProject] = useState<any | null>(null)
@@ -657,6 +659,12 @@ export default function ProjectsPage() {
     setDropTargetIdx(null)
   }
 
+  const handleCRowDrop = (idx: number, droppedPath: string) => {
+    if (!droppedPath) return
+    setCPaths(prev => prev.map((e, i) => i === idx ? { ...e, value: droppedPath } : e))
+    setCDropTargetIdx(null)
+  }
+
   async function handleSaveEdit(e: React.FormEvent) {
     e.preventDefault()
     if (!editProject || !eName.trim()) return
@@ -704,7 +712,15 @@ export default function ProjectsPage() {
                 </p>
               </div>
               <button
-                onClick={() => { setShowCreate(true); setError('') }}
+                onClick={() => {
+                  setShowCreate(true)
+                  setError('')
+                  setCBrowserOpen(false)
+                  setCDropTargetIdx(null)
+                  api.companion.status()
+                    .then(s => setCompanionConnected(s.connected))
+                    .catch(() => setCompanionConnected(false))
+                }}
                 className="text-[12px] bg-accent/15 hover:bg-accent/25 border border-accent/25 text-accent font-semibold px-2.5 py-1 rounded transition-all"
               >
                 + New
@@ -780,7 +796,7 @@ export default function ProjectsPage() {
 
         {/* ── Create modal ── */}
         {showCreate && (
-          <Modal title="New project" onClose={() => setShowCreate(false)}>
+          <Modal title="New project" onClose={() => { setShowCreate(false); setCBrowserOpen(false); setCDropTargetIdx(null) }} wide={cBrowserOpen}>
             <form onSubmit={handleCreate} className="flex flex-col gap-4">
               <input type="text" placeholder="Project name" value={cName}
                 onChange={e => setCName(e.target.value)}
@@ -805,9 +821,38 @@ export default function ProjectsPage() {
                   {cBranches.map(b => <option key={b} value={b} />)}
                 </datalist>
               </div>
-              <PathRows rows={cPaths} onChange={setCPaths} baseDir={reposBaseDir} />
+              {/* Paths section — becomes split when browser open */}
+              <div>
+                <div className={cBrowserOpen ? 'flex gap-4' : undefined}>
+                  <div className={cBrowserOpen ? 'flex-1 min-w-0' : undefined}>
+                    <PathRows
+                      rows={cPaths}
+                      onChange={setCPaths}
+                      baseDir={reposBaseDir}
+                      dropTargetIdx={cBrowserOpen ? cDropTargetIdx : undefined}
+                      onRowDragOver={cBrowserOpen ? setCDropTargetIdx : undefined}
+                      onRowDrop={cBrowserOpen ? handleCRowDrop : undefined}
+                      onRowDragLeave={cBrowserOpen ? () => setCDropTargetIdx(null) : undefined}
+                    />
+                    {companionConnected && (
+                      <button
+                        type="button"
+                        onClick={() => setCBrowserOpen(b => !b)}
+                        className="mt-2 text-[12px] text-accent hover:text-accent/80 flex items-center gap-1"
+                      >
+                        {cBrowserOpen ? '← Close Browser' : '📁 Open Folder Browser'}
+                      </button>
+                    )}
+                  </div>
+                  {cBrowserOpen && (
+                    <div className="w-72 shrink-0">
+                      <FolderBrowser initialPath={reposBaseDir ?? '/'} />
+                    </div>
+                  )}
+                </div>
+              </div>
               <div className="flex gap-2 justify-end pt-1">
-                <button type="button" onClick={() => setShowCreate(false)}
+                <button type="button" onClick={() => { setShowCreate(false); setCBrowserOpen(false); setCDropTargetIdx(null) }}
                   className="text-muted text-[14px] px-3 py-1.5 hover:text-text transition-colors">Cancel</button>
                 <button type="submit" disabled={creating}
                   className="bg-accent/90 hover:bg-accent text-canvas text-[14px] font-semibold px-4 py-1.5 rounded transition-colors disabled:opacity-50">
