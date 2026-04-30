@@ -244,12 +244,6 @@ export function TaskDetailPanel({ task, allTasks, onClose, onUpdate, onDelete }:
     return () => window.removeEventListener('keydown', handler)
   }, [onClose])
 
-  // Lock body scroll while drawer is open
-  useEffect(() => {
-    document.body.style.overflow = 'hidden'
-    return () => { document.body.style.overflow = '' }
-  }, [])
-
   // Fetch comments on mount for overview AI section + comments tab
   useEffect(() => {
     api.tasks.comments(task.id).then(setComments).catch(() => {})
@@ -532,7 +526,7 @@ export function TaskDetailPanel({ task, allTasks, onClose, onUpdate, onDelete }:
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto p-4">
+        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-4">
 
           {/* ── Overview ── */}
           {tab === 'overview' && (
