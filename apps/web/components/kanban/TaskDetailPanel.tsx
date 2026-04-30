@@ -231,6 +231,7 @@ export function TaskDetailPanel({ task, allTasks, onClose, onUpdate, onDelete }:
   const [starting, setStarting] = useState(false)
   const [executionMode, setExecutionMode] = useState<'cloud' | 'local'>('cloud')
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const drawerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     setLocalTask(task)
@@ -244,15 +245,21 @@ export function TaskDetailPanel({ task, allTasks, onClose, onUpdate, onDelete }:
     return () => window.removeEventListener('keydown', handler)
   }, [onClose])
 
-  // Prevent body scroll while drawer is open
+  // Intercept wheel events on drawer to prevent scroll chain
   useEffect(() => {
-    const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth
-    document.body.style.overflow = 'hidden'
-    document.body.style.paddingRight = `${scrollbarWidth}px`
-    return () => {
-      document.body.style.overflow = ''
-      document.body.style.paddingRight = ''
+    const el = drawerRef.current
+    if (!el) return
+    const onWheel = (e: WheelEvent) => {
+      const content = el.querySelector('[data-drawer-scroll]') as HTMLElement | null
+      if (!content) return
+      const { scrollTop, scrollHeight, clientHeight } = content
+      const notScrollable = scrollHeight <= clientHeight
+      const atTop = scrollTop === 0 && e.deltaY < 0
+      const atBottom = scrollTop + clientHeight >= scrollHeight - 1 && e.deltaY > 0
+      if (notScrollable || atTop || atBottom) e.preventDefault()
     }
+    el.addEventListener('wheel', onWheel, { passive: false })
+    return () => el.removeEventListener('wheel', onWheel)
   }, [])
 
   // Fetch comments on mount for overview AI section + comments tab
@@ -441,7 +448,7 @@ export function TaskDetailPanel({ task, allTasks, onClose, onUpdate, onDelete }:
     <>
       <div className="fixed inset-0 bg-black/30 z-30" onClick={onClose} />
 
-      <div className="fixed right-0 top-0 h-screen w-[480px] bg-surface border-l border-border-hi z-40 flex flex-col transition-transform duration-200">
+      <div ref={drawerRef} className="fixed right-0 top-0 h-screen w-[480px] bg-surface border-l border-border-hi z-40 flex flex-col transition-transform duration-200">
         {/* Header */}
         <div className="flex items-start gap-3 p-4 border-b border-border shrink-0">
           <div className="flex-1 min-w-0">
@@ -537,7 +544,7 @@ export function TaskDetailPanel({ task, allTasks, onClose, onUpdate, onDelete }:
         </div>
 
         {/* Content */}
-        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-4">
+        <div data-drawer-scroll className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-4">
 
           {/* ── Overview ── */}
           {tab === 'overview' && (
