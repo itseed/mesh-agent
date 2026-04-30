@@ -53,6 +53,7 @@ services:
       SESSION_IDLE_TIMEOUT_MS: ${SESSION_IDLE_TIMEOUT_MS:-3600000}
       LOG_LEVEL: ${LOG_LEVEL:-info}
       NODE_ENV: production
+      API_URL: http://api:4801
     depends_on:
       redis:
         condition: service_healthy

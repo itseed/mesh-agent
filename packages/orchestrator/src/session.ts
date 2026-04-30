@@ -1,5 +1,6 @@
 import { spawn, ChildProcess } from 'node:child_process'
 import { EventEmitter } from 'node:events'
+import { existsSync, mkdirSync } from 'node:fs'
 import type { AgentRole, AgentStatus, AgentSessionStatus } from '@meshagent/shared'
 
 export type CliProvider = 'claude' | 'gemini' | 'cursor'
@@ -12,14 +13,14 @@ export function buildCliArgs(
 ): { cmd: string; args: string[] } {
   switch (provider) {
     case 'claude': {
-      const args: string[] = []
+      const args: string[] = ['--dangerously-skip-permissions', '--print']
       if (systemPrompt) args.push('--system-prompt', systemPrompt)
       args.push(prompt)
       return { cmd: 'claude', args }
     }
     case 'gemini': {
       const fullPrompt = systemPrompt ? `${systemPrompt}\n\n${prompt}` : prompt
-      return { cmd: 'gemini', args: ['-p', fullPrompt] }
+      return { cmd: 'gemini', args: ['-y', '-p', fullPrompt] }
     }
     case 'cursor': {
       return { cmd: 'tmux', args: ['new-session', '-d', '-s', sessionId, 'agent', '-p', prompt] }
@@ -60,7 +61,7 @@ type SessionEvents = {
 export class AgentSession extends EventEmitter {
   readonly id: string
   readonly role: AgentRole
-  readonly workingDir: string
+  workingDir: string
   readonly prompt: string
   readonly projectId: string | null
   readonly taskId: string | null
@@ -131,13 +132,20 @@ export class AgentSession extends EventEmitter {
       this.setStatus('running')
       this.startedAt = new Date()
 
+      if (!existsSync(this.workingDir)) {
+        const fallback = `/tmp/meshagent-${this.id}`
+        mkdirSync(fallback, { recursive: true })
+        this.workingDir = fallback
+        this.emit('output', `[warn] workingDir not found, using ${fallback}`)
+      }
+
       let cmd: string
       let args: string[]
       if (this.cliProvider) {
         ;({ cmd, args } = buildCliArgs(this.cliProvider, this.prompt, this.systemPrompt, this.id))
       } else {
         cmd = this.claudeCmd
-        args = []
+        args = ['--dangerously-skip-permissions', '--print']
         if (this.systemPrompt) args.push('--system-prompt', this.systemPrompt)
         args.push(this.prompt)
       }

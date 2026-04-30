@@ -39,6 +39,7 @@ services:
       CLAUDE_CMD: claude
       REPOS_BASE_DIR: /repos
       CLEANUP_REPOS_DAYS: '${CLEANUP_REPOS_DAYS:-30}'
+      API_URL: http://api:4801
     volumes:
       - ./packages/orchestrator:/app/packages/orchestrator
       - /app/packages/orchestrator/node_modules
