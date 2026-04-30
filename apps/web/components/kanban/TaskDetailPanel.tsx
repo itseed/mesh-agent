@@ -116,6 +116,19 @@ function renderMarkdown(body: string): React.ReactNode {
   )
 }
 
+function filterNoise(output: string): string {
+  return output
+    .split('\n')
+    .filter(line =>
+      !line.startsWith('[warn] workingDir') &&
+      !line.includes('SessionEnd hook') &&
+      !line.includes('Cannot find module') &&
+      !line.includes('requireStack')
+    )
+    .join('\n')
+    .trim()
+}
+
 function SubtaskInlineOutput({ taskId, stage }: { taskId: string; stage: string }) {
   const [session, setSession] = useState<any>(null)
   const [liveOutput, setLiveOutput] = useState('')
@@ -170,7 +183,7 @@ function SubtaskInlineOutput({ taskId, stage }: { taskId: string; stage: string 
           className="bg-canvas border border-border rounded p-2.5 text-[11px] font-mono text-muted whitespace-pre-wrap break-all overflow-y-auto"
           style={{ maxHeight: '280px' }}
         >
-          {displayOutput}
+          {filterNoise(displayOutput)}
         </pre>
       ) : (
         <p className="text-dim text-[12px]">
@@ -233,7 +246,7 @@ export function TaskDetailPanel({ task, allTasks, onClose, onUpdate, onDelete }:
   // Fetch comments on mount for overview AI section + comments tab
   useEffect(() => {
     api.tasks.comments(task.id).then(setComments).catch(() => {})
-  }, [task.id])
+  }, [task.id, task.stage])
 
   useEffect(() => {
     if (tab === 'activity') {
