@@ -150,64 +150,21 @@ export async function taskRoutes(fastify: FastifyInstance) {
     if (!task) return reply.status(404).send({ error: 'Task not found' })
 
     const { issues } = fixIssuesSchema.parse(request.body)
-    const userId = (request.user as { id: string }).id
-
-    let baseBranch = 'main'
-    let projectPaths: Record<string, string> = {}
-    let projectWorkspacePath: string | null = null
-    let project: typeof projects.$inferSelect | null = null
-    if (task.projectId) {
-      const [proj] = await fastify.db.select().from(projects).where(eq(projects.id, task.projectId)).limit(1)
-      if (proj) {
-        project = proj
-        baseBranch = proj.baseBranch ?? 'main'
-        projectPaths = (proj.paths as Record<string, string>) ?? {}
-        projectWorkspacePath = proj.workspacePath ?? null
-      }
-    }
-
-    const branchSuffix = Date.now().toString(36)
-    const gitInstructions = buildGitInstructions(baseBranch, branchSuffix)
-    const fallbackDir = Object.values(projectPaths)[0] ?? '/tmp'
 
     const created = []
     for (const issue of issues) {
-      const role = issue.role ?? 'backend'
-
-      const [subtask] = await fastify.db.insert(tasks).values({
+      const [newTask] = await fastify.db.insert(tasks).values({
         title: `[Fix] ${issue.title}`,
-        description: `แก้ไข ${issue.severity.toUpperCase()} issue จาก code review: ${issue.title}\n\nTask เดิม: ${task.title}`,
-        stage: 'in_progress',
+        description: `แก้ไข ${issue.severity.toUpperCase()} issue จาก code review: ${issue.title}\n\nพบจาก task: ${task.title}`,
+        stage: 'backlog',
         priority: issue.severity === 'critical' ? 'urgent' : issue.severity === 'high' ? 'high' : 'medium',
-        agentRole: role,
+        agentRole: issue.role ?? 'backend',
         projectId: task.projectId ?? null,
-        parentTaskId: id,
+        parentTaskId: null,
       }).returning()
 
-      const repoSlug = project?.githubRepos?.[0] ?? null
-      const repoUrl = repoSlug ? `https://github.com/${repoSlug}.git` : null
-      const repoName = repoSlug?.split('/')[1] ?? 'repo'
-      const agentWorkingDir = repoUrl && project
-        ? path.join(env.REPOS_BASE_DIR, project.id, repoName)
-        : (projectPaths[role] ?? fallbackDir)
-
-      const prompt = `แก้ไข code issue ที่พบจาก review:
-
-**Issue:** ${issue.title}
-**Severity:** ${issue.severity.toUpperCase()}
-**Context:** ${task.title}${task.description ? `\n${task.description}` : ''}
-${gitInstructions}`
-
-      const [roleRow] = await fastify.db.select().from(agentRoles).where(eq(agentRoles.slug, role)).limit(1)
-
-      await dispatchAgent(role, agentWorkingDir, prompt, {
-        projectId: task.projectId ?? null,
-        taskId: subtask.id,
-        createdBy: userId,
-      }, roleRow?.systemPrompt ?? undefined, repoUrl ?? undefined)
-
-      await publishTaskEvent(fastify, 'task.created', { taskId: subtask.id, projectId: task.projectId })
-      created.push(subtask)
+      await publishTaskEvent(fastify, 'task.created', { taskId: newTask.id, projectId: task.projectId })
+      created.push(newTask)
     }
 
     reply.status(201)
@@ -403,6 +360,7 @@ ${gitInstructions}`
           description: s.description,
           agentRole: s.agentRole,
           priority: s.priority ?? 'medium',
+          wave: s.wave ?? 1,
           parentTaskId: id,
           projectId: task.projectId,
           stage: 'backlog',
@@ -421,58 +379,7 @@ ${gitInstructions}`
 
     await logAudit(fastify, request, { action: 'task.approved', target: id })
 
-    // Dispatch agents for each subtask
-    const approveBody = z.object({ executionMode: z.enum(['cloud', 'local']).optional().default('cloud') }).parse(request.body ?? {})
-    const executionMode = approveBody.executionMode
-
-    if (task.projectId) {
-      const [project] = await fastify.db.select().from(projects).where(eq(projects.id, task.projectId)).limit(1)
-      if (project) {
-        const baseBranch = (project as any).baseBranch ?? 'main'
-        const branchSuffix = Date.now().toString(36)
-        const gitInstructions = buildGitInstructions(baseBranch, branchSuffix)
-        const paths = (project.paths ?? {}) as Record<string, string>
-
-        await Promise.all(subtasks.map(async (subtask) => {
-          if (!subtask) return
-          const role = subtask.agentRole ?? 'reviewer'
-
-          let workingDir: string
-          let repoUrl: string | undefined
-          if (executionMode === 'cloud' && project.githubRepos?.length) {
-            const repoSlug = project.githubRepos[0] as string
-            const repoName = repoSlug.split('/')[1]
-            repoUrl = `https://github.com/${repoSlug}.git`
-            workingDir = path.join(env.REPOS_BASE_DIR, project.id, repoName)
-          } else {
-            workingDir = paths[role] ?? Object.values(paths)[0] ?? '/tmp'
-          }
-
-          const prompt = [
-            `## Task Context`,
-            `Task: ${task.title}`,
-            task.description ? `Description: ${task.description}` : '',
-            ``,
-            `## Your Subtask`,
-            subtask.title,
-            subtask.description ?? '',
-            gitInstructions,
-          ].filter(Boolean).join('\n')
-
-          const result = await dispatchAgent(role, workingDir, prompt, {
-            projectId: task.projectId,
-            taskId: subtask.id,
-            createdBy: null,
-            executionMode,
-          }, undefined, repoUrl)
-
-          if (result.id) {
-            await fastify.db.update(tasks).set({ stage: 'in_progress' }).where(eq(tasks.id, subtask.id))
-          }
-        }))
-      }
-    }
-
+    // Subtasks created in backlog — Start route handles dispatch
     return { task: { ...task, status: 'in_progress' }, subtasks }
   })
 
@@ -527,27 +434,47 @@ ${gitInstructions}`
       }
     }
 
-    // 4b. If task already has approved subtasks in backlog, dispatch them directly
-    const existingSubtasks = await fastify.db
+    // 4b. If task already has approved subtasks in backlog, dispatch wave 1 only
+    const allBacklogSubtasks = await fastify.db
       .select()
       .from(tasks)
       .where(and(eq(tasks.parentTaskId, id), eq(tasks.stage, 'backlog')))
 
-    if (existingSubtasks.length > 0) {
+    if (allBacklogSubtasks.length > 0) {
       const executionMode = startBody.executionMode ?? 'cloud'
       const branchSuffix = Date.now().toString(36)
       const gitInstructions = buildGitInstructions(baseBranch, branchSuffix)
       const projectCtxBlock = await buildContextBlock(task.projectId ?? null, fastify)
 
-      // Load project for repo info (cloud mode needs githubRepos)
       let projectData: any = null
       if (task.projectId) {
         const [proj] = await fastify.db.select().from(projects).where(eq(projects.id, task.projectId)).limit(1)
         projectData = proj
       }
 
+      // Group by wave, dispatch only the smallest wave number
+      const waveNumbers = [...new Set(allBacklogSubtasks.map((s: any) => s.wave ?? 1))].sort((a: number, b: number) => a - b)
+      const currentWaveNum = waveNumbers[0]
+      const wave1Subtasks = allBacklogSubtasks.filter((s: any) => (s.wave ?? 1) === currentWaveNum)
+
+      // Save dispatch context to Redis for next-wave dispatch from internal.ts
+      const waveCtx = {
+        executionMode,
+        branchSuffix,
+        baseBranch,
+        projectId: task.projectId ?? null,
+        repoUrl: (executionMode === 'cloud' && projectData?.githubRepos?.length)
+          ? `https://github.com/${projectData.githubRepos[0]}.git`
+          : null,
+        projectPaths,
+        parentTaskTitle: task.title,
+        parentTaskDescription: task.description ?? '',
+        projectCtxBlock,
+      }
+      await fastify.redis.set(`subtask-wave-ctx:${id}`, JSON.stringify(waveCtx), 'EX', 86400)
+
       const dispatched: string[] = []
-      for (const subtask of existingSubtasks) {
+      for (const subtask of wave1Subtasks) {
         const role = subtask.agentRole ?? 'reviewer'
 
         let agentWorkingDir: string
@@ -567,7 +494,7 @@ ${gitInstructions}`
           `Task: ${task.title}`,
           task.description ? `Description: ${task.description}` : '',
           ``,
-          `## Your Subtask`,
+          `## Your Subtask (Wave ${currentWaveNum})`,
           subtask.title,
           subtask.description ?? '',
           gitInstructions,
@@ -598,7 +525,7 @@ ${gitInstructions}`
         return reply.status(500).send({ error: 'No agents could be dispatched' })
       }
 
-      return { ok: true, waveCount: 1, pendingSessions: dispatched }
+      return { ok: true, waveCount: waveNumbers.length, pendingSessions: dispatched }
     }
 
     // 5. Run Lead to plan waves

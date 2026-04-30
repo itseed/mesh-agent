@@ -431,7 +431,8 @@ export async function internalRoutes(fastify: FastifyInstance) {
     }
 
     // When success + prUrl, QG controls the final "done" transition — keep in_progress
-    const stage = success ? (prUrl ? 'in_progress' : 'done') : 'in_progress'
+    // On failure, return to backlog so the subtask can be retried
+    const stage = success ? (prUrl ? 'in_progress' : 'done') : 'backlog'
 
     // 1. Update task stage + save output as comment
     if (taskId) {
@@ -460,8 +461,100 @@ export async function internalRoutes(fastify: FastifyInstance) {
 
       await fastify.redis.publish(TASKS_CHANNEL, JSON.stringify({ type: 'task.stage', taskId, stage, projectId }))
 
-      // 2. Check parent task — if all subtasks done → mark parent done
+      // 2. Load task for wave check and parent completion
       const [task] = await fastify.db.select().from(tasks).where(eq(tasks.id, taskId)).limit(1)
+
+      // 2a. Next-wave dispatch for approve→start workflow
+      if (task?.parentTaskId && success) {
+        const completingWave = (task as any).wave ?? 1
+
+        const [{ pendingInWave }] = await fastify.db
+          .select({ pendingInWave: count() })
+          .from(tasks)
+          .where(and(
+            eq(tasks.parentTaskId, task.parentTaskId),
+            eq(tasks.wave, completingWave),
+            ne(tasks.stage, 'done'),
+            ne(tasks.id, taskId),
+          ))
+
+        if (Number(pendingInWave) === 0) {
+          const nextWaveSubtasks = await fastify.db
+            .select()
+            .from(tasks)
+            .where(and(
+              eq(tasks.parentTaskId, task.parentTaskId),
+              eq(tasks.wave, completingWave + 1),
+              eq(tasks.stage, 'backlog'),
+            ))
+
+          if (nextWaveSubtasks.length > 0) {
+            const ctxRaw = await fastify.redis.get(`subtask-wave-ctx:${task.parentTaskId}`)
+            if (ctxRaw) {
+              try {
+                const ctx = JSON.parse(ctxRaw) as {
+                  executionMode: string
+                  branchSuffix: string
+                  baseBranch: string
+                  projectId: string | null
+                  repoUrl: string | null
+                  projectPaths: Record<string, string>
+                  parentTaskTitle: string
+                  parentTaskDescription: string
+                  projectCtxBlock: string
+                }
+                const gitInstructions = buildGitInstructions(ctx.baseBranch, ctx.branchSuffix)
+
+                for (const subtask of nextWaveSubtasks) {
+                  const role = subtask.agentRole ?? 'reviewer'
+                  let agentWorkingDir: string
+                  let repoUrl: string | undefined
+                  if (ctx.repoUrl) {
+                    const repoName = ctx.repoUrl.split('/').pop()?.replace('.git', '') ?? 'repo'
+                    agentWorkingDir = `${env.REPOS_BASE_DIR}/${ctx.projectId}/${repoName}`
+                    repoUrl = ctx.repoUrl
+                  } else {
+                    agentWorkingDir = ctx.projectPaths[role] ?? Object.values(ctx.projectPaths)[0] ?? '/tmp'
+                  }
+
+                  const fullPrompt = [
+                    ctx.projectCtxBlock ? ctx.projectCtxBlock + '\n' : '',
+                    `## Task Context`,
+                    `Task: ${ctx.parentTaskTitle}`,
+                    ctx.parentTaskDescription ? `Description: ${ctx.parentTaskDescription}` : '',
+                    ``,
+                    `## Your Subtask (Wave ${completingWave + 1})`,
+                    subtask.title,
+                    subtask.description ?? '',
+                    gitInstructions,
+                  ].filter(Boolean).join('\n')
+
+                  const result = await dispatchAgent(role, agentWorkingDir, fullPrompt, {
+                    projectId: ctx.projectId,
+                    taskId: subtask.id,
+                    createdBy: 'system',
+                    executionMode: ctx.executionMode as 'cloud' | 'local',
+                  }, undefined, repoUrl)
+
+                  if (result.id) {
+                    await fastify.db.update(tasks).set({ stage: 'in_progress', updatedAt: new Date() }).where(eq(tasks.id, subtask.id))
+                    fastify.log.info({ subtaskId: subtask.id, wave: completingWave + 1 }, 'Next wave subtask dispatched')
+                  }
+                }
+
+                await fastify.redis.publish(
+                  TASKS_CHANNEL,
+                  JSON.stringify({ type: 'task.wave.advanced', taskId: task.parentTaskId, wave: completingWave + 1, projectId }),
+                )
+              } catch (err) {
+                fastify.log.warn({ err }, 'Next-wave dispatch failed')
+              }
+            }
+          }
+        }
+      }
+
+      // 2b. Check parent task — if all subtasks done → mark parent done
       if (task?.parentTaskId) {
         const [{ value: pendingCount }] = await fastify.db
           .select({ value: count() })

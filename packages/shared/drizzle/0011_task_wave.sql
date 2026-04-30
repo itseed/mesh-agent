@@ -1,0 +1,1 @@
+ALTER TABLE "tasks" ADD COLUMN "wave" integer NOT NULL DEFAULT 1;

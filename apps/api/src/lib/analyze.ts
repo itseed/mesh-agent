@@ -5,6 +5,7 @@ export interface SubtaskPlan {
   description?: string
   agentRole?: string
   priority: 'low' | 'medium' | 'high' | 'urgent'
+  wave: number  // 1 = first parallel group, 2 = runs after wave 1, etc.
 }
 
 export interface AnalyzePlan {
@@ -17,7 +18,8 @@ export async function analyzeTask(title: string, description?: string | null): P
     'You are the Lead of a software development team.',
     'Analyze the following task and break it down into concrete subtasks for your team.',
     'Output ONLY a single valid JSON object — no markdown, no explanation, no extra text.',
-    'Schema: { "summary": "one sentence overview", "subtasks": [{ "title": "...", "description": "...", "agentRole": "frontend|backend|mobile|devops|designer|qa|reviewer", "priority": "low|medium|high|urgent" }] }',
+    'Schema: { "summary": "one sentence overview", "subtasks": [{ "title": "...", "description": "...", "agentRole": "frontend|backend|mobile|devops|designer|qa|reviewer", "priority": "low|medium|high|urgent", "wave": 1 }] }',
+    'Wave rules: wave 1 = parallel work (implementation, investigation, analysis). wave 2 = work that depends on wave 1 results (synthesis, QA test, code review). wave 3+ = further sequential steps if needed.',
     '',
     `Task: ${title}`,
     description ? `Description: ${description}` : '',

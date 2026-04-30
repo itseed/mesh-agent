@@ -37,6 +37,7 @@ export const tasks = pgTable(
       enum: ['low', 'medium', 'high', 'urgent'],
     }).notNull().default('medium'),
     agentRole: text('agent_role'),
+    wave: integer('wave').notNull().default(1),
     projectId: text('project_id').references(() => projects.id),
     parentTaskId: text('parent_task_id'),
     githubPrUrl: text('github_pr_url'),
