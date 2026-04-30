@@ -14,9 +14,13 @@ export async function agentSpawn(params: {
   role: string
   workingDir: string
   prompt: string
-  cliProvider: string
+  cliProvider?: string
+  taskId?: string
+  projectId?: string
+  apiUrl?: string
+  internalSecret?: string
 }): Promise<{ sessionId: string }> {
-  const { sessionId, role, workingDir, prompt, cliProvider } = params
+  const { sessionId, role, workingDir, prompt, cliProvider, taskId, projectId, apiUrl, internalSecret } = params
 
   const cmd = cliProvider === 'gemini' ? 'gemini' : 'claude'
   const args = ['--dangerously-skip-permissions', '--print', prompt]
@@ -37,7 +41,35 @@ export async function agentSpawn(params: {
     const e = agents.get(sessionId)
     if (e) e.stdout += chunk.toString()
   })
-  proc.on('exit', () => agents.delete(sessionId))
+
+  proc.on('exit', async (exitCode) => {
+    const e = agents.get(sessionId)
+    agents.delete(sessionId)
+
+    if (apiUrl && internalSecret && e) {
+      const outputLog = e.stdout.slice(-10000)
+      try {
+        await fetch(`${apiUrl}/internal/agent-complete`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-internal-secret': internalSecret,
+          },
+          body: JSON.stringify({
+            sessionId,
+            taskId: taskId ?? null,
+            role,
+            success: exitCode === 0,
+            outputLog,
+            projectId: projectId ?? null,
+            exitCode: exitCode ?? null,
+          }),
+        })
+      } catch {
+        // best-effort — ignore network errors
+      }
+    }
+  })
 
   return { sessionId }
 }

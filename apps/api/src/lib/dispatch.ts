@@ -48,6 +48,10 @@ export async function dispatchAgent(
         workingDir,
         prompt,
         cliProvider: context.cliProvider ?? 'claude',
+        taskId: context.taskId ?? undefined,
+        projectId: context.projectId ?? undefined,
+        apiUrl: process.env.COMPANION_CALLBACK_URL ?? 'http://localhost:4801',
+        internalSecret: env.INTERNAL_SECRET,
       })
       return { id: sessionId }
     } catch (err: any) {
