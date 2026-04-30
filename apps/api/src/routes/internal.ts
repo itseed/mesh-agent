@@ -475,6 +475,22 @@ export async function internalRoutes(fastify: FastifyInstance) {
       // 2. Load task for wave check and parent completion
       const [task] = await fastify.db.select().from(tasks).where(eq(tasks.id, taskId)).limit(1)
 
+      // Mirror condensed summary to parent task so Task Complete CTA can aggregate issues
+      if (task?.parentTaskId && summary) {
+        const parentCommentBody = [
+          `**[${role}] ${success ? 'เสร็จแล้ว ✓' : 'มีข้อผิดพลาด ✕'}** — ${(task as any).title ?? ''}`,
+          '',
+          `**สรุป:** ${summary}`,
+          prUrl ? `**PR:** ${prUrl}` : '',
+        ].filter(Boolean).join('\n')
+        fastify.db.insert(taskComments).values({
+          taskId: task.parentTaskId,
+          body: parentCommentBody,
+          source: 'agent',
+          authorId: null,
+        }).catch((err: unknown) => fastify.log.warn({ err }, 'Failed to mirror summary to parent task'))
+      }
+
       // 2a. Next-wave dispatch for approve→start workflow
       if (task?.parentTaskId && success) {
         const completingWave = (task as any).wave ?? 1
