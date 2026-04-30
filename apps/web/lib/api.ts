@@ -131,6 +131,7 @@ export const api = {
     }) => request<any>('/agents', { method: 'POST', body: JSON.stringify(data) }),
     stop: (id: string) => request<void>(`/agents/${id}`, { method: 'DELETE' }),
     session: (id: string) => request<any>(`/agents/sessions/${id}`),
+    sessionByTask: (taskId: string) => request<any>(`/agents/sessions/by-task/${taskId}`),
     sessionOutput: (id: string) => request<{ output: string; running: boolean }>(`/agents/sessions/${id}/output`),
     listRoles: () =>
       request<

@@ -21,25 +21,29 @@ export function SubtaskDetailModal({ subtask, onClose }: Props) {
   const [isRunning, setIsRunning] = useState(false)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
+  // Load session by task ID
   useEffect(() => {
-    if (!subtask.sessionId) return
+    if (!subtask.id) return
     setLoading(true)
-    api.agents.session(subtask.sessionId)
+    api.agents.sessionByTask(subtask.id)
       .then(setSession)
       .catch(() => {})
       .finally(() => setLoading(false))
-  }, [subtask.sessionId])
+  }, [subtask.id])
 
+  // Poll live output while in_progress (use session.id from agent_sessions)
   useEffect(() => {
-    if (!subtask.sessionId || subtask.stage !== 'in_progress') return
+    if (!session?.id || subtask.stage !== 'in_progress') return
     const poll = async () => {
       try {
-        const res = await api.agents.sessionOutput(subtask.sessionId)
+        const res = await api.agents.sessionOutput(session.id)
         setLiveOutput(res.output)
         setIsRunning(res.running)
         if (!res.running) {
           clearInterval(pollRef.current!)
           pollRef.current = null
+          // Reload session to get final outputLog saved to DB
+          api.agents.sessionByTask(subtask.id).then(setSession).catch(() => {})
         }
       } catch {}
     }
@@ -48,7 +52,7 @@ export function SubtaskDetailModal({ subtask, onClose }: Props) {
     return () => {
       if (pollRef.current) clearInterval(pollRef.current)
     }
-  }, [subtask.sessionId, subtask.stage])
+  }, [session?.id, subtask.stage, subtask.id])
 
   const stageColor = STAGE_COLOR[subtask.stage] ?? '#6a7a8e'
   const displayOutput = liveOutput || session?.outputLog || ''
@@ -63,7 +67,6 @@ export function SubtaskDetailModal({ subtask, onClose }: Props) {
         className="bg-surface border border-border-hi rounded-xl w-full max-w-2xl max-h-[80vh] flex flex-col overflow-hidden glow-border fade-up"
         onClick={e => e.stopPropagation()}
       >
-        {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-border">
           <div className="flex items-center gap-2.5">
             <span className="text-[12px] px-2 py-0.5 rounded font-medium" style={{ color: stageColor, backgroundColor: `${stageColor}20` }}>
@@ -82,38 +85,39 @@ export function SubtaskDetailModal({ subtask, onClose }: Props) {
         </div>
 
         <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-4">
-          {/* Title */}
           <h2 className="text-[15px] font-semibold text-text">{subtask.title}</h2>
           {subtask.description && (
             <p className="text-[13px] text-muted">{subtask.description}</p>
           )}
 
-          {/* Session output */}
-          {loading && <p className="text-dim text-[13px]">Loading output…</p>}
+          {loading && <p className="text-dim text-[13px]">Loading session…</p>}
+
           {(session || liveOutput) && (
             <div>
-              <div className="text-[12px] font-medium text-muted uppercase tracking-wider mb-2">Agent Output</div>
+              <div className="text-[12px] font-medium text-muted uppercase tracking-wider mb-2">
+                Agent Output
+                {isRunning && <span className="ml-2 text-[#f0883e] font-normal">— running</span>}
+              </div>
               {displayOutput ? (
                 <pre className="bg-canvas/50 border border-border rounded-lg p-3 text-[12px] font-mono text-muted whitespace-pre-wrap break-all max-h-96 overflow-y-auto">
                   {displayOutput}
                 </pre>
               ) : (
-                <p className="text-[13px] text-dim">No output recorded.</p>
+                <p className="text-[13px] text-dim">Waiting for output…</p>
               )}
               {session && (
                 <div className="flex gap-4 mt-2 text-[12px] text-dim">
                   {session.startedAt && <span>Started: {new Date(session.startedAt).toLocaleTimeString()}</span>}
                   {session.endedAt && <span>Ended: {new Date(session.endedAt).toLocaleTimeString()}</span>}
                   {session.exitCode != null && <span>Exit: {session.exitCode}</span>}
+                  {session.role && <span className="font-mono">{session.role}</span>}
                 </div>
               )}
             </div>
           )}
-          {!loading && !session && !liveOutput && subtask.sessionId && (
-            <p className="text-dim text-[13px]">Session output not available.</p>
-          )}
-          {!subtask.sessionId && (
-            <p className="text-dim text-[13px]">No session linked to this subtask.</p>
+
+          {!loading && !session && !liveOutput && (
+            <p className="text-dim text-[13px]">No agent session found for this subtask.</p>
           )}
         </div>
       </div>

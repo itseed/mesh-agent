@@ -269,4 +269,16 @@ export async function agentRoutes(fastify: FastifyInstance) {
     if (!res.ok) return reply.status(res.status).send({ error: 'Failed to get output' })
     return res.json()
   })
+
+  fastify.get('/agents/sessions/by-task/:taskId', { preHandler }, async (request, reply) => {
+    const { taskId } = request.params as { taskId: string }
+    const [session] = await fastify.db
+      .select()
+      .from(agentSessions)
+      .where(eq(agentSessions.taskId, taskId))
+      .orderBy(desc(agentSessions.createdAt))
+      .limit(1)
+    if (!session) return reply.status(404).send({ error: 'No session found' })
+    return session
+  })
 }
