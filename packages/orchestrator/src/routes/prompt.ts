@@ -63,7 +63,7 @@ export async function promptRoutes(fastify: FastifyInstance) {
 
     let loggedIn = false
     try {
-      const { stdout } = await execFileAsync(env.CLAUDE_CMD, ['auth', 'status', '--output-format', 'json'], {
+      const { stdout } = await execFileAsync(env.CLAUDE_CMD, ['auth', 'status'], {
         encoding: 'utf8', timeout: 10_000, env: process.env,
       })
       const parsed = JSON.parse(stdout)
