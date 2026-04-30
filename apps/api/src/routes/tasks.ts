@@ -55,6 +55,7 @@ const stageSchema = z.object({ stage: z.enum(STAGES) })
 
 const startSchema = z.object({
   cli: z.enum(['claude', 'gemini', 'cursor']).optional(),
+  executionMode: z.enum(['cloud', 'local']).optional().default('cloud'),
 })
 
 const createCommentSchema = z.object({
@@ -421,25 +422,49 @@ ${gitInstructions}`
     await logAudit(fastify, request, { action: 'task.approved', target: id })
 
     // Dispatch agents for each subtask
+    const approveBody = z.object({ executionMode: z.enum(['cloud', 'local']).optional().default('cloud') }).parse(request.body ?? {})
+    const executionMode = approveBody.executionMode
+
     if (task.projectId) {
       const [project] = await fastify.db.select().from(projects).where(eq(projects.id, task.projectId)).limit(1)
       if (project) {
         const baseBranch = (project as any).baseBranch ?? 'main'
         const branchSuffix = Date.now().toString(36)
         const gitInstructions = buildGitInstructions(baseBranch, branchSuffix)
+        const paths = (project.paths ?? {}) as Record<string, string>
 
         await Promise.all(subtasks.map(async (subtask) => {
           if (!subtask) return
           const role = subtask.agentRole ?? 'reviewer'
-          const paths = (project.paths ?? {}) as Record<string, string>
-          const workingDir = paths[role] ?? Object.values(paths)[0] ?? '/tmp'
-          const prompt = `${subtask.title}\n\n${subtask.description ?? ''}${gitInstructions}`
+
+          let workingDir: string
+          let repoUrl: string | undefined
+          if (executionMode === 'cloud' && project.githubRepos?.length) {
+            const repoSlug = project.githubRepos[0] as string
+            const repoName = repoSlug.split('/')[1]
+            repoUrl = `https://github.com/${repoSlug}.git`
+            workingDir = path.join(env.REPOS_BASE_DIR, project.id, repoName)
+          } else {
+            workingDir = paths[role] ?? Object.values(paths)[0] ?? '/tmp'
+          }
+
+          const prompt = [
+            `## Task Context`,
+            `Task: ${task.title}`,
+            task.description ? `Description: ${task.description}` : '',
+            ``,
+            `## Your Subtask`,
+            subtask.title,
+            subtask.description ?? '',
+            gitInstructions,
+          ].filter(Boolean).join('\n')
 
           const result = await dispatchAgent(role, workingDir, prompt, {
             projectId: task.projectId,
             taskId: subtask.id,
             createdBy: null,
-          })
+            executionMode,
+          }, undefined, repoUrl)
 
           if (result.id) {
             await fastify.db.update(tasks).set({ stage: 'in_progress' }).where(eq(tasks.id, subtask.id))
@@ -509,21 +534,54 @@ ${gitInstructions}`
       .where(and(eq(tasks.parentTaskId, id), eq(tasks.stage, 'backlog')))
 
     if (existingSubtasks.length > 0) {
+      const executionMode = startBody.executionMode ?? 'cloud'
       const branchSuffix = Date.now().toString(36)
       const gitInstructions = buildGitInstructions(baseBranch, branchSuffix)
       const projectCtxBlock = await buildContextBlock(task.projectId ?? null, fastify)
 
+      // Load project for repo info (cloud mode needs githubRepos)
+      let projectData: any = null
+      if (task.projectId) {
+        const [proj] = await fastify.db.select().from(projects).where(eq(projects.id, task.projectId)).limit(1)
+        projectData = proj
+      }
+
       const dispatched: string[] = []
       for (const subtask of existingSubtasks) {
-        const agentWorkingDir = projectPaths[subtask.agentRole ?? ''] ?? Object.values(projectPaths)[0] ?? '/tmp'
-        const fullPrompt = `${projectCtxBlock ? projectCtxBlock + '\n\n' : ''}${subtask.title}\n\n${subtask.description ?? ''}${gitInstructions}`
+        const role = subtask.agentRole ?? 'reviewer'
 
-        const result = await dispatchAgent(subtask.agentRole ?? 'reviewer', agentWorkingDir, fullPrompt, {
+        let agentWorkingDir: string
+        let repoUrl: string | undefined
+        if (executionMode === 'cloud' && projectData?.githubRepos?.length) {
+          const repoSlug = projectData.githubRepos[0] as string
+          const repoName = repoSlug.split('/')[1]
+          repoUrl = `https://github.com/${repoSlug}.git`
+          agentWorkingDir = path.join(env.REPOS_BASE_DIR, task.projectId!, repoName)
+        } else {
+          agentWorkingDir = projectPaths[role] ?? Object.values(projectPaths)[0] ?? '/tmp'
+        }
+
+        const fullPrompt = [
+          projectCtxBlock ? projectCtxBlock + '\n' : '',
+          `## Task Context`,
+          `Task: ${task.title}`,
+          task.description ? `Description: ${task.description}` : '',
+          ``,
+          `## Your Subtask`,
+          subtask.title,
+          subtask.description ?? '',
+          gitInstructions,
+        ].filter(Boolean).join('\n')
+
+        const result = await dispatchAgent(role, agentWorkingDir, fullPrompt, {
           projectId: task.projectId ?? null,
           taskId: subtask.id,
           createdBy: userId,
           cliProvider: startBody.cli,
-        })
+          executionMode,
+          userId,
+          db: fastify.db,
+        }, undefined, repoUrl)
 
         if (result.id) {
           dispatched.push(result.id)
