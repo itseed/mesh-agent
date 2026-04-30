@@ -230,7 +230,7 @@ export const api = {
         body: JSON.stringify(body),
       }),
     testCliProvider: (provider: string) =>
-      request<{ ok: boolean; version?: string; error?: string; cmd: string }>(`/settings/cli/${provider}/test`),
+      request<{ ok: boolean; loggedIn: boolean; version?: string; error?: string; cmd: string }>(`/settings/cli/${provider}/test`),
   },
   chat: {
     history: () => request<any[]>('/chat/history'),

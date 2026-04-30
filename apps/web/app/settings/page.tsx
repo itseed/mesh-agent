@@ -101,7 +101,7 @@ function SettingsPageInner() {
             return {
               id: row.provider,
               name: row.provider.charAt(0).toUpperCase() + row.provider.slice(1),
-              loggedIn: health?.ok ?? false,
+              loggedIn: health?.loggedIn ?? false,
               enabled: row.enabled,
               isDefault: row.isDefault,
               loginInstructions: PROVIDER_LOGIN_INSTRUCTIONS[row.provider] ?? '',

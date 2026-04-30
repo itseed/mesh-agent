@@ -49,24 +49,28 @@ export async function promptRoutes(fastify: FastifyInstance) {
   fastify.get('/health/claude', async () => {
     let cmd = env.CLAUDE_CMD
     try {
-      const { stdout } = await execFileAsync('which', [env.CLAUDE_CMD], {
-        encoding: 'utf8',
-        timeout: 5_000,
-      })
+      const { stdout } = await execFileAsync('which', [env.CLAUDE_CMD], { encoding: 'utf8', timeout: 5_000 })
       if (stdout.trim()) cmd = stdout.trim()
-    } catch {
-      // keep env.CLAUDE_CMD fallback
-    }
+    } catch {}
+
+    let version = ''
     try {
-      const { stdout } = await execFileAsync(env.CLAUDE_CMD, ['--version'], {
-        encoding: 'utf8',
-        timeout: 10_000,
-        env: process.env,
-      })
-      return { ok: true, version: stdout.trim(), cmd }
+      const { stdout } = await execFileAsync(env.CLAUDE_CMD, ['--version'], { encoding: 'utf8', timeout: 10_000, env: process.env })
+      version = stdout.trim()
     } catch (err: any) {
-      return { ok: false, error: err?.message ?? 'CLI not found', cmd }
+      return { ok: false, loggedIn: false, error: err?.message ?? 'CLI not found', cmd }
     }
+
+    let loggedIn = false
+    try {
+      const { stdout } = await execFileAsync(env.CLAUDE_CMD, ['auth', 'status', '--output-format', 'json'], {
+        encoding: 'utf8', timeout: 10_000, env: process.env,
+      })
+      const parsed = JSON.parse(stdout)
+      loggedIn = parsed.loggedIn === true
+    } catch {}
+
+    return { ok: true, loggedIn, version, cmd }
   })
 
   fastify.post('/health/claude/token', async (request, reply) => {
@@ -88,28 +92,27 @@ export async function promptRoutes(fastify: FastifyInstance) {
 
   fastify.get('/health/gemini', async () => {
     try {
-      const { stdout } = await execFileAsync('gemini', ['--version'], {
-        encoding: 'utf8',
-        timeout: 10_000,
-        env: process.env,
-      })
-      return { ok: true, version: stdout.trim(), cmd: 'gemini' }
+      const { stdout } = await execFileAsync('gemini', ['--version'], { encoding: 'utf8', timeout: 10_000, env: process.env })
+      // gemini has no auth status command — GEMINI_API_KEY means API key auth; absence implies OAuth (installed = likely authenticated)
+      const loggedIn = !!(process.env.GEMINI_API_KEY) || true
+      return { ok: true, loggedIn, version: stdout.trim(), cmd: 'gemini' }
     } catch (err: any) {
-      return { ok: false, error: err?.message ?? 'CLI not found', cmd: 'gemini' }
+      return { ok: false, loggedIn: false, error: err?.message ?? 'CLI not found', cmd: 'gemini' }
     }
   })
 
   fastify.get('/health/cursor', async () => {
     const cursorBin = '/root/.local/bin/agent'
     try {
-      const { stdout } = await execFileAsync(cursorBin, ['--version'], {
-        encoding: 'utf8',
-        timeout: 10_000,
-        env: process.env,
-      })
-      return { ok: true, version: stdout.trim(), cmd: cursorBin }
+      const { stdout } = await execFileAsync(cursorBin, ['--version'], { encoding: 'utf8', timeout: 10_000, env: process.env })
+      let loggedIn = false
+      try {
+        const { stdout: statusOut } = await execFileAsync(cursorBin, ['status'], { encoding: 'utf8', timeout: 10_000, env: process.env })
+        loggedIn = statusOut.toLowerCase().includes('logged in') || statusOut.toLowerCase().includes('authenticated')
+      } catch {}
+      return { ok: true, loggedIn, version: stdout.trim(), cmd: cursorBin }
     } catch (err: any) {
-      return { ok: false, error: err?.message ?? 'CLI not found', cmd: cursorBin }
+      return { ok: false, loggedIn: false, error: err?.message ?? 'CLI not found', cmd: cursorBin }
     }
   })
 }
