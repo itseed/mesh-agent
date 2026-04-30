@@ -2,8 +2,9 @@ import { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
-import { writeFileSync, mkdirSync } from 'node:fs'
-import { dirname } from 'node:path'
+import { writeFileSync, mkdirSync, existsSync } from 'node:fs'
+import { dirname, join } from 'node:path'
+import { homedir } from 'node:os'
 import { env } from '../env.js'
 
 const execFileAsync = promisify(execFile)
@@ -93,8 +94,9 @@ export async function promptRoutes(fastify: FastifyInstance) {
   fastify.get('/health/gemini', async () => {
     try {
       const { stdout } = await execFileAsync('gemini', ['--version'], { encoding: 'utf8', timeout: 10_000, env: process.env })
-      // gemini has no auth status command — use GEMINI_API_KEY as proxy for authentication
-      const loggedIn = !!(process.env.GEMINI_API_KEY)
+      // gemini has no auth status command — check API key or OAuth creds file
+      const loggedIn = !!(process.env.GEMINI_API_KEY) ||
+        existsSync(join(homedir(), '.gemini', 'oauth_creds.json'))
       return { ok: true, loggedIn, version: stdout.trim(), cmd: 'gemini' }
     } catch (err: any) {
       return { ok: false, loggedIn: false, error: err?.message ?? 'CLI not found', cmd: 'gemini' }
