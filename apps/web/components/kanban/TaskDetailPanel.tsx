@@ -1,7 +1,6 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
 import { api } from '@/lib/api'
-import { SubtaskDetailModal } from './SubtaskDetailModal'
 
 const PRIORITY_COLORS: Record<string, string> = {
   urgent: 'text-red-400',
@@ -75,6 +74,71 @@ const STAGE_COLORS: Record<string, string> = {
   done: '#3fb950',
 }
 
+function SubtaskInlineOutput({ taskId, stage }: { taskId: string; stage: string }) {
+  const [session, setSession] = useState<any>(null)
+  const [liveOutput, setLiveOutput] = useState('')
+  const [isRunning, setIsRunning] = useState(false)
+  const outputRef = useRef<HTMLPreElement>(null)
+
+  useEffect(() => {
+    api.agents.sessionByTask(taskId).then(setSession).catch(() => {})
+  }, [taskId])
+
+  useEffect(() => {
+    if (!session?.id || stage !== 'in_progress') return
+    let cancelled = false
+
+    const poll = async () => {
+      try {
+        const res = await api.agents.sessionOutput(session.id)
+        if (cancelled) return
+        setLiveOutput(res.output)
+        setIsRunning(res.running)
+        if (outputRef.current) {
+          outputRef.current.scrollTop = outputRef.current.scrollHeight
+        }
+        if (res.running) setTimeout(poll, 2000)
+        else api.agents.sessionByTask(taskId).then(setSession).catch(() => {})
+      } catch {
+        if (!cancelled) setTimeout(poll, 5000)
+      }
+    }
+    poll()
+    return () => { cancelled = true }
+  }, [session?.id, stage, taskId])
+
+  const displayOutput = liveOutput || session?.outputLog || ''
+
+  return (
+    <div className="border-t border-border px-3 pb-3 pt-2 flex flex-col gap-2">
+      <div className="flex items-center gap-2 text-[11px] text-muted">
+        {isRunning && <span className="text-[#f0883e] animate-pulse font-medium">● live</span>}
+        {!isRunning && session && <span className="text-dim">completed</span>}
+        {session?.startedAt && <span className="text-dim">started {new Date(session.startedAt).toLocaleTimeString()}</span>}
+        {session?.endedAt && <span className="text-dim">ended {new Date(session.endedAt).toLocaleTimeString()}</span>}
+        {session?.exitCode != null && (
+          <span style={{ color: session.exitCode === 0 ? '#3fb950' : '#f87171' }}>
+            exit {session.exitCode}
+          </span>
+        )}
+      </div>
+      {displayOutput ? (
+        <pre
+          ref={outputRef}
+          className="bg-canvas border border-border rounded p-2.5 text-[11px] font-mono text-muted whitespace-pre-wrap break-all overflow-y-auto"
+          style={{ maxHeight: '280px' }}
+        >
+          {displayOutput}
+        </pre>
+      ) : (
+        <p className="text-dim text-[12px]">
+          {session ? 'Waiting for output…' : 'No session found.'}
+        </p>
+      )}
+    </div>
+  )
+}
+
 interface TaskDetailPanelProps {
   task: any
   allTasks: any[]
@@ -103,7 +167,7 @@ export function TaskDetailPanel({ task, allTasks, onClose, onUpdate, onDelete }:
   const [attachments, setAttachments] = useState<any[]>([])
   const [uploading, setUploading] = useState(false)
   const [uploadError, setUploadError] = useState('')
-  const [selectedSubtask, setSelectedSubtask] = useState<any | null>(null)
+  const [expandedSubtaskId, setExpandedSubtaskId] = useState<string | null>(null)
   const [fixCommentId, setFixCommentId] = useState<string | null>(null)
   const [reviewIssues, setReviewIssues] = useState<ReviewIssue[]>([])
   const [selectedIssues, setSelectedIssues] = useState<Set<number>>(new Set())
@@ -141,6 +205,15 @@ export function TaskDetailPanel({ task, allTasks, onClose, onUpdate, onDelete }:
   }, [tab, task.id])
 
   const subtasks = allTasks.filter((t: any) => t.parentTaskId === task.id)
+
+  useEffect(() => {
+    const running = subtasks.find((s: any) => s.stage === 'in_progress')
+    if (running) {
+      setTab('subtasks')
+      setExpandedSubtaskId(running.id)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [task.id])
 
   async function saveDescription() {
     setEditingDesc(false)
@@ -633,23 +706,46 @@ export function TaskDetailPanel({ task, allTasks, onClose, onUpdate, onDelete }:
               )}
               {subtasks.map((st: any) => {
                 const role = ROLE_STYLE[st.agentRole ?? '']
+                const isRunning = st.stage === 'in_progress'
+                const isExpanded = expandedSubtaskId === st.id
                 return (
-                  <div key={st.id} className="flex items-center gap-2 px-3 py-2 bg-surface-2 rounded border border-border cursor-pointer hover:border-border-hi transition-colors" onClick={() => setSelectedSubtask(st)}>
-                    <span
-                      className="text-[11px] px-1.5 py-0.5 rounded font-medium shrink-0"
-                      style={{
-                        color: STAGE_COLORS[st.stage] ?? '#6a7a8e',
-                        backgroundColor: `${STAGE_COLORS[st.stage] ?? '#6a7a8e'}20`,
-                      }}
+                  <div
+                    key={st.id}
+                    className="flex flex-col rounded border transition-colors overflow-hidden"
+                    style={{
+                      borderColor: isExpanded ? 'var(--color-border-hi)' : 'var(--color-border)',
+                      backgroundColor: 'var(--color-surface-2)',
+                    }}
+                  >
+                    {/* Row header */}
+                    <div
+                      className="flex items-center gap-2 px-3 py-2 cursor-pointer"
+                      onClick={() => setExpandedSubtaskId(isExpanded ? null : st.id)}
                     >
-                      {st.stage ?? 'backlog'}
-                    </span>
-                    <span className="text-[13px] text-text flex-1">{st.title}</span>
-                    {st.agentRole && role && (
-                      <span className="text-[11px] px-1.5 py-0.5 rounded shrink-0" style={{ backgroundColor: role.bg, color: role.text }}>
-                        {st.agentRole}
-                      </span>
-                    )}
+                      {isRunning ? (
+                        <span className="relative inline-flex w-2 h-2 shrink-0">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-60" style={{ backgroundColor: '#f0883e' }} />
+                          <span className="relative inline-flex w-2 h-2 rounded-full" style={{ backgroundColor: '#f0883e' }} />
+                        </span>
+                      ) : (
+                        <span
+                          className="text-[11px] px-1.5 py-0.5 rounded font-medium shrink-0"
+                          style={{ color: STAGE_COLORS[st.stage] ?? '#6a7a8e', backgroundColor: `${STAGE_COLORS[st.stage] ?? '#6a7a8e'}20` }}
+                        >
+                          {st.stage ?? 'backlog'}
+                        </span>
+                      )}
+                      <span className="text-[13px] text-text flex-1">{st.title}</span>
+                      {st.agentRole && role && (
+                        <span className="text-[11px] px-1.5 py-0.5 rounded shrink-0" style={{ backgroundColor: role.bg, color: role.text }}>
+                          {st.agentRole}
+                        </span>
+                      )}
+                      <span className="text-dim text-[11px] shrink-0">{isExpanded ? '▲' : '▼'}</span>
+                    </div>
+
+                    {/* Inline output panel */}
+                    {isExpanded && <SubtaskInlineOutput taskId={st.id} stage={st.stage} />}
                   </div>
                 )
               })}
@@ -791,12 +887,6 @@ export function TaskDetailPanel({ task, allTasks, onClose, onUpdate, onDelete }:
         )}
       </div>
 
-      {selectedSubtask && (
-        <SubtaskDetailModal
-          subtask={selectedSubtask}
-          onClose={() => setSelectedSubtask(null)}
-        />
-      )}
     </>
   )
 }
