@@ -432,19 +432,14 @@ ${gitInstructions}`
           if (!subtask) return
           const role = subtask.agentRole ?? 'reviewer'
           const paths = (project.paths ?? {}) as Record<string, string>
-          const repoSlug = project.githubRepos?.[0] ?? null
-          const repoUrl = repoSlug ? `https://github.com/${repoSlug}.git` : null
-          const repoName = repoSlug?.split('/')[1] ?? 'repo'
-          const workingDir = repoUrl
-            ? path.join(env.REPOS_BASE_DIR, project.id, repoName)
-            : (paths[role] ?? Object.values(paths)[0] ?? '/tmp')
+          const workingDir = paths[role] ?? Object.values(paths)[0] ?? '/tmp'
           const prompt = `${subtask.title}\n\n${subtask.description ?? ''}${gitInstructions}`
 
           const result = await dispatchAgent(role, workingDir, prompt, {
             projectId: task.projectId,
             taskId: subtask.id,
             createdBy: null,
-          }, undefined, repoUrl ?? undefined)
+          })
 
           if (result.id) {
             await fastify.db.update(tasks).set({ stage: 'in_progress' }).where(eq(tasks.id, subtask.id))
@@ -505,6 +500,47 @@ ${gitInstructions}`
         projectPaths = (proj.paths as Record<string, string>) ?? {}
         baseBranch = proj.baseBranch ?? 'main'
       }
+    }
+
+    // 4b. If task already has approved subtasks in backlog, dispatch them directly
+    const existingSubtasks = await fastify.db
+      .select()
+      .from(tasks)
+      .where(and(eq(tasks.parentTaskId, id), eq(tasks.stage, 'backlog')))
+
+    if (existingSubtasks.length > 0) {
+      const branchSuffix = Date.now().toString(36)
+      const gitInstructions = buildGitInstructions(baseBranch, branchSuffix)
+      const projectCtxBlock = await buildContextBlock(task.projectId ?? null, fastify)
+
+      const dispatched: string[] = []
+      for (const subtask of existingSubtasks) {
+        const agentWorkingDir = projectPaths[subtask.agentRole ?? ''] ?? Object.values(projectPaths)[0] ?? '/tmp'
+        const fullPrompt = `${projectCtxBlock ? projectCtxBlock + '\n\n' : ''}${subtask.title}\n\n${subtask.description ?? ''}${gitInstructions}`
+
+        const result = await dispatchAgent(subtask.agentRole ?? 'reviewer', agentWorkingDir, fullPrompt, {
+          projectId: task.projectId ?? null,
+          taskId: subtask.id,
+          createdBy: userId,
+          cliProvider: startBody.cli,
+        })
+
+        if (result.id) {
+          dispatched.push(result.id)
+          await fastify.db.update(tasks).set({ stage: 'in_progress', updatedAt: new Date() }).where(eq(tasks.id, subtask.id))
+          await indexSession(fastify.redis, result.id, id)
+        } else {
+          await fastify.db.update(tasks).set({ status: 'blocked', updatedAt: new Date() }).where(eq(tasks.id, subtask.id))
+        }
+      }
+
+      await fastify.db.update(tasks).set({ stage: 'in_progress', updatedAt: new Date() }).where(eq(tasks.id, id))
+
+      if (dispatched.length === 0) {
+        return reply.status(500).send({ error: 'No agents could be dispatched' })
+      }
+
+      return { ok: true, waveCount: 1, pendingSessions: dispatched }
     }
 
     // 5. Run Lead to plan waves
