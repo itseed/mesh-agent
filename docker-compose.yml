@@ -34,6 +34,7 @@ services:
       context: .
       dockerfile: packages/orchestrator/Dockerfile.dev
     environment:
+      DATABASE_URL: postgresql://meshagent:meshagent@db:5432/meshagent
       REDIS_URL: redis://redis:6379
       ORCHESTRATOR_PORT: 4802
       CLAUDE_CMD: claude
