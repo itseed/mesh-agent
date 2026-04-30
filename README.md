@@ -111,6 +111,7 @@ graph TB
 | Realtime | WebSocket, Redis pub/sub |
 | Orchestration | Node.js subprocess, Claude Code CLI / Gemini CLI / Cursor Agent |
 | Storage | MinIO (S3-compatible) |
+| Companion | Node.js CLI (mesh-companion), JSON-RPC over WebSocket, child_process.spawn |
 | Infrastructure | Docker Compose, Nginx, Let's Encrypt |
 
 ---
@@ -177,18 +178,26 @@ mesh-companion connect http://localhost:4801 --token <your-token>
 
 ### 1. ตั้งค่า Project
 
-ไปที่ **Settings → Projects** แล้วสร้าง project ใหม่ ระบุ **working directory ของแต่ละ role**:
+ไปที่ **Projects** แล้วกด **New Project** ระบุ:
+
+- **Project name** — ชื่อ project
+- **GitHub Repos** (optional) — repos ที่ agent จะ access ใน Cloud mode
+- **Base Branch** — branch ที่ agent จะ fork และ PR เข้า (default: main)
+- **LOCAL PATHS** — working directory บนเครื่องของคุณต่อ role (สำหรับ Local mode)
+
+**Cloud mode** ไม่ต้องตั้ง LOCAL PATHS — API ใช้ path จาก GitHub repo clone บน server อัตโนมัติ
+
+**Local mode** ต้องตั้ง LOCAL PATHS ให้ครบทุก role ที่ใช้:
 
 ```
-Project: my-app
-Paths:
+LOCAL PATHS:
   frontend  →  /Users/you/project/my-app/web
   backend   →  /Users/you/project/my-app/api
-  mobile    →  /Users/you/project/my-app/mobile
-  devops    →  /Users/you/project/my-app
 ```
 
-> Role ที่ไม่มี path จะ fallback ไปใช้ path แรกที่มี ไม่จำเป็นต้องครบทุก role
+ถ้า companion connected จะมีปุ่ม **📁 Open Folder Browser** — ใช้ drag & drop folder จากเครื่องมาวางที่ role row ได้เลย
+
+> Role ที่ไม่มี path จะ fallback ไปใช้ path แรกที่มี
 
 ### 2. สั่งงานผ่าน Lead Chat
 
@@ -207,6 +216,17 @@ Lead AI จะ:
 3. รอ confirm จากคุณ → กด **ยืนยันและสั่งงาน**
 
 > เลือก project ก่อนพิมพ์ (dropdown ใต้ chat) เพื่อให้ Lead รู้ paths ที่ถูกต้อง
+
+### 2b. เลือก Cloud หรือ Local
+
+ใน chat input มี toggle **☁ Cloud / 💻 Local** (ต้อง companion connected จึงจะเลือก Local ได้):
+
+- **Cloud** — agent รันบน server ใช้ GitHub repo clone (default)
+- **Local** — agent spawn บนเครื่องของคุณ แก้ไฟล์ local โดยตรงทันที
+
+ใน **New task** modal ก็มี toggle เดียวกัน ใช้ตั้งค่า default mode ต่อ task
+
+**Agents page** แสดง local sessions ด้วย badge สีเขียว 'local' — กดดูได้เห็น output แบบ polling ทุก 3 วินาที และมีปุ่ม Kill เพื่อหยุดงาน
 
 ### 3. ติดตามงานใน Kanban
 
@@ -400,6 +420,24 @@ DROPLET_HOST=your.droplet.ip bash scripts/deploy.sh
 ```
 
 Restore: `./scripts/db-restore.sh /var/backups/meshagent/meshagent-...sql.gz`
+
+### Repo Disk Cleanup
+
+Repos ที่ clone บน server (สำหรับ Cloud mode) อาจสะสมจนใช้พื้นที่มาก ล้างด้วย:
+
+```bash
+# ลบ repos ที่ไม่ได้ใช้มากกว่า 30 วัน
+docker exec <orchestrator-container> bash /app/scripts/cleanup-repos.sh
+
+# หรือระบุจำนวนวัน
+docker exec <orchestrator-container> bash /app/scripts/cleanup-repos.sh 14
+```
+
+เพิ่มใน crontab บน server เพื่อ cleanup อัตโนมัติทุกสัปดาห์:
+
+```cron
+0 3 * * 0 docker exec meshagent-orchestrator bash /app/scripts/cleanup-repos.sh >>/var/log/meshagent-cleanup.log 2>&1
+```
 
 ---
 
