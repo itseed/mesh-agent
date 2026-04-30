@@ -1,7 +1,7 @@
 import { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 import { eq, and, ne, count } from 'drizzle-orm'
-import { tasks, taskComments, taskActivities, projects, agentOutcomes } from '@meshagent/shared'
+import { tasks, taskComments, taskActivities, projects, agentOutcomes, agentSessions } from '@meshagent/shared'
 import { env } from '../env.js'
 import { runLeadSynthesis, type LeadContextMessage } from '../lib/lead.js'
 import {
@@ -418,6 +418,17 @@ export async function internalRoutes(fastify: FastifyInstance) {
     // ── End Quality Gate reviewer check ──────────────────────────────────────
 
     const { taskId, role, success, outputLog, projectId } = body
+
+    // Update agent_sessions status immediately (fire-and-forget)
+    fastify.db
+      .update(agentSessions)
+      .set({
+        status: success ? 'completed' : 'errored',
+        endedAt: new Date(),
+        ...(success ? {} : { error: buildSummary(outputLog).slice(0, 500) || 'Agent reported failure' }),
+      })
+      .where(eq(agentSessions.id, body.sessionId))
+      .catch((err: unknown) => fastify.log.warn({ err, sessionId: body.sessionId }, 'Failed to update session status'))
 
     const prUrl = extractPrUrl(outputLog)
     const summary = buildSummary(outputLog)
