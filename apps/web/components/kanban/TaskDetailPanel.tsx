@@ -254,7 +254,10 @@ export function TaskDetailPanel({ task, allTasks, onClose, onUpdate, onDelete }:
       e.preventDefault()
       const content = el.querySelector('[data-drawer-scroll]') as HTMLElement | null
       if (content) {
-        content.scrollTop += e.deltaY
+        let delta = e.deltaY
+        if (e.deltaMode === 1) delta *= 40
+        if (e.deltaMode === 2) delta *= content.clientHeight
+        content.scrollTop += delta
       }
     }
     el.addEventListener('wheel', onWheel, { passive: false })
