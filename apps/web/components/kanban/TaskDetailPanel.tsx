@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { api } from '@/lib/api'
 
 const PRIORITY_COLORS: Record<string, string> = {
@@ -442,7 +443,9 @@ export function TaskDetailPanel({ task, allTasks, onClose, onUpdate, onDelete }:
     attachments: 'Files',
   }
 
-  return (
+  if (typeof document === 'undefined') return null
+
+  return createPortal(
     <>
       <div className="fixed inset-0 bg-black/30 z-30" onClick={onClose} />
 
@@ -1143,6 +1146,7 @@ export function TaskDetailPanel({ task, allTasks, onClose, onUpdate, onDelete }:
         )}
       </div>
 
-    </>
+    </>,
+    document.body
   )
 }
