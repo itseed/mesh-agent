@@ -250,13 +250,11 @@ export function TaskDetailPanel({ task, allTasks, onClose, onUpdate, onDelete }:
     const el = drawerRef.current
     if (!el) return
     const onWheel = (e: WheelEvent) => {
+      e.preventDefault()
       const content = el.querySelector('[data-drawer-scroll]') as HTMLElement | null
-      if (!content) return
-      const { scrollTop, scrollHeight, clientHeight } = content
-      const notScrollable = scrollHeight <= clientHeight
-      const atTop = scrollTop === 0 && e.deltaY < 0
-      const atBottom = scrollTop + clientHeight >= scrollHeight - 1 && e.deltaY > 0
-      if (notScrollable || atTop || atBottom) e.preventDefault()
+      if (content) {
+        content.scrollTop += e.deltaY
+      }
     }
     el.addEventListener('wheel', onWheel, { passive: false })
     return () => el.removeEventListener('wheel', onWheel)
