@@ -1,4 +1,4 @@
-import { execFileSync } from 'node:child_process'
+import { env } from '../env.js'
 
 export interface SubtaskPlan {
   title: string
@@ -13,7 +13,6 @@ export interface AnalyzePlan {
 }
 
 export async function analyzeTask(title: string, description?: string | null): Promise<AnalyzePlan> {
-  const CLAUDE_CMD = process.env.CLAUDE_CMD ?? 'claude'
   const prompt = [
     'You are the Lead of a software development team.',
     'Analyze the following task and break it down into concrete subtasks for your team.',
@@ -24,27 +23,28 @@ export async function analyzeTask(title: string, description?: string | null): P
     description ? `Description: ${description}` : '',
   ].join('\n')
 
-  let stdout: string
-  try {
-    stdout = execFileSync(CLAUDE_CMD, ['--output-format', 'json', '-p', prompt], {
-      encoding: 'utf8',
-      timeout: 120_000,
-      env: { ...process.env },
-    })
-  } catch (err: any) {
-    const msg = err?.stderr ?? err?.message ?? 'Claude CLI failed'
-    throw new Error(msg)
+  const res = await fetch(`${env.ORCHESTRATOR_URL}/prompt`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ prompt, timeoutMs: 120_000 }),
+  })
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({})) as { error?: string }
+    throw new Error(err.error ?? `Orchestrator prompt failed: ${res.status}`)
   }
 
+  const data = await res.json() as { stdout: string }
+  let text = data.stdout.trim()
+
   // claude --output-format json returns: { result: "...", ... }
-  let text = stdout.trim()
   try {
     const parsed = JSON.parse(text)
     if (typeof parsed.result === 'string') text = parsed.result
   } catch {}
 
   const jsonMatch = text.match(/\{[\s\S]*\}/)
-  if (!jsonMatch) throw new Error('Claude CLI did not return valid JSON plan')
+  if (!jsonMatch) throw new Error('Claude did not return valid JSON plan')
   try {
     return JSON.parse(jsonMatch[0]) as AnalyzePlan
   } catch {
