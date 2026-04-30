@@ -213,6 +213,7 @@ export function TaskDetailPanel({ task, allTasks, onClose, onUpdate, onDelete }:
   const [analyzing, setAnalyzing] = useState(false)
   const [approving, setApproving] = useState(false)
   const [editingDesc, setEditingDesc] = useState(false)
+  const [fixTasksCreatedCount, setFixTasksCreatedCount] = useState(0)
   const [localTask, setLocalTask] = useState(task)
   const [descValue, setDescValue] = useState(task.description ?? '')
   const [confirmDelete, setConfirmDelete] = useState(false)
@@ -385,8 +386,10 @@ export function TaskDetailPanel({ task, allTasks, onClose, onUpdate, onDelete }:
     try {
       const selected = reviewIssues.filter((_, i) => selectedIssues.has(i))
       await api.tasks.fixIssues(task.id, selected)
+      const createdCount = selectedIssues.size
       setFixCommentId(null)
       setSelectedIssues(new Set())
+      setFixTasksCreatedCount(createdCount)
       setTab('subtasks')
       onUpdate()
     } catch {} finally {
@@ -707,16 +710,28 @@ export function TaskDetailPanel({ task, allTasks, onClose, onUpdate, onDelete }:
                           )}
                         </div>
                         {fixCommentId !== '__overview__' ? (
-                          <button
-                            onClick={() => {
-                              setFixCommentId('__overview__')
-                              setReviewIssues(allIssues)
-                              setSelectedIssues(new Set(allIssues.map((_, i) => i)))
-                            }}
-                            className="self-start mt-1 text-[12px] px-3 py-1.5 rounded border border-orange-400/30 text-orange-300 hover:bg-orange-400/10 transition-colors"
-                          >
-                            🔧 Create Fix Tasks ({allIssues.length})
-                          </button>
+                          fixTasksCreatedCount > 0 ? (
+                            <div className="flex items-center gap-2 mt-1">
+                              <span className="text-[12px] text-success">✓ {fixTasksCreatedCount} fix task{fixTasksCreatedCount !== 1 ? 's' : ''} created</span>
+                              <button
+                                onClick={() => setTab('subtasks')}
+                                className="text-[11px] text-accent hover:underline"
+                              >
+                                View →
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => {
+                                setFixCommentId('__overview__')
+                                setReviewIssues(allIssues)
+                                setSelectedIssues(new Set(allIssues.map((_, i) => i)))
+                              }}
+                              className="self-start mt-1 text-[12px] px-3 py-1.5 rounded border border-orange-400/30 text-orange-300 hover:bg-orange-400/10 transition-colors"
+                            >
+                              🔧 Create Fix Tasks ({allIssues.length})
+                            </button>
+                          )
                         ) : (
                           <div className="border border-orange-400/20 rounded-lg p-3 bg-orange-400/5">
                             <div className="flex items-center justify-between mb-2">
