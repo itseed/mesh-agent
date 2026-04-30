@@ -173,6 +173,7 @@ export function TaskDetailPanel({ task, allTasks, onClose, onUpdate, onDelete }:
   const [selectedIssues, setSelectedIssues] = useState<Set<number>>(new Set())
   const [fixingIssues, setFixingIssues] = useState(false)
   const [starting, setStarting] = useState(false)
+  const [executionMode, setExecutionMode] = useState<'cloud' | 'local'>('cloud')
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -347,7 +348,7 @@ export function TaskDetailPanel({ task, allTasks, onClose, onUpdate, onDelete }:
   async function handleStart() {
     setStarting(true)
     try {
-      await api.tasks.start(task.id)
+      await api.tasks.start(task.id, { executionMode })
       setLocalTask((t: any) => ({ ...t, stage: 'in_progress' }))
       const fresh = await api.tasks.activities(task.id)
       setActivities(fresh)
@@ -396,14 +397,32 @@ export function TaskDetailPanel({ task, allTasks, onClose, onUpdate, onDelete }:
             <h2 className="text-[15px] font-semibold text-text leading-snug">{localTask.title}</h2>
           </div>
           {localTask.stage === 'backlog' && !confirmDelete && (
-            <button
-              onClick={handleStart}
-              disabled={starting}
-              className="text-[12px] px-2.5 py-1 rounded border border-accent/40 text-accent hover:bg-accent/10 transition-colors disabled:opacity-50 shrink-0"
-              title="Let Lead analyze and dispatch agents"
-            >
-              {starting ? 'Starting…' : '▶ Start with Lead'}
-            </button>
+            <div className="flex flex-col items-end gap-1.5 shrink-0">
+              <div className="flex bg-canvas border border-border rounded overflow-hidden text-[11px]">
+                <button
+                  type="button"
+                  onClick={() => setExecutionMode('cloud')}
+                  className={`px-2.5 py-1 transition-colors ${executionMode === 'cloud' ? 'bg-accent/15 text-accent' : 'text-muted hover:text-text'}`}
+                >
+                  ☁ Cloud
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setExecutionMode('local')}
+                  className={`px-2.5 py-1 border-l border-border transition-colors ${executionMode === 'local' ? 'bg-success/15 text-success' : 'text-muted hover:text-text'}`}
+                >
+                  💻 Local
+                </button>
+              </div>
+              <button
+                onClick={handleStart}
+                disabled={starting}
+                className="text-[12px] px-2.5 py-1 rounded border border-accent/40 text-accent hover:bg-accent/10 transition-colors disabled:opacity-50"
+                title="Let Lead analyze and dispatch agents"
+              >
+                {starting ? 'Starting…' : '▶ Start with Lead'}
+              </button>
+            </div>
           )}
           {confirmDelete ? (
             <div className="flex items-center gap-2 shrink-0">

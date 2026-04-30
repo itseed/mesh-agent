@@ -92,10 +92,10 @@ export const api = {
       }),
     downloadUrl: (taskId: string, attachmentId: string) =>
       request<{ url: string }>(`/tasks/${taskId}/attachments/${attachmentId}/url`),
-    start: (id: string) =>
+    start: (id: string, opts?: { cli?: string; executionMode?: 'cloud' | 'local' }) =>
       request<{ ok: boolean; waveCount: number; pendingSessions: string[] }>(
         `/tasks/${id}/start`,
-        { method: 'POST' },
+        { method: 'POST', body: JSON.stringify(opts ?? {}) },
       ),
   },
   projects: {
