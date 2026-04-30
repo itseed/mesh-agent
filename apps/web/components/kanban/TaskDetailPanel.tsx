@@ -74,6 +74,48 @@ const STAGE_COLORS: Record<string, string> = {
   done: '#3fb950',
 }
 
+/* ── Markdown renderer (no external deps) ── */
+function renderInlineParts(text: string): React.ReactNode[] {
+  const parts: React.ReactNode[] = []
+  const re = /\*\*([^*\n]+)\*\*|`([^`\n]+)`/g
+  let last = 0; let m: RegExpExecArray | null; let k = 0
+  while ((m = re.exec(text)) !== null) {
+    if (m.index > last) parts.push(text.slice(last, m.index))
+    if (m[1]) parts.push(<strong key={k++} className="font-semibold text-text">{m[1]}</strong>)
+    else if (m[2]) parts.push(<code key={k++} className="bg-black/20 text-green-400/70 font-mono text-[12px] px-1 py-0.5 rounded">{m[2]}</code>)
+    last = m.index + m[0].length
+  }
+  if (last < text.length) parts.push(text.slice(last))
+  return parts
+}
+
+function renderMarkdown(body: string): React.ReactNode {
+  const segments = body.split(/(```[\s\S]*?```)/g)
+  return (
+    <>
+      {segments.map((seg, i) => {
+        if (seg.startsWith('```') && seg.endsWith('```')) {
+          const inner = seg.slice(3, -3).replace(/^\w*\n?/, '')
+          return (
+            <pre key={i} className="bg-black/30 text-green-400/80 font-mono text-[11px] p-3 rounded overflow-auto max-h-64 my-1.5 whitespace-pre-wrap break-all">
+              {inner}
+            </pre>
+          )
+        }
+        return (
+          <span key={i}>
+            {seg.split('\n').map((line, j) =>
+              line.trim() === ''
+                ? <br key={j} />
+                : <p key={j} className="text-[13px] text-text leading-relaxed my-0.5">{renderInlineParts(line)}</p>
+            )}
+          </span>
+        )
+      })}
+    </>
+  )
+}
+
 function SubtaskInlineOutput({ taskId, stage }: { taskId: string; stage: string }) {
   const [session, setSession] = useState<any>(null)
   const [liveOutput, setLiveOutput] = useState('')
@@ -639,7 +681,7 @@ export function TaskDetailPanel({ task, allTasks, onClose, onUpdate, onDelete }:
                             </button>
                           )}
                         </div>
-                        <div className="text-[13px] text-text whitespace-pre-wrap">{c.body}</div>
+                        <div className="text-[13px] text-text">{renderMarkdown(c.body)}</div>
                         {issues.length > 0 && fixCommentId !== c.id && (
                           <button
                             onClick={() => openFixPanel(c.id, issues)}
@@ -700,12 +742,13 @@ export function TaskDetailPanel({ task, allTasks, onClose, onUpdate, onDelete }:
                       </>
                     )
                   })()}
-                  {c.source === 'lead' && (
-                    <>
-                      <div className="text-[11px] text-accent font-semibold mb-1 uppercase tracking-wide">Lead AI</div>
-                      <div className="text-[13px] text-text whitespace-pre-wrap">{c.body}</div>
-                    </>
-                  )}
+                  {c.source === 'lead' && (() => {
+                    let parsed: any = null
+                    try { parsed = JSON.parse(c.body) } catch {}
+                    return parsed
+                      ? <pre className="bg-black/30 text-green-400/80 font-mono text-[11px] p-3 rounded overflow-auto max-h-64 whitespace-pre-wrap break-all">{JSON.stringify(parsed, null, 2)}</pre>
+                      : <div className="text-[13px] text-text whitespace-pre-wrap">{c.body}</div>
+                  })()}
                   {c.source === 'user' && (
                     <div className="text-[13px] text-text whitespace-pre-wrap">{c.body}</div>
                   )}
