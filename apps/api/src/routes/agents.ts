@@ -4,6 +4,7 @@ import { eq, desc, and, gte, sql } from 'drizzle-orm'
 import { agentSessions, agentRoles, agentMetrics } from '@meshagent/shared'
 import { env } from '../env.js'
 import { logAudit } from '../lib/audit.js'
+import { companionManager } from '../lib/companionManager.js'
 
 const dispatchSchema = z.object({
   role: z.string().min(1).max(64),
@@ -264,6 +265,17 @@ export async function agentRoutes(fastify: FastifyInstance) {
 
   fastify.get('/agents/sessions/:id/output', { preHandler }, async (request, reply) => {
     const { id } = request.params as { id: string }
+
+    if (id.startsWith('local-')) {
+      const userId = (request.user as { id: string }).id
+      try {
+        const result = await companionManager.call(userId, 'agent.stdout', { sessionId: id }) as { output: string; running: boolean }
+        return { output: result.output ?? '', running: result.running ?? false }
+      } catch {
+        return { output: '', running: false }
+      }
+    }
+
     const res = await proxyFetch(`${env.ORCHESTRATOR_URL}/sessions/${id}/output`)
     if (!res || !res.ok) return reply.status(res?.status ?? 502).send({ error: 'Failed to get output' })
     return res.json()
