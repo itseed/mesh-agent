@@ -232,7 +232,6 @@ export function TaskDetailPanel({ task, allTasks, onClose, onUpdate, onDelete }:
   const [starting, setStarting] = useState(false)
   const [executionMode, setExecutionMode] = useState<'cloud' | 'local'>('cloud')
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const drawerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     setLocalTask(task)
@@ -245,24 +244,6 @@ export function TaskDetailPanel({ task, allTasks, onClose, onUpdate, onDelete }:
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
   }, [onClose])
-
-  // Intercept wheel events on drawer to prevent scroll chain
-  useEffect(() => {
-    const el = drawerRef.current
-    if (!el) return
-    const onWheel = (e: WheelEvent) => {
-      e.preventDefault()
-      const content = el.querySelector('[data-drawer-scroll]') as HTMLElement | null
-      if (content) {
-        let delta = e.deltaY
-        if (e.deltaMode === 1) delta *= 40
-        if (e.deltaMode === 2) delta *= content.clientHeight
-        content.scrollTop += delta
-      }
-    }
-    el.addEventListener('wheel', onWheel, { passive: false })
-    return () => el.removeEventListener('wheel', onWheel)
-  }, [])
 
   // Fetch comments on mount for overview AI section + comments tab
   useEffect(() => {
@@ -452,7 +433,7 @@ export function TaskDetailPanel({ task, allTasks, onClose, onUpdate, onDelete }:
     <>
       <div className="fixed inset-0 bg-black/30 z-30" onClick={onClose} />
 
-      <div ref={drawerRef} className="fixed right-0 top-0 h-screen w-[480px] bg-surface border-l border-border-hi z-40 flex flex-col transition-transform duration-200">
+      <div className="fixed right-0 top-0 h-screen w-[480px] bg-surface border-l border-border-hi z-40 flex flex-col transition-transform duration-200">
         {/* Header */}
         <div className="flex items-start gap-3 p-4 border-b border-border shrink-0">
           <div className="flex-1 min-w-0">
