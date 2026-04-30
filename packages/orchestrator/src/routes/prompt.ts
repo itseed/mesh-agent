@@ -96,7 +96,7 @@ export async function promptRoutes(fastify: FastifyInstance) {
       const { stdout } = await execFileAsync('gemini', ['--version'], { encoding: 'utf8', timeout: 10_000, env: process.env })
       // gemini has no auth status command — check API key or OAuth creds file
       const loggedIn = !!(process.env.GEMINI_API_KEY) ||
-        existsSync(join(homedir(), '.gemini', 'oauth_creds.json'))
+        Boolean(existsSync(join(homedir(), '.gemini', 'oauth_creds.json')))
       return { ok: true, loggedIn, version: stdout.trim(), cmd: 'gemini' }
     } catch (err: any) {
       return { ok: false, loggedIn: false, error: err?.message ?? 'CLI not found', cmd: 'gemini' }

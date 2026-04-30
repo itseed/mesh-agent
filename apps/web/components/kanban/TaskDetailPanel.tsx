@@ -643,6 +643,128 @@ export function TaskDetailPanel({ task, allTasks, onClose, onUpdate, onDelete }:
                   <div className="text-[13px] text-muted whitespace-pre-wrap">{leadComment.body}</div>
                 )}
               </div>
+
+              {/* ── Task Complete ── */}
+              {localTask.stage === 'done' && (() => {
+                const allIssues: ReviewIssue[] = []
+                comments
+                  .filter((c: any) => c.source === 'agent')
+                  .forEach((c: any) => {
+                    parseReviewIssues(c.body).forEach(issue => allIssues.push(issue))
+                  })
+                const doneCount = subtasks.filter((s: any) => s.stage === 'done').length
+                const totalCount = subtasks.length
+
+                return (
+                  <div className="border border-success/30 bg-success/5 rounded-lg p-3">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-success">✓</span>
+                        <div className="text-[12px] text-success font-semibold uppercase tracking-wide">Task Complete</div>
+                      </div>
+                      {totalCount > 0 && (
+                        <button
+                          onClick={() => setTab('subtasks')}
+                          className="text-[11px] text-muted hover:text-text transition-colors"
+                        >
+                          {doneCount}/{totalCount} subtasks →
+                        </button>
+                      )}
+                    </div>
+
+                    {allIssues.length > 0 ? (
+                      <div className="flex flex-col gap-2">
+                        <p className="text-[13px] text-text/80">
+                          พบ {allIssues.length} issue{allIssues.length !== 1 ? 's' : ''} จาก agent review
+                        </p>
+                        <div className="flex flex-col gap-1">
+                          {allIssues.slice(0, 5).map((issue, idx) => (
+                            <div key={idx} className="flex items-center gap-2">
+                              <span
+                                className="text-[10px] px-1.5 py-0.5 rounded font-semibold uppercase shrink-0"
+                                style={SEVERITY_STYLE[issue.severity]}
+                              >
+                                {issue.severity}
+                              </span>
+                              <span className="text-[12px] text-text truncate">{issue.title}</span>
+                            </div>
+                          ))}
+                          {allIssues.length > 5 && (
+                            <span className="text-[11px] text-dim">+{allIssues.length - 5} more</span>
+                          )}
+                        </div>
+                        {fixCommentId !== '__overview__' ? (
+                          <button
+                            onClick={() => {
+                              setFixCommentId('__overview__')
+                              setReviewIssues(allIssues)
+                              setSelectedIssues(new Set(allIssues.map((_, i) => i)))
+                            }}
+                            className="self-start mt-1 text-[12px] px-3 py-1.5 rounded border border-orange-400/30 text-orange-300 hover:bg-orange-400/10 transition-colors"
+                          >
+                            🔧 Create Fix Tasks ({allIssues.length})
+                          </button>
+                        ) : (
+                          <div className="border border-orange-400/20 rounded-lg p-3 bg-orange-400/5">
+                            <div className="flex items-center justify-between mb-2">
+                              <div className="text-[12px] text-orange-300 font-semibold uppercase tracking-wide">เลือก Issues</div>
+                              <button
+                                onClick={() => setSelectedIssues(selectedIssues.size === allIssues.length ? new Set() : new Set(allIssues.map((_, i) => i)))}
+                                className="text-[11px] text-dim hover:text-muted"
+                              >
+                                {selectedIssues.size === allIssues.length ? 'Deselect All' : 'Select All'}
+                              </button>
+                            </div>
+                            <div className="flex flex-col gap-1.5 mb-3">
+                              {allIssues.map((issue, idx) => (
+                                <label key={idx} className="flex items-center gap-2 cursor-pointer group">
+                                  <input
+                                    type="checkbox"
+                                    checked={selectedIssues.has(idx)}
+                                    onChange={() => toggleIssue(idx)}
+                                    className="shrink-0"
+                                  />
+                                  <span className="text-[10px] px-1.5 py-0.5 rounded font-semibold uppercase shrink-0" style={SEVERITY_STYLE[issue.severity]}>
+                                    {issue.severity}
+                                  </span>
+                                  <span className="text-[13px] text-text group-hover:text-white transition-colors">{issue.title}</span>
+                                </label>
+                              ))}
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={confirmFix}
+                                disabled={selectedIssues.size === 0 || fixingIssues}
+                                className="bg-orange-400/15 hover:bg-orange-400/25 border border-orange-400/25 text-orange-300 text-[13px] px-3 py-1.5 rounded transition-all disabled:opacity-40"
+                              >
+                                {fixingIssues ? '…' : `✓ Create ${selectedIssues.size} Fix Task${selectedIssues.size !== 1 ? 's' : ''}`}
+                              </button>
+                              <button
+                                onClick={() => { setFixCommentId(null); setSelectedIssues(new Set()) }}
+                                className="text-muted text-[13px] hover:text-text"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ) : totalCount > 0 ? (
+                      <div className="flex items-center gap-2">
+                        <p className="text-[13px] text-text/70">All {doneCount} subtasks completed</p>
+                        <button
+                          onClick={() => setTab('subtasks')}
+                          className="text-[11px] text-accent hover:underline"
+                        >
+                          View →
+                        </button>
+                      </div>
+                    ) : (
+                      <p className="text-[13px] text-text/70">No issues detected.</p>
+                    )}
+                  </div>
+                )
+              })()}
             </div>
           )}
 

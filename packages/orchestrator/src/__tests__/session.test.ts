@@ -1,5 +1,26 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, afterEach } from 'vitest'
+import { EventEmitter } from 'node:events'
 import { AgentSession } from '../session.js'
+
+// Interceptable spawn that delegates to the real spawn by default.
+// A stable ref lets afterEach restore the pass-through after any per-test override.
+const { mockSpawn, spawnRef } = vi.hoisted(() => ({
+  mockSpawn: vi.fn(),
+  spawnRef: { fn: null as ((...a: any[]) => any) | null },
+}))
+
+vi.mock('node:child_process', async (importOriginal) => {
+  const real = await importOriginal() as typeof import('node:child_process')
+  spawnRef.fn = (...args: any[]) => (real.spawn as any)(...args)
+  mockSpawn.mockImplementation(spawnRef.fn)
+  return { ...real, spawn: mockSpawn }
+})
+
+afterEach(() => {
+  // Restore pass-through so a failed test's leftover mockImplementationOnce
+  // cannot cascade into the next test.
+  if (spawnRef.fn) mockSpawn.mockImplementation(spawnRef.fn)
+})
 
 const baseOpts = {
   id: 'test',
@@ -37,11 +58,23 @@ describe('AgentSession', () => {
   })
 
   it('stop() marks the session killed', async () => {
+    // Inject a fake long-running process so stop() can actually kill it.
+    const proc = new EventEmitter() as any
+    proc.pid = 99
+    proc.killed = false
+    proc.stdout = new EventEmitter()
+    proc.stderr = new EventEmitter()
+    proc.kill = vi.fn(() => {
+      proc.killed = true
+      setImmediate(() => proc.emit('close', null))
+    })
+    mockSpawn.mockImplementationOnce(() => proc)
+
     const session = new AgentSession({
       ...baseOpts,
       id: 'test-4',
-      claudeCmd: 'sleep',
-      prompt: '10',
+      claudeCmd: 'irrelevant',
+      prompt: 'anything',
     })
     const startPromise = session.start()
     await new Promise((r) => setTimeout(r, 50))

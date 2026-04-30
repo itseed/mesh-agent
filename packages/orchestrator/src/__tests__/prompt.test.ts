@@ -117,10 +117,14 @@ describe('GET /health/claude', () => {
       .mockImplementationOnce((_cmd: string, _args: string[], _opts: any, cb: Function) => {
         cb(null, 'claude/1.2.3 linux-x64\n', '')  // --version
       })
+      .mockImplementationOnce((_cmd: string, _args: string[], _opts: any, cb: Function) => {
+        cb(null, JSON.stringify({ loggedIn: true }), '')  // auth status
+      })
     const res = await app.inject({ method: 'GET', url: '/health/claude' })
     expect(res.statusCode).toBe(200)
     expect(res.json()).toMatchObject({
       ok: true,
+      loggedIn: true,
       version: 'claude/1.2.3 linux-x64',
       cmd: '/usr/local/bin/claude',
     })
@@ -133,6 +137,9 @@ describe('GET /health/claude', () => {
       })
       .mockImplementationOnce((_cmd: string, _args: string[], _opts: any, cb: Function) => {
         cb(null, 'claude/1.0.0\n', '')  // --version ok
+      })
+      .mockImplementationOnce((_cmd: string, _args: string[], _opts: any, cb: Function) => {
+        cb(null, JSON.stringify({ loggedIn: false }), '')  // auth status
       })
     const res = await app.inject({ method: 'GET', url: '/health/claude' })
     expect(res.statusCode).toBe(200)

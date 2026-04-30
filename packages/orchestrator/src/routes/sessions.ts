@@ -87,6 +87,7 @@ export async function sessionRoutes(
         id: live.id,
         role: live.role,
         status: live.status,
+        legacyStatus: live.legacyStatus,
         pid: live.pid,
         projectId: live.projectId,
         taskId: live.taskId,
@@ -109,6 +110,21 @@ export async function sessionRoutes(
 
   fastify.get('/sessions/:id/output', async (request, reply) => {
     const { id } = request.params as { id: string }
-    return opts.manager.getSessionOutput(id)
+    const live = manager.getSession(id)
+
+    // Live running/pending sessions: serve from in-memory buffer
+    if (live && (live.status === 'running' || live.status === 'pending')) {
+      return manager.getSessionOutput(id)
+    }
+
+    // Completed in-memory session or session not in memory: check DB
+    const persisted = await store.findById(id)
+    if (!persisted) {
+      // No DB record — if session is still in memory (no DB configured), serve buffer
+      if (live) return { output: manager.getSessionOutput(id).output, running: false }
+      return reply.status(404).send({ error: 'Session not found' })
+    }
+
+    return { output: persisted.outputLog ?? '', running: false }
   })
 }
