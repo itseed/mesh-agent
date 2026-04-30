@@ -745,9 +745,37 @@ export function TaskDetailPanel({ task, allTasks, onClose, onUpdate, onDelete }:
                   {c.source === 'lead' && (() => {
                     let parsed: any = null
                     try { parsed = JSON.parse(c.body) } catch {}
-                    return parsed
-                      ? <pre className="bg-black/30 text-green-400/80 font-mono text-[11px] p-3 rounded overflow-auto max-h-64 whitespace-pre-wrap break-all">{JSON.stringify(parsed, null, 2)}</pre>
-                      : <div className="text-[13px] text-text whitespace-pre-wrap">{c.body}</div>
+                    if (!parsed) return <div className="text-[13px] text-text whitespace-pre-wrap">{c.body}</div>
+                    const priorityStyle: Record<string, string> = {
+                      urgent: 'bg-red-500/20 text-red-400',
+                      high: 'bg-orange-500/20 text-orange-400',
+                      medium: 'bg-yellow-500/20 text-yellow-400',
+                      low: 'bg-gray-500/20 text-gray-400',
+                    }
+                    return (
+                      <div className="flex flex-col gap-1">
+                        {parsed.summary && (
+                          <p className="text-[13px] text-text/80 italic mb-2">{parsed.summary}</p>
+                        )}
+                        {Array.isArray(parsed.subtasks) && parsed.subtasks.map((st: any, idx: number) => {
+                          const role = ROLE_STYLE[st.agentRole ?? '']
+                          return (
+                            <div key={idx} className="flex items-start gap-2 py-1.5 border-b border-border/30 last:border-0">
+                              <span className="text-[13px] text-text flex-1">{st.title}</span>
+                              {st.agentRole && role && (
+                                <span className="text-[10px] px-1.5 py-0.5 rounded font-medium shrink-0" style={{ backgroundColor: role.bg, color: role.text }}>{st.agentRole}</span>
+                              )}
+                              {st.priority && (
+                                <span className={`text-[10px] px-1.5 py-0.5 rounded shrink-0 ${priorityStyle[st.priority] ?? 'bg-gray-500/20 text-gray-400'}`}>{st.priority}</span>
+                              )}
+                              {st.wave > 1 && (
+                                <span className="text-[10px] text-dim shrink-0">W{st.wave}</span>
+                              )}
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )
                   })()}
                   {c.source === 'user' && (
                     <div className="text-[13px] text-text whitespace-pre-wrap">{c.body}</div>
