@@ -93,8 +93,8 @@ export async function promptRoutes(fastify: FastifyInstance) {
   fastify.get('/health/gemini', async () => {
     try {
       const { stdout } = await execFileAsync('gemini', ['--version'], { encoding: 'utf8', timeout: 10_000, env: process.env })
-      // gemini has no auth status command — GEMINI_API_KEY means API key auth; absence implies OAuth (installed = likely authenticated)
-      const loggedIn = !!(process.env.GEMINI_API_KEY) || true
+      // gemini has no auth status command — use GEMINI_API_KEY as proxy for authentication
+      const loggedIn = !!(process.env.GEMINI_API_KEY)
       return { ok: true, loggedIn, version: stdout.trim(), cmd: 'gemini' }
     } catch (err: any) {
       return { ok: false, loggedIn: false, error: err?.message ?? 'CLI not found', cmd: 'gemini' }
@@ -108,7 +108,8 @@ export async function promptRoutes(fastify: FastifyInstance) {
       let loggedIn = false
       try {
         const { stdout: statusOut } = await execFileAsync(cursorBin, ['status'], { encoding: 'utf8', timeout: 10_000, env: process.env })
-        loggedIn = statusOut.toLowerCase().includes('logged in') || statusOut.toLowerCase().includes('authenticated')
+        const out = statusOut.toLowerCase()
+        loggedIn = out.includes('logged in') && !out.includes('not logged in')
       } catch {}
       return { ok: true, loggedIn, version: stdout.trim(), cmd: cursorBin }
     } catch (err: any) {
