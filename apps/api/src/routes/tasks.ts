@@ -1,6 +1,6 @@
 import { FastifyInstance } from 'fastify'
 import { z } from 'zod'
-import { eq, desc, and } from 'drizzle-orm'
+import { eq, desc, and, like } from 'drizzle-orm'
 import { tasks, taskComments, taskActivities, taskAttachments, projects, agentRoles, agentSessions } from '@meshagent/shared'
 import { logAudit } from '../lib/audit.js'
 import { analyzeTask, type AnalyzePlan } from '../lib/analyze.js'
@@ -151,10 +151,22 @@ export async function taskRoutes(fastify: FastifyInstance) {
 
     const { issues } = fixIssuesSchema.parse(request.body)
 
+    // Load existing [Fix] titles in this project to avoid duplicates
+    const existingFixes = task.projectId
+      ? await fastify.db
+          .select({ title: tasks.title })
+          .from(tasks)
+          .where(and(eq(tasks.projectId, task.projectId), like(tasks.title, '[Fix]%')))
+      : []
+    const existingTitles = new Set(existingFixes.map((t: { title: string }) => t.title))
+
     const created = []
     for (const issue of issues) {
+      const fixTitle = `[Fix] ${issue.title}`
+      if (existingTitles.has(fixTitle)) continue
+
       const [newTask] = await fastify.db.insert(tasks).values({
-        title: `[Fix] ${issue.title}`,
+        title: fixTitle,
         description: `แก้ไข ${issue.severity.toUpperCase()} issue จาก code review: ${issue.title}\n\nพบจาก task: ${task.title}`,
         stage: 'backlog',
         priority: issue.severity === 'critical' ? 'urgent' : issue.severity === 'high' ? 'high' : 'medium',
@@ -167,6 +179,9 @@ export async function taskRoutes(fastify: FastifyInstance) {
       created.push(newTask)
     }
 
+    if (created.length === 0) {
+      return { created: [], skipped: issues.length }
+    }
     reply.status(201)
     return { created }
   })
