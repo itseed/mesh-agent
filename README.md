@@ -619,3 +619,39 @@ sequenceDiagram
 
 - **v1** — Server-based platform ✅
 - **v2** — Local Companion: agents รันบน local machine ผ่าน WebSocket tunnel ✅
+
+---
+
+### Phase 1 — Quality of Life
+
+> เป้าหมาย: จาก "นั่งรอดูหน้าจอ" เป็น "สั่งแล้วไปทำอย่างอื่นได้"
+
+| | Feature | รายละเอียด |
+|---|---|---|
+| 🔔 | **Notifications** | LINE / Slack / email แจ้งเตือนเมื่อ agent เสร็จหรือต้องการ input |
+| ⚡ | **Local stdout streaming** | WebSocket push แทน polling ทุก 3 วินาที — output ไหลต่อเนื่องแบบ real-time |
+| 📋 | **Task templates** | บันทึก task ที่ใช้บ่อยเป็น template กด 1 ครั้งสั่งได้เลย |
+
+---
+
+### Phase 2 — Power Features
+
+> เป้าหมาย: agents ทำงานได้ฉลาดขึ้นและ integrate กับ workflow ที่มีอยู่
+
+| | Feature | รายละเอียด |
+|---|---|---|
+| 🧠 | **Agent memory** | inject project context + task history ให้ agent — ไม่ต้องอธิบาย codebase ซ้ำทุกครั้ง |
+| 🗂️ | **Agent queue** | งานรอ queue อัตโนมัติเมื่อ session เต็ม dispatch ต่อเมื่อมี slot ว่าง |
+| 🔗 | **External triggers** | webhook และ Slack command สำหรับ dispatch agent จาก workflow ภายนอก |
+
+---
+
+### Phase 3 — Scale & Analytics
+
+> เป้าหมาย: รองรับทีมขนาดใหญ่ วัดผลได้ ขยาย org ได้
+
+| | Feature | รายละเอียด |
+|---|---|---|
+| 💰 | **Cost tracking** | token usage และ cost per task / per user — รู้ว่าจ่ายเงินไปกับอะไร |
+| 📊 | **Team analytics** | success rate, avg duration, bottleneck analysis — ปรับ workflow ได้แม่นขึ้น |
+| 🏢 | **Multi-org** | isolate users และ projects per organization — รองรับหลาย team หรือ B2B |
