@@ -30,8 +30,8 @@ export default function AgentsPage() {
   const [projects, setProjects] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [outputPanel, setOutputPanel] = useState<{ id: string; role: string } | null>(null)
-  const [sessionDetail, setSessionDetail] = useState<{ id: string; role: string } | null>(null)
+  const [outputPanel, setOutputPanel] = useState<{ id: string; role: string; executionMode?: string } | null>(null)
+  const [sessionDetail, setSessionDetail] = useState<{ id: string; role: string; executionMode?: string } | null>(null)
 
   const HISTORY_PAGE = 20
   const [historyLimit, setHistoryLimit] = useState(HISTORY_PAGE)
@@ -79,9 +79,12 @@ export default function AgentsPage() {
         {history.map((s: any) => {
           const st = HIST_STATUS_STYLE[s.status] ?? { color: '#6a7a8e', label: s.status }
           return (
-            <div key={s.id} className="flex items-center gap-3 px-3 py-2.5 bg-surface border border-border rounded-lg hover:border-border-hi transition-colors cursor-pointer" onClick={() => setSessionDetail({ id: s.id, role: s.role })}>
+            <div key={s.id} className="flex items-center gap-3 px-3 py-2.5 bg-surface border border-border rounded-lg hover:border-border-hi transition-colors cursor-pointer" onClick={() => setSessionDetail({ id: s.id, role: s.role, executionMode: s.executionMode })}>
               <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: st.color }} />
               <span className="text-[12px] font-mono bg-surface-2 border border-border px-1.5 py-0.5 rounded text-muted shrink-0">{s.role}</span>
+              {s.executionMode === 'local' && (
+                <span className="text-[10px] font-medium bg-success/15 text-success border border-success/25 px-1.5 py-0.5 rounded-full shrink-0">local</span>
+              )}
               <span className="text-[13px] text-text truncate flex-1">
                 {s.prompt?.slice(0, 80)}{s.prompt?.length > 80 ? '…' : ''}
               </span>
@@ -142,7 +145,7 @@ export default function AgentsPage() {
                 history={history}
                 projects={projects}
                 onRefresh={fetchAgents}
-                onViewOutput={(id, role) => setOutputPanel({ id, role })}
+                onViewOutput={(id, role) => setOutputPanel({ id, role, executionMode: agents.find(a => a.id === id)?.executionMode })}
               />
               {historySection}
             </>
@@ -152,6 +155,7 @@ export default function AgentsPage() {
         <AgentOutputPanel
           sessionId={(outputPanel ?? sessionDetail)!.id}
           role={(outputPanel ?? sessionDetail)!.role}
+          executionMode={((outputPanel ?? sessionDetail)!.executionMode ?? 'cloud') as 'cloud' | 'local'}
           onClose={() => { setOutputPanel(null); setSessionDetail(null) }}
         />
       )}

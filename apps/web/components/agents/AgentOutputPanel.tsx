@@ -1,6 +1,7 @@
 'use client'
 import { useState, useRef, useEffect } from 'react'
 import { useAgentOutput } from '@/lib/ws'
+import { api, ApiError } from '@/lib/api'
 
 const ROLE_COLOR: Record<string, string> = {
   frontend: '#22d3ee',
@@ -21,21 +22,81 @@ function lineColor(line: string): string {
   return ''
 }
 
+function useLocalAgentOutput(sessionId: string, enabled: boolean) {
+  const [lines, setLines] = useState<string[]>([])
+  const [status, setStatus] = useState('')
+  const [companionError, setCompanionError] = useState(false)
+
+  useEffect(() => {
+    if (!enabled) return
+    let active = true
+    let timer: ReturnType<typeof setTimeout>
+
+    async function poll() {
+      if (!active) return
+      try {
+        const res = await api.companion.agentStdout(sessionId)
+        if (!active) return
+        setLines(res.output ? res.output.split('\n') : [])
+        setCompanionError(false)
+        if (!res.running) {
+          setStatus('completed')
+          return
+        }
+        setStatus('running')
+        timer = setTimeout(poll, 3000)
+      } catch (e: unknown) {
+        if (!active) return
+        if (e instanceof ApiError && e.status === 503) {
+          setCompanionError(true)
+          return
+        }
+        timer = setTimeout(poll, 3000)
+      }
+    }
+
+    poll()
+    return () => {
+      active = false
+      clearTimeout(timer)
+    }
+  }, [sessionId, enabled])
+
+  return { lines, status, companionError }
+}
+
 interface AgentOutputPanelProps {
   sessionId: string
   role: string
+  executionMode?: 'cloud' | 'local'
   onClose: () => void
 }
 
-export function AgentOutputPanel({ sessionId, role, onClose }: AgentOutputPanelProps) {
-  const { lines, status } = useAgentOutput(sessionId)
+export function AgentOutputPanel({ sessionId, role, executionMode = 'cloud', onClose }: AgentOutputPanelProps) {
+  const isLocal = executionMode === 'local'
+
+  const { lines: wsLines, status: wsStatus } = useAgentOutput(isLocal ? null : sessionId)
+  const { lines: pollLines, status: pollStatus, companionError } = useLocalAgentOutput(sessionId, isLocal)
+
+  const lines = isLocal ? pollLines : wsLines
+  const status = isLocal ? pollStatus : wsStatus
+
   const roleColor = ROLE_COLOR[role] ?? '#6a7a8e'
   const bottomRef = useRef<HTMLDivElement>(null)
   const [copied, setCopied] = useState(false)
+  const [killing, setKilling] = useState(false)
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [lines])
+
+  async function handleKill() {
+    setKilling(true)
+    try {
+      await api.companion.agentKill(sessionId)
+    } catch {}
+    setKilling(false)
+  }
 
   return (
     <div
@@ -56,7 +117,12 @@ export function AgentOutputPanel({ sessionId, role, onClose }: AgentOutputPanelP
               <span className="w-2.5 h-2.5 rounded-full bg-success/60" />
             </div>
             <span className="text-[14px] font-medium" style={{ color: roleColor }}>{role}</span>
-            <span className="text-[13px] text-dim">— Live output</span>
+            <span className="text-[13px] text-dim">— {isLocal ? 'Local output' : 'Live output'}</span>
+            {isLocal && (
+              <span className="text-[10px] font-medium bg-success/15 text-success border border-success/25 px-1.5 py-0.5 rounded-full">
+                local
+              </span>
+            )}
           </div>
           <button
             onClick={onClose}
@@ -68,7 +134,13 @@ export function AgentOutputPanel({ sessionId, role, onClose }: AgentOutputPanelP
 
         {/* Output */}
         <div className="flex-1 overflow-y-auto p-4 font-mono text-[13px] text-muted leading-relaxed scanlines bg-canvas/30">
-          {lines.length === 0 ? (
+          {companionError ? (
+            <div className="flex flex-col items-center justify-center h-full gap-2 text-center">
+              <span className="text-dim text-[20px]">⚡</span>
+              <p className="text-[13px] text-muted">Companion not connected — output unavailable</p>
+              <p className="text-[12px] text-dim">Open Settings → Companion to connect your local machine</p>
+            </div>
+          ) : lines.length === 0 ? (
             <span className="text-dim">
               Waiting for output<span className="cursor-blink">▋</span>
             </span>
@@ -100,6 +172,15 @@ export function AgentOutputPanel({ sessionId, role, onClose }: AgentOutputPanelP
             <span>{lines.length} lines{status && <> · <span className="text-muted">{status}</span></>}</span>
           </div>
           <div className="flex items-center gap-3">
+            {isLocal && status === 'running' && !companionError && (
+              <button
+                onClick={handleKill}
+                disabled={killing}
+                className="text-[12px] text-danger/70 hover:text-danger border border-danger/20 hover:border-danger/50 px-2 py-0.5 rounded transition-colors disabled:opacity-40"
+              >
+                {killing ? '…' : '■ Kill'}
+              </button>
+            )}
             <button
               onClick={() => {
                 navigator.clipboard.writeText(lines.join('\n'))
