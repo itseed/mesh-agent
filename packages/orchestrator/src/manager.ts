@@ -201,6 +201,15 @@ export class SessionManager {
     return this.sessions.get(id)
   }
 
+  getSessionOutput(id: string): { output: string; running: boolean } {
+    const session = this.sessions.get(id)
+    const lines = this.outputBuffer.get(id) ?? []
+    return {
+      output: lines.join('\n'),
+      running: !!session && session.status === 'running',
+    }
+  }
+
   listSessions(): AgentSession[] {
     return Array.from(this.sessions.values())
   }

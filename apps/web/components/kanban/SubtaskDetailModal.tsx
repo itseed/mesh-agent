@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { api } from '@/lib/api'
 
 const STAGE_COLOR: Record<string, string> = {
@@ -17,6 +17,9 @@ interface Props {
 export function SubtaskDetailModal({ subtask, onClose }: Props) {
   const [session, setSession] = useState<any>(null)
   const [loading, setLoading] = useState(false)
+  const [liveOutput, setLiveOutput] = useState('')
+  const [isRunning, setIsRunning] = useState(false)
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   useEffect(() => {
     if (!subtask.sessionId) return
@@ -27,7 +30,28 @@ export function SubtaskDetailModal({ subtask, onClose }: Props) {
       .finally(() => setLoading(false))
   }, [subtask.sessionId])
 
+  useEffect(() => {
+    if (!subtask.sessionId || subtask.stage !== 'in_progress') return
+    const poll = async () => {
+      try {
+        const res = await api.agents.sessionOutput(subtask.sessionId)
+        setLiveOutput(res.output)
+        setIsRunning(res.running)
+        if (!res.running) {
+          clearInterval(pollRef.current!)
+          pollRef.current = null
+        }
+      } catch {}
+    }
+    poll()
+    pollRef.current = setInterval(poll, 2000)
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current)
+    }
+  }, [subtask.sessionId, subtask.stage])
+
   const stageColor = STAGE_COLOR[subtask.stage] ?? '#6a7a8e'
+  const displayOutput = liveOutput || session?.outputLog || ''
 
   return (
     <div
@@ -50,6 +74,9 @@ export function SubtaskDetailModal({ subtask, onClose }: Props) {
                 {subtask.agentRole}
               </span>
             )}
+            {isRunning && (
+              <span className="text-[11px] text-[#f0883e] font-medium animate-pulse">● live</span>
+            )}
           </div>
           <button onClick={onClose} className="text-muted hover:text-text text-[14px] transition-colors">✕</button>
         </div>
@@ -63,24 +90,26 @@ export function SubtaskDetailModal({ subtask, onClose }: Props) {
 
           {/* Session output */}
           {loading && <p className="text-dim text-[13px]">Loading output…</p>}
-          {session && (
+          {(session || liveOutput) && (
             <div>
               <div className="text-[12px] font-medium text-muted uppercase tracking-wider mb-2">Agent Output</div>
-              {session.outputLog ? (
-                <pre className="bg-canvas/50 border border-border rounded-lg p-3 text-[12px] font-mono text-muted whitespace-pre-wrap break-all max-h-60 overflow-y-auto">
-                  {session.outputLog}
+              {displayOutput ? (
+                <pre className="bg-canvas/50 border border-border rounded-lg p-3 text-[12px] font-mono text-muted whitespace-pre-wrap break-all max-h-96 overflow-y-auto">
+                  {displayOutput}
                 </pre>
               ) : (
                 <p className="text-[13px] text-dim">No output recorded.</p>
               )}
-              <div className="flex gap-4 mt-2 text-[12px] text-dim">
-                {session.startedAt && <span>Started: {new Date(session.startedAt).toLocaleTimeString()}</span>}
-                {session.endedAt && <span>Ended: {new Date(session.endedAt).toLocaleTimeString()}</span>}
-                {session.exitCode != null && <span>Exit: {session.exitCode}</span>}
-              </div>
+              {session && (
+                <div className="flex gap-4 mt-2 text-[12px] text-dim">
+                  {session.startedAt && <span>Started: {new Date(session.startedAt).toLocaleTimeString()}</span>}
+                  {session.endedAt && <span>Ended: {new Date(session.endedAt).toLocaleTimeString()}</span>}
+                  {session.exitCode != null && <span>Exit: {session.exitCode}</span>}
+                </div>
+              )}
             </div>
           )}
-          {!loading && !session && subtask.sessionId && (
+          {!loading && !session && !liveOutput && subtask.sessionId && (
             <p className="text-dim text-[13px]">Session output not available.</p>
           )}
           {!subtask.sessionId && (

@@ -262,4 +262,11 @@ export async function agentRoutes(fastify: FastifyInstance) {
     if (!session) return reply.status(404).send({ error: 'Session not found' })
     return session
   })
+
+  fastify.get('/agents/sessions/:id/output', { preHandler }, async (request, reply) => {
+    const { id } = request.params as { id: string }
+    const res = await proxyFetch(`${env.ORCHESTRATOR_URL}/sessions/${id}/output`)
+    if (!res.ok) return reply.status(res.status).send({ error: 'Failed to get output' })
+    return res.json()
+  })
 }

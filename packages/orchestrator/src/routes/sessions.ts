@@ -106,4 +106,9 @@ export async function sessionRoutes(
     await manager.removeSession(id)
     reply.status(204).send()
   })
+
+  fastify.get('/sessions/:id/output', async (request, reply) => {
+    const { id } = request.params as { id: string }
+    return opts.manager.getSessionOutput(id)
+  })
 }
