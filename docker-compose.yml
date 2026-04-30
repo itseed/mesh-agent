@@ -45,10 +45,10 @@ services:
       - /app/packages/orchestrator/node_modules
       - ./packages/shared:/app/packages/shared
       - /app/packages/shared/node_modules
-      - ~/.claude:/root/.claude
+      - ~/.claude:/home/nodeuser/.claude
       - repos_data:/repos
-      - gemini_config:/root/.gemini
-      - cursor_config:/root/.cursor
+      - gemini_config:/home/nodeuser/.gemini
+      - cursor_config:/home/nodeuser/.cursor
     ports:
       - "4802:4802"
     depends_on:

@@ -5,6 +5,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends tmux curl bash 
 RUN npm install -g @anthropic-ai/claude-code \
     && npm install -g @google/gemini-cli \
     && curl https://cursor.com/install -fsS | bash
+# Create non-root user — Claude CLI refuses --dangerously-skip-permissions as root
+RUN useradd -ms /bin/bash nodeuser
 WORKDIR /app
 
 FROM base AS deps
@@ -28,5 +30,7 @@ ENV NODE_ENV=production
 COPY --from=builder /app/packages/orchestrator/dist ./dist
 COPY --from=builder /app/packages/orchestrator/package.json ./
 COPY --from=deps /app/packages/orchestrator/node_modules ./node_modules
+RUN chown -R nodeuser /app
+USER nodeuser
 EXPOSE 3002
 CMD ["node", "dist/index.js"]

@@ -5,9 +5,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends tmux curl bash 
 RUN npm install -g @anthropic-ai/claude-code \
     && npm install -g @google/gemini-cli \
     && curl https://cursor.com/install -fsS | bash
+# Create non-root user — Claude CLI refuses --dangerously-skip-permissions as root
+RUN useradd -ms /bin/bash nodeuser
 WORKDIR /app
 COPY package.json pnpm-workspace.yaml ./
 COPY packages/shared/package.json ./packages/shared/
 COPY packages/orchestrator/package.json ./packages/orchestrator/
-RUN pnpm install
+RUN pnpm install && chown -R nodeuser /app
+USER nodeuser
 CMD ["pnpm", "--filter", "@meshagent/orchestrator", "dev"]
