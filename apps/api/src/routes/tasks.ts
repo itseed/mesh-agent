@@ -470,6 +470,8 @@ export async function taskRoutes(fastify: FastifyInstance) {
         parentTaskTitle: task.title,
         parentTaskDescription: task.description ?? '',
         projectCtxBlock,
+        userId,
+        cliProvider: startBody.cli ?? null,
       }
       await fastify.redis.set(`subtask-wave-ctx:${id}`, JSON.stringify(waveCtx), 'EX', 86400)
 
@@ -513,9 +515,11 @@ export async function taskRoutes(fastify: FastifyInstance) {
         if (result.id) {
           dispatched.push(result.id)
           await fastify.db.update(tasks).set({ stage: 'in_progress', updatedAt: new Date() }).where(eq(tasks.id, subtask.id))
+          await publishTaskEvent(fastify, 'task.stage', { taskId: subtask.id, stage: 'in_progress', projectId: task.projectId ?? null })
           await indexSession(fastify.redis, result.id, id)
         } else {
           await fastify.db.update(tasks).set({ status: 'blocked', updatedAt: new Date() }).where(eq(tasks.id, subtask.id))
+          await publishTaskEvent(fastify, 'task.stage', { taskId: subtask.id, stage: 'backlog', projectId: task.projectId ?? null })
         }
       }
 

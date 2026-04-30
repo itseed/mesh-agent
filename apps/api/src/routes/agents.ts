@@ -30,24 +30,23 @@ export async function agentRoutes(fastify: FastifyInstance) {
   const preHandler = [fastify.authenticate]
 
   fastify.get('/agents', { preHandler }, async () => {
-    const res = await proxyFetch(`${env.ORCHESTRATOR_URL}/sessions`)
-    if (!res || !res.ok) {
-      const recent = await fastify.db
-        .select()
-        .from(agentSessions)
-        .orderBy(desc(agentSessions.createdAt))
-        .limit(50)
-      return recent.map((r) => ({
-        id: r.id,
-        role: r.role,
-        status: r.status,
-        projectId: r.projectId,
-        taskId: r.taskId,
-        startedAt: r.startedAt,
-        endedAt: r.endedAt,
-      }))
-    }
-    return res.json()
+    // Query DB directly — covers both cloud (orchestrator) and local (companion) sessions
+    const running = await fastify.db
+      .select()
+      .from(agentSessions)
+      .where(eq(agentSessions.status, 'running'))
+      .orderBy(desc(agentSessions.createdAt))
+      .limit(50)
+    return running.map((r) => ({
+      id: r.id,
+      role: r.role,
+      status: r.status,
+      executionMode: r.executionMode,
+      projectId: r.projectId,
+      taskId: r.taskId,
+      startedAt: r.startedAt,
+      endedAt: r.endedAt,
+    }))
   })
 
   fastify.get('/agents/history', { preHandler }, async (request) => {

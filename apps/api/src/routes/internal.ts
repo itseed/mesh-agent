@@ -502,6 +502,8 @@ export async function internalRoutes(fastify: FastifyInstance) {
                   parentTaskTitle: string
                   parentTaskDescription: string
                   projectCtxBlock: string
+                  userId?: string
+                  cliProvider?: string | null
                 }
                 const gitInstructions = buildGitInstructions(ctx.baseBranch, ctx.branchSuffix)
 
@@ -532,13 +534,19 @@ export async function internalRoutes(fastify: FastifyInstance) {
                   const result = await dispatchAgent(role, agentWorkingDir, fullPrompt, {
                     projectId: ctx.projectId,
                     taskId: subtask.id,
-                    createdBy: 'system',
+                    createdBy: ctx.userId ?? 'system',
                     executionMode: ctx.executionMode as 'cloud' | 'local',
+                    userId: ctx.userId,
+                    cliProvider: ctx.cliProvider ?? undefined,
+                    db: fastify.db,
                   }, undefined, repoUrl)
 
                   if (result.id) {
                     await fastify.db.update(tasks).set({ stage: 'in_progress', updatedAt: new Date() }).where(eq(tasks.id, subtask.id))
+                    await fastify.redis.publish(TASKS_CHANNEL, JSON.stringify({ type: 'task.stage', taskId: subtask.id, stage: 'in_progress', projectId: ctx.projectId }))
                     fastify.log.info({ subtaskId: subtask.id, wave: completingWave + 1 }, 'Next wave subtask dispatched')
+                  } else {
+                    fastify.log.warn({ subtaskId: subtask.id, wave: completingWave + 1, error: result.error }, 'Next wave subtask dispatch failed')
                   }
                 }
 
