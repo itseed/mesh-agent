@@ -293,5 +293,9 @@ export const api = {
         `/companion/fs/stat?path=${encodeURIComponent(path)}`
       ),
     homedir: () => request<{ path: string }>('/companion/fs/homedir'),
+    agentStdout: (sessionId: string) =>
+      request<{ output: string; running: boolean }>(`/companion/agent/stdout?sessionId=${encodeURIComponent(sessionId)}`),
+    agentKill: (sessionId: string) =>
+      request<{ ok: boolean }>('/companion/agent/kill', { method: 'POST', body: JSON.stringify({ sessionId }) }),
   },
 }

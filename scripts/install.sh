@@ -101,9 +101,12 @@ for cli in "${SELECTED_CLIS[@]}"; do
       ;;
 
     cursor)
+      # Official install: Open Cursor IDE → Settings → "Install 'agent' CLI tool"
+      # See: https://cursor.com/docs/cli/installation
       if ! command -v agent >/dev/null 2>&1; then
         warn "Cursor background agent ('agent' binary) not found."
         warn "Open Cursor IDE → Settings → Install 'agent' CLI tool, then press Enter."
+        warn "See official docs: https://cursor.com/docs/cli/installation"
         read -r -p "Press Enter once installed, or Ctrl+C to abort..."
         command -v agent >/dev/null 2>&1 || { warn "agent binary still not found — skipping Cursor (you can set up later)"; continue; }
       fi

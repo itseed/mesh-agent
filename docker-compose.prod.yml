@@ -36,6 +36,8 @@ services:
         limits:
           memory: 384m
 
+  # Run repo cleanup manually: docker exec <orchestrator> bash /app/scripts/cleanup-repos.sh
+  # Or add to crontab: 0 3 * * 0 docker exec meshagent-orchestrator bash /app/scripts/cleanup-repos.sh
   orchestrator:
     build:
       context: .

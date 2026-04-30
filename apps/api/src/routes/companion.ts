@@ -152,6 +152,42 @@ export async function companionRoutes(fastify: FastifyInstance) {
     }
   })
 
+  // Proxy agent.stdout to companion daemon
+  fastify.get('/companion/agent/stdout', { preHandler }, async (request, reply) => {
+    const { id: userId } = request.user as { id: string }
+    const parseResult = z.object({ sessionId: z.string().min(1) }).safeParse(request.query)
+    if (!parseResult.success) return reply.status(400).send({ error: 'sessionId required' })
+    try {
+      const result = await companionManager.call<{ output: string; running: boolean }>(
+        userId, 'agent.stdout', { sessionId: parseResult.data.sessionId }
+      )
+      return result
+    } catch (err: any) {
+      if (err.message === 'No companion connected for this user')
+        return reply.status(503).send({ error: 'Companion not connected' })
+      fastify.log.error(err, 'companion agent proxy error')
+      return reply.status(500).send({ error: 'Internal error' })
+    }
+  })
+
+  // Proxy agent.kill to companion daemon
+  fastify.post('/companion/agent/kill', { preHandler }, async (request, reply) => {
+    const { id: userId } = request.user as { id: string }
+    const parseResult = z.object({ sessionId: z.string().min(1) }).safeParse(request.body)
+    if (!parseResult.success) return reply.status(400).send({ error: 'sessionId required' })
+    try {
+      const result = await companionManager.call<{ ok: boolean }>(
+        userId, 'agent.kill', { sessionId: parseResult.data.sessionId }
+      )
+      return result
+    } catch (err: any) {
+      if (err.message === 'No companion connected for this user')
+        return reply.status(503).send({ error: 'Companion not connected' })
+      fastify.log.error(err, 'companion agent proxy error')
+      return reply.status(500).send({ error: 'Internal error' })
+    }
+  })
+
   // Proxy fs.stat to companion daemon
   fastify.get('/companion/fs/stat', { preHandler }, async (request, reply) => {
     const { id: userId } = request.user as { id: string }

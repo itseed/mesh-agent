@@ -27,6 +27,8 @@ services:
       timeout: 5s
       retries: 5
 
+  # Run repo cleanup manually: docker exec <orchestrator> bash /app/scripts/cleanup-repos.sh
+  # Or add to crontab: 0 3 * * 0 docker exec meshagent-orchestrator bash /app/scripts/cleanup-repos.sh
   orchestrator:
     build:
       context: .
@@ -36,6 +38,7 @@ services:
       ORCHESTRATOR_PORT: 4802
       CLAUDE_CMD: claude
       REPOS_BASE_DIR: /repos
+      CLEANUP_REPOS_DAYS: '${CLEANUP_REPOS_DAYS:-30}'
     volumes:
       - ./packages/orchestrator:/app/packages/orchestrator
       - /app/packages/orchestrator/node_modules
