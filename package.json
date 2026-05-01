@@ -9,6 +9,7 @@
     "build": "pnpm -r build",
     "test": "pnpm -r test",
     "typecheck": "pnpm -r typecheck",
+    "lint": "pnpm -r --if-present --no-bail lint",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "prepare": "husky"
