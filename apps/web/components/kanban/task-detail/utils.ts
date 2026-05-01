@@ -25,8 +25,10 @@ export function parseReviewIssues(commentBody: string): ReviewIssue[] {
 
   // Fallback: **N. title** numbered items from outputLog excerpt
   if (issues.length === 0) {
-    for (const m of commentBody.matchAll(/\*\*\d+\.\s*`?([^`*\n]{3,80})`?\*\*/g))
-      issues.push({ title: m[1].trim(), severity: 'medium' });
+    for (const m of commentBody.matchAll(/\*\*\d+\.\s*`?([^`*\n]{1,80})`?\*\*/g)) {
+      const title = m[1].trim();
+      if (title.length >= 3) issues.push({ title, severity: 'medium' });
+    }
   }
 
   return issues;
