@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import './setup.js';
 import { buildServer } from '../server.js';
-import { projects } from '@meshagent/shared';
+import { projects, tasks, agentSessions } from '@meshagent/shared';
 
 describe('Projects API', () => {
   let server: Awaited<ReturnType<typeof buildServer>>;
@@ -9,6 +9,8 @@ describe('Projects API', () => {
 
   beforeAll(async () => {
     server = await buildServer();
+    await server.db.delete(agentSessions);
+    await server.db.delete(tasks);
     await server.db.delete(projects);
     const res = await server.inject({
       method: 'POST',

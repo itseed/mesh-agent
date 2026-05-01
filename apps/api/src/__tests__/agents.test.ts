@@ -1,6 +1,8 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
+import { eq } from 'drizzle-orm';
 import './setup.js';
 import { buildServer } from '../server.js';
+import { agentSessions } from '@meshagent/shared';
 
 vi.stubGlobal('fetch', vi.fn());
 
@@ -24,18 +26,21 @@ describe('Agents API', () => {
 
   const auth = () => ({ authorization: `Bearer ${token}` });
 
-  it('GET /agents proxies to orchestrator', async () => {
-    (fetch as any).mockResolvedValueOnce({
-      ok: true,
-      json: async () => [{ id: 'abc', role: 'frontend', status: 'running' }],
+  it('GET /agents returns running sessions from DB', async () => {
+    await server.db.insert(agentSessions).values({
+      id: 'test-running-session',
+      role: 'frontend',
+      workingDir: '/tmp',
+      prompt: 'test',
+      status: 'running',
     });
     const res = await server.inject({ method: 'GET', url: '/agents', headers: auth() });
     expect(res.statusCode).toBe(200);
     expect(res.json()).toHaveLength(1);
+    await server.db.delete(agentSessions).where(eq(agentSessions.id, 'test-running-session'));
   });
 
-  it('GET /agents falls back to DB history when orchestrator down', async () => {
-    (fetch as any).mockRejectedValueOnce(new Error('connection refused'));
+  it('GET /agents returns empty array when no running sessions', async () => {
     const res = await server.inject({ method: 'GET', url: '/agents', headers: auth() });
     expect(res.statusCode).toBe(200);
     expect(Array.isArray(res.json())).toBe(true);
