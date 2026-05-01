@@ -1,5 +1,6 @@
 'use client';
 import type { FormEvent } from 'react';
+import type { AgentRole } from '@meshagent/shared';
 import { ROLE_STYLE, STAGE_COLORS } from './styles';
 import { SubtaskInlineOutput } from './SubtaskInlineOutput';
 
@@ -34,7 +35,7 @@ export function SubtasksTab({
         <p className="text-muted text-[13px]">No subtasks yet.</p>
       )}
       {subtasks.map((st: any) => {
-        const role = ROLE_STYLE[st.agentRole ?? ''];
+        const role = st.agentRole ? ROLE_STYLE[st.agentRole as AgentRole] : undefined;
         const isRunning = st.stage === 'in_progress';
         const isExpanded = expandedSubtaskId === st.id;
         return (

@@ -1,4 +1,5 @@
 'use client';
+import type { AgentRole } from '@meshagent/shared';
 import type { ReviewIssue } from './styles';
 import { ROLE_STYLE, PRIORITY_BG, PRIORITY_TEXT, SEVERITY_STYLE } from './styles';
 import { FixIssuesPanel } from './FixIssuesPanel';
@@ -181,7 +182,7 @@ export function OverviewTab(props: OverviewTabProps) {
             {Array.isArray(plan.subtasks) && plan.subtasks.length > 0 && (
               <ol className="flex flex-col gap-1.5 list-none">
                 {plan.subtasks.map((st: any, i: number) => {
-                  const role = ROLE_STYLE[st.agentRole ?? ''];
+                  const role = st.agentRole ? ROLE_STYLE[st.agentRole as AgentRole] : undefined;
                   return (
                     <li key={i} className="flex items-center gap-2 text-[13px]">
                       <span className="text-dim shrink-0">{i + 1}.</span>

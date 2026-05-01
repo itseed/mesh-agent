@@ -1,5 +1,5 @@
 'use client';
-import type { TaskComment } from '@meshagent/shared';
+import type { TaskComment, AgentRole } from '@meshagent/shared';
 import type { ReviewIssue } from './styles';
 import { ROLE_STYLE } from './styles';
 import { Markdown } from './Markdown';
@@ -36,7 +36,7 @@ function LeadCommentBody({ body }: { body: string }) {
       {parsed.summary && <p className="text-[13px] text-text/80 italic mb-2">{parsed.summary}</p>}
       {Array.isArray(parsed.subtasks) &&
         parsed.subtasks.map((st: any, idx: number) => {
-          const role = ROLE_STYLE[st.agentRole ?? ''];
+          const role = st.agentRole ? ROLE_STYLE[st.agentRole as AgentRole] : undefined;
           return (
             <div
               key={idx}

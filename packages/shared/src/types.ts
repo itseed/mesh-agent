@@ -1,8 +1,6 @@
 export type KanbanStage = 'backlog' | 'in_progress' | 'review' | 'done';
 
-export type AgentRole = string;
-
-export const BUILTIN_AGENT_ROLES = [
+export const AGENT_ROLES = [
   'frontend',
   'backend',
   'mobile',
@@ -12,7 +10,12 @@ export const BUILTIN_AGENT_ROLES = [
   'reviewer',
 ] as const;
 
-export type BuiltinAgentRole = (typeof BUILTIN_AGENT_ROLES)[number];
+export type AgentRole = (typeof AGENT_ROLES)[number];
+
+/** @deprecated use AGENT_ROLES */
+export const BUILTIN_AGENT_ROLES = AGENT_ROLES;
+/** @deprecated use AgentRole */
+export type BuiltinAgentRole = AgentRole;
 
 export type AgentStatus = 'idle' | 'running' | 'error';
 

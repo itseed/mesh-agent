@@ -1,3 +1,5 @@
+import type { AgentRole } from '@meshagent/shared';
+
 export type Severity = 'critical' | 'high' | 'medium' | 'low';
 
 export interface ReviewIssue {
@@ -12,7 +14,7 @@ export const PRIORITY_COLORS: Record<string, string> = {
   low: 'text-dim',
 };
 
-export const ROLE_STYLE: Record<string, { bg: string; text: string }> = {
+export const ROLE_STYLE: Record<AgentRole, { bg: string; text: string }> = {
   frontend: { bg: 'rgba(34,211,238,0.1)', text: '#22d3ee' },
   backend: { bg: 'rgba(96,165,250,0.1)', text: '#60a5fa' },
   mobile: { bg: 'rgba(192,132,252,0.1)', text: '#c084fc' },

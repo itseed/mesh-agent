@@ -40,7 +40,7 @@ export function TaskCard({
   stageColor,
   isDragging,
 }: TaskCardProps) {
-  const role = ROLE_STYLE[task.agentRole ?? ''];
+  const role = task.agentRole ? ROLE_STYLE[task.agentRole] : undefined;
   const dotColor = PRIORITY_DOT[task.priority ?? ''] ?? null;
   const project = projects?.find((p) => p.id === task.projectId);
   const subtaskCount = allTasks?.filter((t) => t.parentTaskId === task.id).length ?? 0;
