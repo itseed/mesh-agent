@@ -1,5 +1,5 @@
-import pino from 'pino'
-import { env, isProd, isTest } from '../env.js'
+import pino from 'pino';
+import { env, isProd, isTest } from '../env.js';
 
 export const loggerOptions: pino.LoggerOptions = {
   level: isTest ? 'silent' : env.LOG_LEVEL,
@@ -24,6 +24,6 @@ export const loggerOptions: pino.LoggerOptions = {
           options: { colorize: true, translateTime: 'SYS:HH:MM:ss.l' },
         },
       }),
-}
+};
 
-export const logger = pino(loggerOptions)
+export const logger = pino(loggerOptions);

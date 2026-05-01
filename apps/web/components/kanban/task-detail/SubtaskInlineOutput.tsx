@@ -1,44 +1,51 @@
-'use client'
-import { useState, useEffect, useRef } from 'react'
-import { api } from '@/lib/api'
-import { filterNoise } from './utils'
+'use client';
+import { useState, useEffect, useRef } from 'react';
+import { api } from '@/lib/api';
+import { filterNoise } from './utils';
 
 export function SubtaskInlineOutput({ taskId, stage }: { taskId: string; stage: string }) {
-  const [session, setSession] = useState<any>(null)
-  const [liveOutput, setLiveOutput] = useState('')
-  const [isRunning, setIsRunning] = useState(false)
-  const outputRef = useRef<HTMLPreElement>(null)
+  const [session, setSession] = useState<any>(null);
+  const [liveOutput, setLiveOutput] = useState('');
+  const [isRunning, setIsRunning] = useState(false);
+  const outputRef = useRef<HTMLPreElement>(null);
 
   useEffect(() => {
-    api.agents.sessionByTask(taskId).then(setSession).catch(() => {})
-  }, [taskId])
+    api.agents
+      .sessionByTask(taskId)
+      .then(setSession)
+      .catch(() => {});
+  }, [taskId]);
 
   useEffect(() => {
-    if (!session?.id || stage !== 'in_progress') return
-    let cancelled = false
+    if (!session?.id || stage !== 'in_progress') return;
+    let cancelled = false;
 
     const poll = async () => {
       try {
-        const res = await api.agents.sessionOutput(session.id)
-        if (cancelled) return
-        setLiveOutput(res.output)
-        setIsRunning(res.running)
+        const res = await api.agents.sessionOutput(session.id);
+        if (cancelled) return;
+        setLiveOutput(res.output);
+        setIsRunning(res.running);
         if (outputRef.current) {
-          outputRef.current.scrollTop = outputRef.current.scrollHeight
+          outputRef.current.scrollTop = outputRef.current.scrollHeight;
         }
-        if (res.running) setTimeout(poll, 2000)
-        else api.agents.sessionByTask(taskId).then(setSession).catch(() => {})
+        if (res.running) setTimeout(poll, 2000);
+        else
+          api.agents
+            .sessionByTask(taskId)
+            .then(setSession)
+            .catch(() => {});
       } catch {
-        if (!cancelled) setTimeout(poll, 5000)
+        if (!cancelled) setTimeout(poll, 5000);
       }
-    }
-    poll()
+    };
+    poll();
     return () => {
-      cancelled = true
-    }
-  }, [session?.id, stage, taskId])
+      cancelled = true;
+    };
+  }, [session?.id, stage, taskId]);
 
-  const displayOutput = liveOutput || session?.outputLog || ''
+  const displayOutput = liveOutput || session?.outputLog || '';
 
   return (
     <div className="border-t border-border px-3 pb-3 pt-2 flex flex-col gap-2">
@@ -46,7 +53,9 @@ export function SubtaskInlineOutput({ taskId, stage }: { taskId: string; stage: 
         {isRunning && <span className="text-[#f0883e] animate-pulse font-medium">● live</span>}
         {!isRunning && session && <span className="text-dim">completed</span>}
         {session?.startedAt && (
-          <span className="text-dim">started {new Date(session.startedAt).toLocaleTimeString()}</span>
+          <span className="text-dim">
+            started {new Date(session.startedAt).toLocaleTimeString()}
+          </span>
         )}
         {session?.endedAt && (
           <span className="text-dim">ended {new Date(session.endedAt).toLocaleTimeString()}</span>
@@ -66,8 +75,10 @@ export function SubtaskInlineOutput({ taskId, stage }: { taskId: string; stage: 
           {filterNoise(displayOutput)}
         </pre>
       ) : (
-        <p className="text-dim text-[12px]">{session ? 'Waiting for output…' : 'No session found.'}</p>
+        <p className="text-dim text-[12px]">
+          {session ? 'Waiting for output…' : 'No session found.'}
+        </p>
       )}
     </div>
-  )
+  );
 }

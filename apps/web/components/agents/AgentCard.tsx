@@ -1,29 +1,33 @@
 const ROLE_COLOR: Record<string, string> = {
   frontend: '#22d3ee',
-  backend:  '#60a5fa',
-  mobile:   '#c084fc',
-  devops:   '#4ade80',
+  backend: '#60a5fa',
+  mobile: '#c084fc',
+  devops: '#4ade80',
   designer: '#f472b6',
-  qa:       '#fb923c',
+  qa: '#fb923c',
   reviewer: '#f87171',
-}
+};
 
 interface AgentCardProps {
-  agent: { id: string; role: string; status: string }
-  recentLines: string[]
-  onClick: () => void
+  agent: { id: string; role: string; status: string };
+  recentLines: string[];
+  onClick: () => void;
 }
 
 export function AgentCard({ agent, recentLines, onClick }: AgentCardProps) {
-  const roleColor = ROLE_COLOR[agent.role] ?? '#6a7a8e'
-  const isRunning = agent.status === 'running'
-  const isError = agent.status === 'error'
+  const roleColor = ROLE_COLOR[agent.role] ?? '#6a7a8e';
+  const isRunning = agent.status === 'running';
+  const isError = agent.status === 'error';
 
   return (
     <button
       onClick={onClick}
       className="bg-surface border border-border rounded-lg text-left hover:border-border-hi transition-all w-full overflow-hidden group"
-      style={isRunning ? { borderColor: 'rgba(63,185,80,0.3)', boxShadow: '0 0 0 1px rgba(63,185,80,0.1)' } : {}}
+      style={
+        isRunning
+          ? { borderColor: 'rgba(63,185,80,0.3)', boxShadow: '0 0 0 1px rgba(63,185,80,0.1)' }
+          : {}
+      }
     >
       {/* Terminal title bar */}
       <div className="flex items-center justify-between px-3 py-2 border-b border-border bg-canvas/40">
@@ -59,10 +63,12 @@ export function AgentCard({ agent, recentLines, onClick }: AgentCardProps) {
           </span>
         ) : (
           recentLines.slice(-3).map((line, i) => (
-            <div key={i} className="truncate leading-relaxed">{line}</div>
+            <div key={i} className="truncate leading-relaxed">
+              {line}
+            </div>
           ))
         )}
       </div>
     </button>
-  )
+  );
 }

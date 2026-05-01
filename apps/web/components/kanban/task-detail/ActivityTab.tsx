@@ -1,8 +1,8 @@
-'use client'
+'use client';
 
 export function ActivityTab({ activities }: { activities: any[] }) {
   if (activities.length === 0) {
-    return <p className="text-muted text-[13px]">No activity yet.</p>
+    return <p className="text-muted text-[13px]">No activity yet.</p>;
   }
   return (
     <div className="flex flex-col gap-3">
@@ -25,5 +25,5 @@ export function ActivityTab({ activities }: { activities: any[] }) {
         </div>
       ))}
     </div>
-  )
+  );
 }

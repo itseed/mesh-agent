@@ -1,283 +1,301 @@
-'use client'
-import { useState, useEffect, useRef } from 'react'
-import { createPortal } from 'react-dom'
-import { api } from '@/lib/api'
-import type { ReviewIssue } from './task-detail/styles'
-import { parseReviewIssues } from './task-detail/utils'
-import { TaskHeader } from './task-detail/TaskHeader'
-import { OverviewTab } from './task-detail/OverviewTab'
-import { CommentsTab } from './task-detail/CommentsTab'
-import { SubtasksTab } from './task-detail/SubtasksTab'
-import { ActivityTab } from './task-detail/ActivityTab'
-import { AttachmentsTab } from './task-detail/AttachmentsTab'
+'use client';
+import { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
+import { api } from '@/lib/api';
+import type { ReviewIssue } from './task-detail/styles';
+import { parseReviewIssues } from './task-detail/utils';
+import { TaskHeader } from './task-detail/TaskHeader';
+import { OverviewTab } from './task-detail/OverviewTab';
+import { CommentsTab } from './task-detail/CommentsTab';
+import { SubtasksTab } from './task-detail/SubtasksTab';
+import { ActivityTab } from './task-detail/ActivityTab';
+import { AttachmentsTab } from './task-detail/AttachmentsTab';
 
 interface TaskDetailPanelProps {
-  task: any
-  allTasks: any[]
-  onClose: () => void
-  onUpdate: () => void
-  onDelete: (id: string) => void
+  task: any;
+  allTasks: any[];
+  onClose: () => void;
+  onUpdate: () => void;
+  onDelete: (id: string) => void;
 }
 
-type Tab = 'overview' | 'comments' | 'subtasks' | 'activity' | 'attachments'
+type Tab = 'overview' | 'comments' | 'subtasks' | 'activity' | 'attachments';
 
-const TABS: Tab[] = ['overview', 'comments', 'subtasks', 'activity', 'attachments']
+const TABS: Tab[] = ['overview', 'comments', 'subtasks', 'activity', 'attachments'];
 const TAB_LABEL: Record<Tab, string> = {
   overview: 'Overview',
   comments: 'Comments',
   subtasks: 'Subtasks',
   activity: 'Activity',
   attachments: 'Files',
-}
+};
 
-export function TaskDetailPanel({ task, allTasks, onClose, onUpdate, onDelete }: TaskDetailPanelProps) {
-  const [tab, setTab] = useState<Tab>('overview')
-  const [comments, setComments] = useState<any[]>([])
-  const [activities, setActivities] = useState<any[]>([])
-  const [commentText, setCommentText] = useState('')
-  const [sending, setSending] = useState(false)
-  const [analyzing, setAnalyzing] = useState(false)
-  const [approving, setApproving] = useState(false)
-  const [editingDesc, setEditingDesc] = useState(false)
-  const [fixTasksCreatedCount, setFixTasksCreatedCount] = useState(0)
-  const [localTask, setLocalTask] = useState(task)
-  const [descValue, setDescValue] = useState(task.description ?? '')
-  const [confirmDelete, setConfirmDelete] = useState(false)
-  const [showSubtaskForm, setShowSubtaskForm] = useState(false)
-  const [subtaskTitle, setSubtaskTitle] = useState('')
-  const [subtaskRole, setSubtaskRole] = useState('')
-  const [attachments, setAttachments] = useState<any[]>([])
-  const [uploading, setUploading] = useState(false)
-  const [uploadError, setUploadError] = useState('')
-  const [expandedSubtaskId, setExpandedSubtaskId] = useState<string | null>(null)
-  const [fixCommentId, setFixCommentId] = useState<string | null>(null)
-  const [reviewIssues, setReviewIssues] = useState<ReviewIssue[]>([])
-  const [selectedIssues, setSelectedIssues] = useState<Set<number>>(new Set())
-  const [fixingIssues, setFixingIssues] = useState(false)
-  const [starting, setStarting] = useState(false)
-  const [executionMode, setExecutionMode] = useState<'cloud' | 'local'>('cloud')
-  const fileInputRef = useRef<HTMLInputElement>(null)
+export function TaskDetailPanel({
+  task,
+  allTasks,
+  onClose,
+  onUpdate,
+  onDelete,
+}: TaskDetailPanelProps) {
+  const [tab, setTab] = useState<Tab>('overview');
+  const [comments, setComments] = useState<any[]>([]);
+  const [activities, setActivities] = useState<any[]>([]);
+  const [commentText, setCommentText] = useState('');
+  const [sending, setSending] = useState(false);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [approving, setApproving] = useState(false);
+  const [editingDesc, setEditingDesc] = useState(false);
+  const [fixTasksCreatedCount, setFixTasksCreatedCount] = useState(0);
+  const [localTask, setLocalTask] = useState(task);
+  const [descValue, setDescValue] = useState(task.description ?? '');
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [showSubtaskForm, setShowSubtaskForm] = useState(false);
+  const [subtaskTitle, setSubtaskTitle] = useState('');
+  const [subtaskRole, setSubtaskRole] = useState('');
+  const [attachments, setAttachments] = useState<any[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState('');
+  const [expandedSubtaskId, setExpandedSubtaskId] = useState<string | null>(null);
+  const [fixCommentId, setFixCommentId] = useState<string | null>(null);
+  const [reviewIssues, setReviewIssues] = useState<ReviewIssue[]>([]);
+  const [selectedIssues, setSelectedIssues] = useState<Set<number>>(new Set());
+  const [fixingIssues, setFixingIssues] = useState(false);
+  const [starting, setStarting] = useState(false);
+  const [executionMode, setExecutionMode] = useState<'cloud' | 'local'>('cloud');
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    setLocalTask(task)
-    setDescValue(task.description ?? '')
-  }, [task])
+    setLocalTask(task);
+    setDescValue(task.description ?? '');
+  }, [task]);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
-    }
-    window.addEventListener('keydown', handler)
-    return () => window.removeEventListener('keydown', handler)
-  }, [onClose])
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [onClose]);
 
   useEffect(() => {
-    api.tasks.comments(task.id).then(setComments).catch(() => {})
-  }, [task.id, task.stage])
+    api.tasks
+      .comments(task.id)
+      .then(setComments)
+      .catch(() => {});
+  }, [task.id, task.stage]);
 
   useEffect(() => {
     if (tab === 'activity') {
-      api.tasks.activities(task.id).then(setActivities).catch(() => {})
+      api.tasks
+        .activities(task.id)
+        .then(setActivities)
+        .catch(() => {});
     }
     if (tab === 'comments') {
-      api.tasks.comments(task.id).then(setComments).catch(() => {})
+      api.tasks
+        .comments(task.id)
+        .then(setComments)
+        .catch(() => {});
     }
     if (tab === 'attachments') {
-      api.tasks.attachments(task.id).then(setAttachments).catch(() => {})
+      api.tasks
+        .attachments(task.id)
+        .then(setAttachments)
+        .catch(() => {});
     }
-  }, [tab, task.id])
+  }, [tab, task.id]);
 
-  const subtasks = allTasks.filter((t: any) => t.parentTaskId === task.id)
+  const subtasks = allTasks.filter((t: any) => t.parentTaskId === task.id);
 
   useEffect(() => {
-    const running = subtasks.find((s: any) => s.stage === 'in_progress')
+    const running = subtasks.find((s: any) => s.stage === 'in_progress');
     if (running) {
-      setTab('subtasks')
-      setExpandedSubtaskId(running.id)
+      setTab('subtasks');
+      setExpandedSubtaskId(running.id);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [task.id])
+  }, [task.id]);
 
   async function saveDescription() {
-    setEditingDesc(false)
-    if (descValue === localTask.description) return
+    setEditingDesc(false);
+    if (descValue === localTask.description) return;
     try {
-      await api.tasks.update(task.id, { description: descValue })
-      setLocalTask((prev: any) => ({ ...prev, description: descValue }))
-      onUpdate()
+      await api.tasks.update(task.id, { description: descValue });
+      setLocalTask((prev: any) => ({ ...prev, description: descValue }));
+      onUpdate();
     } catch {}
   }
 
   async function updateField(field: string, value: string) {
     try {
-      await api.tasks.update(task.id, { [field]: value })
-      setLocalTask((prev: any) => ({ ...prev, [field]: value }))
-      onUpdate()
+      await api.tasks.update(task.id, { [field]: value });
+      setLocalTask((prev: any) => ({ ...prev, [field]: value }));
+      onUpdate();
     } catch {}
   }
 
   async function sendComment() {
-    if (!commentText.trim()) return
-    setSending(true)
+    if (!commentText.trim()) return;
+    setSending(true);
     try {
-      await api.tasks.addComment(task.id, commentText.trim())
-      setCommentText('')
-      const fresh = await api.tasks.comments(task.id)
-      setComments(fresh)
+      await api.tasks.addComment(task.id, commentText.trim());
+      setCommentText('');
+      const fresh = await api.tasks.comments(task.id);
+      setComments(fresh);
     } catch {
     } finally {
-      setSending(false)
+      setSending(false);
     }
   }
 
   async function analyze() {
-    setAnalyzing(true)
+    setAnalyzing(true);
     try {
-      await api.tasks.analyze(task.id)
-      const fresh = await api.tasks.comments(task.id)
-      setComments(fresh)
-      onUpdate()
+      await api.tasks.analyze(task.id);
+      const fresh = await api.tasks.comments(task.id);
+      setComments(fresh);
+      onUpdate();
     } catch {
     } finally {
-      setAnalyzing(false)
+      setAnalyzing(false);
     }
   }
 
   async function approve() {
-    setApproving(true)
+    setApproving(true);
     try {
-      await api.tasks.approve(task.id)
-      onUpdate()
+      await api.tasks.approve(task.id);
+      onUpdate();
     } catch {
     } finally {
-      setApproving(false)
+      setApproving(false);
     }
   }
 
   async function createSubtask(e: React.FormEvent) {
-    e.preventDefault()
-    if (!subtaskTitle.trim()) return
+    e.preventDefault();
+    if (!subtaskTitle.trim()) return;
     try {
       await api.tasks.createSubtask(task.id, {
         title: subtaskTitle.trim(),
         agentRole: subtaskRole || undefined,
-      })
-      setSubtaskTitle('')
-      setSubtaskRole('')
-      setShowSubtaskForm(false)
-      onUpdate()
+      });
+      setSubtaskTitle('');
+      setSubtaskRole('');
+      setShowSubtaskForm(false);
+      onUpdate();
     } catch {}
   }
 
   async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (!file) return
-    setUploading(true)
-    setUploadError('')
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    setUploadError('');
     try {
       const { uploadUrl } = await api.tasks.createAttachment(task.id, {
         fileName: file.name,
         fileSize: file.size,
         mimeType: file.type || 'application/octet-stream',
-      })
+      });
       await fetch(uploadUrl, {
         method: 'PUT',
         body: file,
         headers: { 'Content-Type': file.type || 'application/octet-stream' },
-      })
-      const fresh = await api.tasks.attachments(task.id)
-      setAttachments(fresh)
+      });
+      const fresh = await api.tasks.attachments(task.id);
+      setAttachments(fresh);
     } catch (err: any) {
-      setUploadError(err?.message ?? 'Upload ไม่สำเร็จ')
+      setUploadError(err?.message ?? 'Upload ไม่สำเร็จ');
     } finally {
-      setUploading(false)
-      if (fileInputRef.current) fileInputRef.current.value = ''
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
     }
   }
 
   function openFixPanel(commentId: string, issues: ReviewIssue[]) {
-    setFixCommentId(commentId)
-    setReviewIssues(issues)
-    setSelectedIssues(new Set(issues.map((_, i) => i)))
+    setFixCommentId(commentId);
+    setReviewIssues(issues);
+    setSelectedIssues(new Set(issues.map((_, i) => i)));
   }
 
   function openOverviewFix(issues: ReviewIssue[]) {
-    setFixCommentId('__overview__')
-    setReviewIssues(issues)
-    setSelectedIssues(new Set(issues.map((_, i) => i)))
+    setFixCommentId('__overview__');
+    setReviewIssues(issues);
+    setSelectedIssues(new Set(issues.map((_, i) => i)));
   }
 
   function toggleIssue(idx: number) {
     setSelectedIssues((prev) => {
-      const next = new Set(prev)
-      if (next.has(idx)) next.delete(idx)
-      else next.add(idx)
-      return next
-    })
+      const next = new Set(prev);
+      if (next.has(idx)) next.delete(idx);
+      else next.add(idx);
+      return next;
+    });
   }
 
   function selectAllIssues(issues: ReviewIssue[]) {
     setSelectedIssues(
       selectedIssues.size === issues.length ? new Set() : new Set(issues.map((_, i) => i)),
-    )
+    );
   }
 
   function cancelFix() {
-    setFixCommentId(null)
-    setSelectedIssues(new Set())
+    setFixCommentId(null);
+    setSelectedIssues(new Set());
   }
 
   async function confirmFix() {
-    if (selectedIssues.size === 0) return
-    setFixingIssues(true)
+    if (selectedIssues.size === 0) return;
+    setFixingIssues(true);
     try {
-      const selected = reviewIssues.filter((_, i) => selectedIssues.has(i))
-      await api.tasks.fixIssues(task.id, selected)
-      const createdCount = selectedIssues.size
-      setFixCommentId(null)
-      setSelectedIssues(new Set())
-      setFixTasksCreatedCount(createdCount)
-      setTab('subtasks')
-      onUpdate()
+      const selected = reviewIssues.filter((_, i) => selectedIssues.has(i));
+      await api.tasks.fixIssues(task.id, selected);
+      const createdCount = selectedIssues.size;
+      setFixCommentId(null);
+      setSelectedIssues(new Set());
+      setFixTasksCreatedCount(createdCount);
+      setTab('subtasks');
+      onUpdate();
     } catch {
     } finally {
-      setFixingIssues(false)
+      setFixingIssues(false);
     }
   }
 
-  const leadComment = comments.find((c: any) => c.source === 'lead')
-  let plan: any = null
+  const leadComment = comments.find((c: any) => c.source === 'lead');
+  let plan: any = null;
   if (leadComment) {
     try {
-      plan = JSON.parse(leadComment.body)
+      plan = JSON.parse(leadComment.body);
     } catch {}
   }
 
   async function handleStart() {
-    setStarting(true)
+    setStarting(true);
     try {
-      await api.tasks.start(task.id, { executionMode })
-      setLocalTask((t: any) => ({ ...t, stage: 'in_progress' }))
-      const fresh = await api.tasks.activities(task.id)
-      setActivities(fresh)
+      await api.tasks.start(task.id, { executionMode });
+      setLocalTask((t: any) => ({ ...t, stage: 'in_progress' }));
+      const fresh = await api.tasks.activities(task.id);
+      setActivities(fresh);
     } catch (e: any) {
-      alert(e.message ?? 'Start failed')
+      alert(e.message ?? 'Start failed');
     } finally {
-      setStarting(false)
+      setStarting(false);
     }
   }
 
   // Aggregate review issues from agent comments for the Task Complete CTA
-  const allIssues: ReviewIssue[] = []
+  const allIssues: ReviewIssue[] = [];
   comments
     .filter((c: any) => c.source === 'agent')
     .forEach((c: any) => {
-      parseReviewIssues(c.body).forEach((issue) => allIssues.push(issue))
-    })
-  const doneCount = subtasks.filter((s: any) => s.stage === 'done').length
-  const totalCount = subtasks.length
+      parseReviewIssues(c.body).forEach((issue) => allIssues.push(issue));
+    });
+  const doneCount = subtasks.filter((s: any) => s.stage === 'done').length;
+  const totalCount = subtasks.length;
 
-  if (typeof document === 'undefined') return null
+  if (typeof document === 'undefined') return null;
 
   return createPortal(
     <>
@@ -294,8 +312,8 @@ export function TaskDetailPanel({ task, allTasks, onClose, onUpdate, onDelete }:
           onConfirmDelete={() => setConfirmDelete(true)}
           onCancelDelete={() => setConfirmDelete(false)}
           onDelete={async () => {
-            await onDelete(task.id)
-            onClose()
+            await onDelete(task.id);
+            onClose();
           }}
           onClose={onClose}
         />
@@ -307,7 +325,9 @@ export function TaskDetailPanel({ task, allTasks, onClose, onUpdate, onDelete }:
               key={t}
               onClick={() => setTab(t)}
               className={`text-[13px] px-4 py-2 border-b-2 transition-colors ${
-                tab === t ? 'border-accent text-text' : 'border-transparent text-muted hover:text-text'
+                tab === t
+                  ? 'border-accent text-text'
+                  : 'border-transparent text-muted hover:text-text'
               }`}
             >
               {TAB_LABEL[t]}
@@ -414,5 +434,5 @@ export function TaskDetailPanel({ task, allTasks, onClose, onUpdate, onDelete }:
       </div>
     </>,
     document.body,
-  )
+  );
 }

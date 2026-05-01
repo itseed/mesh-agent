@@ -1,12 +1,12 @@
-'use client'
-import type { ChangeEvent, RefObject } from 'react'
+'use client';
+import type { ChangeEvent, RefObject } from 'react';
 
 interface AttachmentsTabProps {
-  attachments: any[]
-  uploading: boolean
-  uploadError: string
-  fileInputRef: RefObject<HTMLInputElement>
-  onUpload: (e: ChangeEvent<HTMLInputElement>) => void
+  attachments: any[];
+  uploading: boolean;
+  uploadError: string;
+  fileInputRef: RefObject<HTMLInputElement>;
+  onUpload: (e: ChangeEvent<HTMLInputElement>) => void;
 }
 
 export function AttachmentsTab({
@@ -62,5 +62,5 @@ export function AttachmentsTab({
         </div>
       )}
     </div>
-  )
+  );
 }

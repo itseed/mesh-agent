@@ -1,11 +1,11 @@
-import { Skeleton } from '@/components/ui/Skeleton'
+import { Skeleton } from '@/components/ui/Skeleton';
 
 const STAGE_TINTS = [
   { color: '#6a7a8e', bg: 'rgba(106,122,142,0.08)', border: 'rgba(106,122,142,0.2)' },
   { color: '#f0883e', bg: 'rgba(240,136,62,0.08)', border: 'rgba(240,136,62,0.25)' },
   { color: '#d2a8ff', bg: 'rgba(210,168,255,0.08)', border: 'rgba(210,168,255,0.25)' },
   { color: '#3fb950', bg: 'rgba(63,185,80,0.08)', border: 'rgba(63,185,80,0.25)' },
-]
+];
 
 function TaskCardSkeleton() {
   return (
@@ -20,7 +20,7 @@ function TaskCardSkeleton() {
         <Skeleton width={36} height={11} />
       </div>
     </div>
-  )
+  );
 }
 
 export function KanbanSkeleton({ cardsPerColumn = [3, 4, 2, 2] }: { cardsPerColumn?: number[] }) {
@@ -39,10 +39,12 @@ export function KanbanSkeleton({ cardsPerColumn = [3, 4, 2, 2] }: { cardsPerColu
             <Skeleton width={20} height={16} rounded="full" />
           </div>
           <div className="flex flex-col gap-2 flex-1 min-h-[200px] rounded-b p-1.5">
-            {Array.from({ length: cardsPerColumn[i] ?? 2 }).map((_, j) => <TaskCardSkeleton key={j} />)}
+            {Array.from({ length: cardsPerColumn[i] ?? 2 }).map((_, j) => (
+              <TaskCardSkeleton key={j} />
+            ))}
           </div>
         </div>
       ))}
     </div>
-  )
+  );
 }

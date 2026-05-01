@@ -39,7 +39,7 @@ export const projectContext = pgTable('project_context', {
   brief: text('brief').notNull().default(''),
   autoContext: text('auto_context').notNull().default(''),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
-})
+});
 ```
 
 ### New table: agentOutcomes
@@ -48,7 +48,9 @@ One row per agent run. Stores the extracted summary and PR URL for future contex
 
 ```typescript
 export const agentOutcomes = pgTable('agent_outcomes', {
-  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+  id: text('id')
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
   projectId: text('project_id')
     .notNull()
     .references(() => projects.id, { onDelete: 'cascade' }),
@@ -56,7 +58,7 @@ export const agentOutcomes = pgTable('agent_outcomes', {
   summary: text('summary').notNull(),
   prUrl: text('pr_url'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
-})
+});
 ```
 
 Index: `(projectId, createdAt DESC)` for fast "last N outcomes" queries.
@@ -81,6 +83,7 @@ Injected as a prefix to every agent prompt. Empty sections are omitted entirely.
 ```
 
 Rules:
+
 - `## Project Context` block omitted if `brief` is empty
 - `## Codebase Overview` block omitted if `autoContext` is empty
 - `## Recent Work` block omitted if no outcomes exist for this project
@@ -104,15 +107,15 @@ If the directory is not accessible (path doesn't exist, permission error), store
 
 ## Files
 
-| File | Action | Responsibility |
-|------|--------|----------------|
-| `packages/shared/src/schema.ts` | **Modify** | Add `projectContext` and `agentOutcomes` tables |
+| File                                  | Action     | Responsibility                                                                    |
+| ------------------------------------- | ---------- | --------------------------------------------------------------------------------- |
+| `packages/shared/src/schema.ts`       | **Modify** | Add `projectContext` and `agentOutcomes` tables                                   |
 | `apps/api/src/lib/context-builder.ts` | **Create** | `buildContextBlock(projectId, fastify)` — loads and formats context for injection |
-| `apps/api/src/lib/dispatch.ts` | **Modify** | Call `buildContextBlock()` and prepend to prompt |
-| `apps/api/src/routes/projects.ts` | **Modify** | `POST /projects/:id/context` — save brief, trigger auto-read |
-| `apps/api/src/routes/internal.ts` | **Modify** | Insert `agentOutcomes` row after agent complete |
-| `apps/web/app/projects/page.tsx` | **Modify** | Add "Project Brief" textarea + autoContext preview in project detail panel |
-| `apps/web/lib/api.ts` | **Modify** | Add `projects.saveContext(id, brief)` |
+| `apps/api/src/lib/dispatch.ts`        | **Modify** | Call `buildContextBlock()` and prepend to prompt                                  |
+| `apps/api/src/routes/projects.ts`     | **Modify** | `POST /projects/:id/context` — save brief, trigger auto-read                      |
+| `apps/api/src/routes/internal.ts`     | **Modify** | Insert `agentOutcomes` row after agent complete                                   |
+| `apps/web/app/projects/page.tsx`      | **Modify** | Add "Project Brief" textarea + autoContext preview in project detail panel        |
+| `apps/web/lib/api.ts`                 | **Modify** | Add `projects.saveContext(id, brief)`                                             |
 
 No orchestrator changes needed — context is injected into the prompt string before dispatch.
 
@@ -123,11 +126,13 @@ No orchestrator changes needed — context is injected into the prompt string be
 ### POST /projects/:id/context
 
 Request body:
+
 ```json
 { "brief": "This is a Next.js + Fastify monorepo. Frontend in apps/web, API in apps/api." }
 ```
 
 Steps:
+
 1. Load project — 404 if not found
 2. Determine read directory: `project.workspacePath ?? Object.values(project.paths ?? {})[0]`
 3. Read CLAUDE.md and/or README.md (best-effort — skip on error)
@@ -146,7 +151,7 @@ Returns `{ brief, autoContext, updatedAt }` or `{ brief: '', autoContext: '', up
 export async function buildContextBlock(
   projectId: string | null,
   fastify: FastifyInstance,
-): Promise<string>
+): Promise<string>;
 ```
 
 - If `projectId` is null → return `''`
@@ -169,14 +174,15 @@ export async function dispatchAgent(
   context: { projectId?: string | null; taskId?: string | null; createdBy?: string | null },
   systemPrompt?: string,
   repoUrl?: string,
-  fastify?: FastifyInstance,   // NEW optional param — needed for context lookup
-): Promise<{ id: string | null; error?: string }>
+  fastify?: FastifyInstance, // NEW optional param — needed for context lookup
+): Promise<{ id: string | null; error?: string }>;
 ```
 
 When `fastify` and `context.projectId` are provided:
+
 ```typescript
-const contextBlock = await buildContextBlock(context.projectId, fastify)
-const enrichedPrompt = contextBlock ? `${contextBlock}\n\n---\n\n${prompt}` : prompt
+const contextBlock = await buildContextBlock(context.projectId, fastify);
+const enrichedPrompt = contextBlock ? `${contextBlock}\n\n---\n\n${prompt}` : prompt;
 ```
 
 All callers that have access to `fastify` (routes/chat.ts, routes/tasks.ts, routes/internal.ts) pass it in. Callers without `fastify` omit it — dispatch runs unchanged.
@@ -195,9 +201,9 @@ if (projectId) {
       role,
       summary,
       prUrl: prUrl ?? null,
-    })
+    });
   } catch (err) {
-    fastify.log.warn({ err, projectId, role }, 'Failed to insert agentOutcomes')
+    fastify.log.warn({ err, projectId, role }, 'Failed to insert agentOutcomes');
   }
 }
 ```
@@ -213,6 +219,7 @@ In `apps/web/app/projects/page.tsx`, inside the `ProjectDetail` component (right
 ```
 
 Context tab content:
+
 - Textarea: "Project Brief" — `rows={6}`, placeholder: `"Describe this project for agents: tech stack, conventions, key files…"`
 - Read-only preview: "Codebase Overview (auto-read)" — shows `autoContext` truncated to 500 chars with "…" if longer, or `"No CLAUDE.md or README.md found"` if empty
 - Save button: calls `api.projects.saveContext(id, brief)` → refreshes autoContext preview

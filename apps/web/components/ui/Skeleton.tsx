@@ -1,10 +1,10 @@
-import type { CSSProperties, HTMLAttributes } from 'react'
+import type { CSSProperties, HTMLAttributes } from 'react';
 
 type SkeletonProps = HTMLAttributes<HTMLDivElement> & {
-  width?: number | string
-  height?: number | string
-  rounded?: 'sm' | 'md' | 'lg' | 'full' | 'none'
-}
+  width?: number | string;
+  height?: number | string;
+  rounded?: 'sm' | 'md' | 'lg' | 'full' | 'none';
+};
 
 const ROUNDED: Record<NonNullable<SkeletonProps['rounded']>, string> = {
   none: 'rounded-none',
@@ -12,7 +12,7 @@ const ROUNDED: Record<NonNullable<SkeletonProps['rounded']>, string> = {
   md: 'rounded-md',
   lg: 'rounded-lg',
   full: 'rounded-full',
-}
+};
 
 export function Skeleton({
   width,
@@ -26,7 +26,7 @@ export function Skeleton({
     width: typeof width === 'number' ? `${width}px` : width,
     height: typeof height === 'number' ? `${height}px` : height,
     ...style,
-  }
+  };
   return (
     <div
       aria-hidden="true"
@@ -34,5 +34,5 @@ export function Skeleton({
       style={merged}
       {...rest}
     />
-  )
+  );
 }

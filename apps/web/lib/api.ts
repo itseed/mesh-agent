@@ -1,13 +1,13 @@
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
+const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
 
 export class ApiError extends Error {
-  readonly status: number
-  readonly body: any
+  readonly status: number;
+  readonly body: any;
   constructor(message: string, status: number, body: any) {
-    super(message)
-    this.name = 'ApiError'
-    this.status = status
-    this.body = body
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+    this.body = body;
   }
 }
 
@@ -21,13 +21,13 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
         : {}),
       ...init?.headers,
     },
-  })
+  });
   if (!res.ok) {
-    const body = await res.json().catch(() => ({ error: res.statusText }))
-    throw new ApiError(body?.error ?? 'Request failed', res.status, body)
+    const body = await res.json().catch(() => ({ error: res.statusText }));
+    throw new ApiError(body?.error ?? 'Request failed', res.status, body);
   }
-  if (res.status === 204) return undefined as T
-  return res.json()
+  if (res.status === 204) return undefined as T;
+  return res.json();
 }
 
 export const api = {
@@ -43,12 +43,12 @@ export const api = {
     listUsers: () =>
       request<
         Array<{
-          id: string
-          email: string
-          role: string
-          isActive: boolean
-          createdAt: string
-          lastLoginAt: string | null
+          id: string;
+          email: string;
+          role: string;
+          isActive: boolean;
+          createdAt: string;
+          lastLoginAt: string | null;
         }>
       >('/auth/users'),
     inviteUser: (data: { email: string; password: string; role: string }) =>
@@ -59,16 +59,17 @@ export const api = {
   },
   tasks: {
     list: (params?: { projectId?: string; stage?: string; status?: string }) => {
-      const qs = new URLSearchParams()
-      if (params?.projectId) qs.set('projectId', params.projectId)
-      if (params?.stage) qs.set('stage', params.stage)
-      if (params?.status) qs.set('status', params.status)
-      const q = qs.toString()
-      return request<any[]>(`/tasks${q ? '?' + q : ''}`)
+      const qs = new URLSearchParams();
+      if (params?.projectId) qs.set('projectId', params.projectId);
+      if (params?.stage) qs.set('stage', params.stage);
+      if (params?.status) qs.set('status', params.status);
+      const q = qs.toString();
+      return request<any[]>(`/tasks${q ? '?' + q : ''}`);
     },
     get: (id: string) => request<any>(`/tasks/${id}`),
     create: (data: any) => request<any>('/tasks', { method: 'POST', body: JSON.stringify(data) }),
-    update: (id: string, data: any) => request<any>(`/tasks/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+    update: (id: string, data: any) =>
+      request<any>(`/tasks/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
     updateStage: (id: string, stage: string) =>
       request<any>(`/tasks/${id}/stage`, { method: 'PATCH', body: JSON.stringify({ stage }) }),
     delete: (id: string) => request<void>(`/tasks/${id}`, { method: 'DELETE' }),
@@ -82,25 +83,34 @@ export const api = {
     createSubtask: (id: string, data: any) =>
       request<any>(`/tasks/${id}/subtasks`, { method: 'POST', body: JSON.stringify(data) }),
     fixIssues: (id: string, issues: Array<{ title: string; severity: string; role?: string }>) =>
-      request<{ created: any[] }>(`/tasks/${id}/fix-issues`, { method: 'POST', body: JSON.stringify({ issues }) }),
-    attachments: (taskId: string) =>
-      request<any[]>(`/tasks/${taskId}/attachments`),
-    createAttachment: (taskId: string, data: { fileName: string; fileSize: number; mimeType: string }) =>
-      request<{ id: string; uploadUrl: string; storageKey: string }>(`/tasks/${taskId}/attachments`, {
+      request<{ created: any[] }>(`/tasks/${id}/fix-issues`, {
         method: 'POST',
-        body: JSON.stringify(data),
+        body: JSON.stringify({ issues }),
       }),
+    attachments: (taskId: string) => request<any[]>(`/tasks/${taskId}/attachments`),
+    createAttachment: (
+      taskId: string,
+      data: { fileName: string; fileSize: number; mimeType: string },
+    ) =>
+      request<{ id: string; uploadUrl: string; storageKey: string }>(
+        `/tasks/${taskId}/attachments`,
+        {
+          method: 'POST',
+          body: JSON.stringify(data),
+        },
+      ),
     downloadUrl: (taskId: string, attachmentId: string) =>
       request<{ url: string }>(`/tasks/${taskId}/attachments/${attachmentId}/url`),
     start: (id: string, opts?: { cli?: string; executionMode?: 'cloud' | 'local' }) =>
-      request<{ ok: boolean; waveCount: number; pendingSessions: string[] }>(
-        `/tasks/${id}/start`,
-        { method: 'POST', body: JSON.stringify(opts ?? {}) },
-      ),
+      request<{ ok: boolean; waveCount: number; pendingSessions: string[] }>(`/tasks/${id}/start`, {
+        method: 'POST',
+        body: JSON.stringify(opts ?? {}),
+      }),
   },
   projects: {
     list: () => request<any[]>('/projects'),
-    create: (data: any) => request<any>('/projects', { method: 'POST', body: JSON.stringify(data) }),
+    create: (data: any) =>
+      request<any>('/projects', { method: 'POST', body: JSON.stringify(data) }),
     activate: (id: string) => request<any>(`/projects/${id}/activate`, { method: 'PATCH' }),
     update: (id: string, data: any) =>
       request<any>(`/projects/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
@@ -113,43 +123,44 @@ export const api = {
         `/projects/${id}/context`,
       ),
     saveContext: (id: string, brief: string) =>
-      request<{ ok: boolean; autoContext: string }>(
-        `/projects/${id}/context`,
-        { method: 'POST', body: JSON.stringify({ brief }) },
-      ),
+      request<{ ok: boolean; autoContext: string }>(`/projects/${id}/context`, {
+        method: 'POST',
+        body: JSON.stringify({ brief }),
+      }),
   },
   agents: {
     list: () => request<any[]>('/agents'),
     history: (limit = 100) => request<any[]>(`/agents/history?limit=${limit}`),
     dispatch: (data: {
-      role: string
-      workingDir: string
-      prompt: string
-      projectId?: string
-      taskId?: string
-      cli?: string
+      role: string;
+      workingDir: string;
+      prompt: string;
+      projectId?: string;
+      taskId?: string;
+      cli?: string;
     }) => request<any>('/agents', { method: 'POST', body: JSON.stringify(data) }),
     stop: (id: string) => request<void>(`/agents/${id}`, { method: 'DELETE' }),
     session: (id: string) => request<any>(`/agents/sessions/${id}`),
     sessionByTask: (taskId: string) => request<any>(`/agents/sessions/by-task/${taskId}`),
-    sessionOutput: (id: string) => request<{ output: string; running: boolean }>(`/agents/sessions/${id}/output`),
+    sessionOutput: (id: string) =>
+      request<{ output: string; running: boolean }>(`/agents/sessions/${id}/output`),
     listRoles: () =>
       request<
         Array<{
-          id: string
-          slug: string
-          name: string
-          description: string | null
-          keywords: string[]
-          isBuiltin: boolean
+          id: string;
+          slug: string;
+          name: string;
+          description: string | null;
+          keywords: string[];
+          isBuiltin: boolean;
         }>
       >('/agents/roles'),
     createRole: (data: {
-      slug: string
-      name: string
-      description?: string
-      systemPrompt?: string
-      keywords?: string[]
+      slug: string;
+      name: string;
+      description?: string;
+      systemPrompt?: string;
+      keywords?: string[];
     }) => request<any>('/agents/roles', { method: 'POST', body: JSON.stringify(data) }),
     updateRole: (slug: string, data: any) =>
       request<any>(`/agents/roles/${slug}`, {
@@ -159,9 +170,15 @@ export const api = {
     deleteRole: (slug: string) => request<void>(`/agents/roles/${slug}`, { method: 'DELETE' }),
     metrics: (sinceHours = 24) => request<any>(`/agents/metrics?sinceHours=${sinceHours}`),
     metricsByProvider: (sinceHours = 24) =>
-      request<{ sinceHours: number; perProvider: Array<{ provider: string; count: number; successCount: number; avgDurationMs: number }> }>(
-        `/agents/metrics/by-provider?sinceHours=${sinceHours}`
-      ),
+      request<{
+        sinceHours: number;
+        perProvider: Array<{
+          provider: string;
+          count: number;
+          successCount: number;
+          avgDurationMs: number;
+        }>;
+      }>(`/agents/metrics/by-provider?sinceHours=${sinceHours}`),
   },
   github: {
     prs: (repo: string) => request<any[]>(`/github/prs?repo=${encodeURIComponent(repo)}`),
@@ -177,16 +194,18 @@ export const api = {
     get: () =>
       request<{
         github: {
-          connected: boolean
-          tokenPreview: string | null
-          oauthEnabled: boolean
-          user: { login: string; avatarUrl?: string } | null
-        }
-        cli?: { orchestratorUrl: string }
-        reposBaseDir?: string | null
+          connected: boolean;
+          tokenPreview: string | null;
+          oauthEnabled: boolean;
+          user: { login: string; avatarUrl?: string } | null;
+        };
+        cli?: { orchestratorUrl: string };
+        reposBaseDir?: string | null;
       }>('/settings'),
     testCli: () =>
-      request<{ ok: boolean; version?: string; error?: string; cmd: string }>('/settings/claude/test'),
+      request<{ ok: boolean; version?: string; error?: string; cmd: string }>(
+        '/settings/claude/test',
+      ),
     saveReposBaseDir: (dir: string) =>
       request<{ ok: boolean }>('/settings/repos-base-dir', {
         method: 'POST',
@@ -204,15 +223,15 @@ export const api = {
     listRepos: () =>
       request<
         Array<{
-          id: number
-          fullName: string
-          name: string
-          owner: string
-          private: boolean
-          description: string | null
-          defaultBranch: string
-          updatedAt: string | null
-          htmlUrl: string
+          id: number;
+          fullName: string;
+          name: string;
+          owner: string;
+          private: boolean;
+          description: string | null;
+          defaultBranch: string;
+          updatedAt: string | null;
+          htmlUrl: string;
         }>
       >('/settings/github/repos'),
     syncRepos: (repos: string[], projectId?: string) =>
@@ -222,27 +241,40 @@ export const api = {
       }),
     githubBranches: (repo: string) =>
       request<{ name: string; protected: boolean }[]>(
-        `/settings/github/branches?repo=${encodeURIComponent(repo)}`
+        `/settings/github/branches?repo=${encodeURIComponent(repo)}`,
       ),
     listCliProviders: () =>
-      request<Array<{ provider: string; enabled: boolean; isDefault: boolean; createdAt: string | null; updatedAt: string | null }>>('/settings/cli'),
+      request<
+        Array<{
+          provider: string;
+          enabled: boolean;
+          isDefault: boolean;
+          createdAt: string | null;
+          updatedAt: string | null;
+        }>
+      >('/settings/cli'),
     updateCliProvider: (provider: string, body: { enabled?: boolean; isDefault?: boolean }) =>
-      request<{ provider: string; enabled: boolean; isDefault: boolean }>(`/settings/cli/${provider}`, {
-        method: 'PUT',
-        body: JSON.stringify(body),
-      }),
+      request<{ provider: string; enabled: boolean; isDefault: boolean }>(
+        `/settings/cli/${provider}`,
+        {
+          method: 'PUT',
+          body: JSON.stringify(body),
+        },
+      ),
     testCliProvider: (provider: string) =>
-      request<{ ok: boolean; loggedIn: boolean; version?: string; error?: string; cmd: string }>(`/settings/cli/${provider}/test`),
+      request<{ ok: boolean; loggedIn: boolean; version?: string; error?: string; cmd: string }>(
+        `/settings/cli/${provider}/test`,
+      ),
   },
   chat: {
     history: () => request<any[]>('/chat/history'),
     clear: () => request<void>('/chat/history', { method: 'DELETE' }),
     send: (data: {
-      message: string
-      workingDir?: string
-      projectId?: string
-      images?: Array<{ name: string; mimeType: string; data: string }>
-      executionMode?: 'cloud' | 'local'
+      message: string;
+      workingDir?: string;
+      projectId?: string;
+      images?: Array<{ name: string; mimeType: string; data: string }>;
+      executionMode?: 'cloud' | 'local';
     }) =>
       request<{ user: any; lead: any; proposal: any | null }>('/chat', {
         method: 'POST',
@@ -255,28 +287,35 @@ export const api = {
       }),
     cancelProposal: (proposalId: string) =>
       request<void>(`/chat/proposal/${encodeURIComponent(proposalId)}`, { method: 'DELETE' }),
-    newTopic: () =>
-      request<{ marker: any }>('/chat/topic', { method: 'POST' }),
+    newTopic: () => request<{ marker: any }>('/chat/topic', { method: 'POST' }),
   },
   metrics: {
     health: () =>
       request<{
-        tasks: number
-        totalSessions: number
-        last24h: { count: number; avgDurationMs: number; successRate: number }
-        orchestrator: { ok: boolean; activeSessions: number }
+        tasks: number;
+        totalSessions: number;
+        last24h: { count: number; avgDurationMs: number; successRate: number };
+        orchestrator: { ok: boolean; activeSessions: number };
       }>('/metrics/health'),
     tokens: () =>
       request<{
-        inputTokens: number
-        outputTokens: number
-        totalTokens: number
-        costUsd: number
+        inputTokens: number;
+        outputTokens: number;
+        totalTokens: number;
+        costUsd: number;
       }>('/metrics/tokens'),
   },
   companion: {
     listTokens: () =>
-      request<{ id: string; label: string; prefix: string; createdAt: string; lastSeenAt: string | null }[]>('/companion/tokens'),
+      request<
+        {
+          id: string;
+          label: string;
+          prefix: string;
+          createdAt: string;
+          lastSeenAt: string | null;
+        }[]
+      >('/companion/tokens'),
     createToken: (label = 'default') =>
       request<{ id: string; prefix: string; token: string }>('/companion/tokens', {
         method: 'POST',
@@ -284,20 +323,24 @@ export const api = {
       }),
     revokeToken: (id: string) =>
       request<{ ok: boolean }>(`/companion/tokens/${id}`, { method: 'DELETE' }),
-    status: () =>
-      request<{ connected: boolean; connectedAt: string | null }>('/companion/status'),
+    status: () => request<{ connected: boolean; connectedAt: string | null }>('/companion/status'),
     fsList: (path: string) =>
       request<{ entries: { name: string; type: 'dir' | 'file' }[] }>(
-        `/companion/fs/list?path=${encodeURIComponent(path)}`
+        `/companion/fs/list?path=${encodeURIComponent(path)}`,
       ),
     fsStat: (path: string) =>
       request<{ exists: boolean; readable: boolean; type: 'dir' | 'file' | null }>(
-        `/companion/fs/stat?path=${encodeURIComponent(path)}`
+        `/companion/fs/stat?path=${encodeURIComponent(path)}`,
       ),
     homedir: () => request<{ path: string }>('/companion/fs/homedir'),
     agentStdout: (sessionId: string) =>
-      request<{ output: string; running: boolean }>(`/companion/agent/stdout?sessionId=${encodeURIComponent(sessionId)}`),
+      request<{ output: string; running: boolean }>(
+        `/companion/agent/stdout?sessionId=${encodeURIComponent(sessionId)}`,
+      ),
     agentKill: (sessionId: string) =>
-      request<{ ok: boolean }>('/companion/agent/kill', { method: 'POST', body: JSON.stringify({ sessionId }) }),
+      request<{ ok: boolean }>('/companion/agent/kill', {
+        method: 'POST',
+        body: JSON.stringify({ sessionId }),
+      }),
   },
-}
+};

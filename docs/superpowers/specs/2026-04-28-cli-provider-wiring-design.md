@@ -43,19 +43,20 @@ AgentSession.start()
 
 ## Files Changed
 
-| File | Change |
-|---|---|
-| `apps/api/src/routes/agents.ts` | Add `cli` to dispatchSchema; forward as `cliProvider` to orchestrator; save to DB |
-| `packages/orchestrator/src/routes/sessions.ts` | Add `cliProvider` to schema; pass to manager |
-| `packages/orchestrator/src/manager.ts` | Add `cliProvider` to `CreateSessionOpts`; pass to `new AgentSession` |
-| `packages/orchestrator/Dockerfile.dev` | Add gemini CLI + cursor CLI install |
-| `packages/orchestrator/Dockerfile` | Add gemini CLI + cursor CLI install |
+| File                                           | Change                                                                            |
+| ---------------------------------------------- | --------------------------------------------------------------------------------- |
+| `apps/api/src/routes/agents.ts`                | Add `cli` to dispatchSchema; forward as `cliProvider` to orchestrator; save to DB |
+| `packages/orchestrator/src/routes/sessions.ts` | Add `cliProvider` to schema; pass to manager                                      |
+| `packages/orchestrator/src/manager.ts`         | Add `cliProvider` to `CreateSessionOpts`; pass to `new AgentSession`              |
+| `packages/orchestrator/Dockerfile.dev`         | Add gemini CLI + cursor CLI install                                               |
+| `packages/orchestrator/Dockerfile`             | Add gemini CLI + cursor CLI install                                               |
 
 **Unchanged:** `session.ts`, `buildCliArgs()`, `schema.ts`, `AgentRolePanel.tsx`, `dispatch.ts`
 
 ## CLI Installation in Dockerfile
 
 **Gemini:**
+
 ```dockerfile
 RUN npm install -g @google/gemini-cli
 ```
@@ -64,9 +65,9 @@ RUN npm install -g @google/gemini-cli
 
 ## Error Handling
 
-| Scenario | Behavior |
-|---|---|
-| `cli` ไม่ได้ส่งมา | undefined → orchestrator ใช้ claude fallback (พฤติกรรมเดิม) |
-| `cli` ค่าไม่ถูก enum | Zod reject → 400 Bad Request |
-| Binary ของ CLI ไม่มีใน container | Session เริ่ม → fail ด้วย ENOENT → error ใน session log |
-| DB save cliProvider fail | log warning เท่านั้น ไม่ block response |
+| Scenario                         | Behavior                                                    |
+| -------------------------------- | ----------------------------------------------------------- |
+| `cli` ไม่ได้ส่งมา                | undefined → orchestrator ใช้ claude fallback (พฤติกรรมเดิม) |
+| `cli` ค่าไม่ถูก enum             | Zod reject → 400 Bad Request                                |
+| Binary ของ CLI ไม่มีใน container | Session เริ่ม → fail ด้วย ENOENT → error ใน session log     |
+| DB save cliProvider fail         | log warning เท่านั้น ไม่ block response                     |

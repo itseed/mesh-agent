@@ -72,47 +72,47 @@ graph TB
 
 ## Screenshots
 
-| | |
-|---|---|
-| ![Overview](docs/screenshots/overview.png) | ![Kanban](docs/screenshots/kanban.png) |
-| **Overview** — ภาพรวม projects, pipeline, recent activity | **Kanban** — Backlog → In Progress → Review → Done พร้อม filter by project |
-| ![Agents](docs/screenshots/agents.png) | ![Settings](docs/screenshots/settings.png) |
-| **Agents** — monitoring ทุก agent role พร้อม live output | **Settings** — CLI tab (toggle claude/gemini/cursor, login status, test CLI, repos base dir), GitHub OAuth, Agent Skills |
+|                                                           |                                                                                                                          |
+| --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| ![Overview](docs/screenshots/overview.png)                | ![Kanban](docs/screenshots/kanban.png)                                                                                   |
+| **Overview** — ภาพรวม projects, pipeline, recent activity | **Kanban** — Backlog → In Progress → Review → Done พร้อม filter by project                                               |
+| ![Agents](docs/screenshots/agents.png)                    | ![Settings](docs/screenshots/settings.png)                                                                               |
+| **Agents** — monitoring ทุก agent role พร้อม live output  | **Settings** — CLI tab (toggle claude/gemini/cursor, login status, test CLI, repos base dir), GitHub OAuth, Agent Skills |
 
 ---
 
 ## Features
 
-| Feature | Description |
-|---|---|
-| **Lead Chat** | พิมพ์ภาษาธรรมชาติ → Lead AI วิเคราะห์ → propose task brief → confirm → dispatch |
-| **Kanban Board** | Backlog → In Progress → Review → Done พร้อม drag-and-drop และ real-time update ผ่าน WebSocket |
-| **Agent Monitoring** | เห็น live output ทุก agent พร้อมกัน real-time |
-| **Review Loop** | Reviewer agent วิเคราะห์ → เลือก issue → สร้าง fix task + dispatch อัตโนมัติ |
-| **GitHub Integration** | PRs, commits, issues — agent สร้าง PR ได้โดยตรง |
-| **Projects** | จัดการ projects + paths per role ผ่าน UI |
-| **Multi-user** | role-based access: admin / member / viewer |
-| **PWA** | ติดตั้งบน iOS/Android ได้ |
-| **CLI Provider Selection** | เลือก claude / gemini / cursor ต่อ agent session จาก Agents page |
-| **Provider Breakdown** | Overview page แสดง sessions, success rate, avg duration แยกต่อ CLI provider |
-| **Repo Lifecycle** | Auto clone + git worktree ต่อ task, cleanup หลัง session จบ |
-| **Companion** | mesh-companion CLI เชื่อม local machine กับ platform ผ่าน WebSocket tunnel — ติดตั้งครั้งเดียว connect ได้ทุกที่ |
-| **Local Execution** | Cloud/Local toggle ใน chat — Local mode: agent รันบนเครื่องของคุณ แก้ไฟล์ local โดยตรง ไม่ต้อง commit/push |
-| **Folder Browser** | Browse filesystem ผ่าน companion เพื่อ set local project paths แบบ drag & drop |
+| Feature                    | Description                                                                                                      |
+| -------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| **Lead Chat**              | พิมพ์ภาษาธรรมชาติ → Lead AI วิเคราะห์ → propose task brief → confirm → dispatch                                  |
+| **Kanban Board**           | Backlog → In Progress → Review → Done พร้อม drag-and-drop และ real-time update ผ่าน WebSocket                    |
+| **Agent Monitoring**       | เห็น live output ทุก agent พร้อมกัน real-time                                                                    |
+| **Review Loop**            | Reviewer agent วิเคราะห์ → เลือก issue → สร้าง fix task + dispatch อัตโนมัติ                                     |
+| **GitHub Integration**     | PRs, commits, issues — agent สร้าง PR ได้โดยตรง                                                                  |
+| **Projects**               | จัดการ projects + paths per role ผ่าน UI                                                                         |
+| **Multi-user**             | role-based access: admin / member / viewer                                                                       |
+| **PWA**                    | ติดตั้งบน iOS/Android ได้                                                                                        |
+| **CLI Provider Selection** | เลือก claude / gemini / cursor ต่อ agent session จาก Agents page                                                 |
+| **Provider Breakdown**     | Overview page แสดง sessions, success rate, avg duration แยกต่อ CLI provider                                      |
+| **Repo Lifecycle**         | Auto clone + git worktree ต่อ task, cleanup หลัง session จบ                                                      |
+| **Companion**              | mesh-companion CLI เชื่อม local machine กับ platform ผ่าน WebSocket tunnel — ติดตั้งครั้งเดียว connect ได้ทุกที่ |
+| **Local Execution**        | Cloud/Local toggle ใน chat — Local mode: agent รันบนเครื่องของคุณ แก้ไฟล์ local โดยตรง ไม่ต้อง commit/push       |
+| **Folder Browser**         | Browse filesystem ผ่าน companion เพื่อ set local project paths แบบ drag & drop                                   |
 
 ---
 
 ## Tech Stack
 
-| Layer | Technology |
-|---|---|
-| Frontend | Next.js 14, React 18, TypeScript, Tailwind CSS |
-| Backend | Fastify 4, Drizzle ORM, PostgreSQL 16 |
-| Realtime | WebSocket, Redis pub/sub |
-| Orchestration | Node.js subprocess, Claude Code CLI / Gemini CLI / Cursor Agent |
-| Storage | MinIO (S3-compatible) |
-| Companion | Node.js CLI (mesh-companion), JSON-RPC over WebSocket, child_process.spawn |
-| Infrastructure | Docker Compose, Nginx, Let's Encrypt |
+| Layer          | Technology                                                                 |
+| -------------- | -------------------------------------------------------------------------- |
+| Frontend       | Next.js 14, React 18, TypeScript, Tailwind CSS                             |
+| Backend        | Fastify 4, Drizzle ORM, PostgreSQL 16                                      |
+| Realtime       | WebSocket, Redis pub/sub                                                   |
+| Orchestration  | Node.js subprocess, Claude Code CLI / Gemini CLI / Cursor Agent            |
+| Storage        | MinIO (S3-compatible)                                                      |
+| Companion      | Node.js CLI (mesh-companion), JSON-RPC over WebSocket, child_process.spawn |
+| Infrastructure | Docker Compose, Nginx, Let's Encrypt                                       |
 
 ---
 
@@ -167,6 +167,7 @@ mesh-companion connect http://localhost:4801 --token <your-token>
 ### ใช้งาน Local Mode
 
 เมื่อ companion connected:
+
 - Chat input จะมี toggle **☁ Cloud / 💻 Local**
 - เลือก **Local** → agent spawn บนเครื่องของคุณ แก้ไฟล์ local โดยตรง
 - เลือก **Cloud** → agent รันบน server เหมือนเดิม
@@ -211,6 +212,7 @@ LOCAL PATHS:
 ```
 
 Lead AI จะ:
+
 1. วิเคราะห์ request — ถ้าต้องการข้อมูลเพิ่มจะถามก่อน
 2. เสนอ **task brief** + role ที่เหมาะสม
 3. รอ confirm จากคุณ → กด **ยืนยันและสั่งงาน**
@@ -233,6 +235,7 @@ Lead AI จะ:
 หลัง confirm งาน — task จะปรากฏใน Kanban **In Progress** ทันที (real-time ผ่าน WebSocket)
 
 เมื่อ agent เสร็จ:
+
 - Task เลื่อนไป **Review** หรือ **Done** อัตโนมัติ
 - Lead debrief ผ่าน chat ว่าเสร็จอะไรบ้าง
 - มี link **"ดู Task ใน Kanban →"** ใน chat
@@ -249,6 +252,7 @@ Lead AI จะ:
 ### 5. Quick Replies
 
 เมื่อ Lead ถามคำถาม (เช่น "อยากให้ส่ง agent แก้ Critical ทั้ง 7 ก่อนไหมครับ?") — มีปุ่ม quick reply:
+
 - **ใช่ ดำเนินการเลย** — ส่งตอบทันที
 - **ยังก่อน** — ปฏิเสธ
 - **บอกรายละเอียดเพิ่ม** — ขอข้อมูลเพิ่ม
@@ -261,14 +265,14 @@ Lead AI จะ:
 
 ## Agent Roles
 
-| Role | ทำอะไร |
-|---|---|
-| **frontend** | React, Next.js, TypeScript, CSS, browser extension |
-| **backend** | REST API, GraphQL, database, business logic, auth |
-| **mobile** | React Native, iOS/Android native modules |
-| **devops** | CI/CD, Docker, deployment, infrastructure, env config |
-| **designer** | Figma-to-code, design system, UX review, accessibility |
-| **qa** | Unit / integration / e2e tests, edge cases, coverage |
+| Role         | ทำอะไร                                                   |
+| ------------ | -------------------------------------------------------- |
+| **frontend** | React, Next.js, TypeScript, CSS, browser extension       |
+| **backend**  | REST API, GraphQL, database, business logic, auth        |
+| **mobile**   | React Native, iOS/Android native modules                 |
+| **devops**   | CI/CD, Docker, deployment, infrastructure, env config    |
+| **designer** | Figma-to-code, design system, UX review, accessibility   |
+| **qa**       | Unit / integration / e2e tests, edge cases, coverage     |
 | **reviewer** | Code review, security audit, performance, best practices |
 
 Lead เลือก role ที่เหมาะสมเองโดยอัตโนมัติ หรือระบุตรงๆ เช่น "ให้ reviewer ตรวจ code"
@@ -277,39 +281,39 @@ Lead เลือก role ที่เหมาะสมเองโดยอั
 
 ## Environment Variables
 
-| Variable | Required | Default | Description |
-|---|---|---|---|
-| `DATABASE_URL` | ✓ | — | PostgreSQL connection URL |
-| `DB_POOL_MAX` | — | `10` | DB connection pool size |
-| `REDIS_URL` | ✓ | — | Redis connection URL |
-| `AUTH_EMAIL` | ✓ | — | Initial admin email (seeded on first boot) |
-| `AUTH_PASSWORD` | ✓ | — | Initial admin password |
-| `JWT_SECRET` | ✓ | — | JWT signing secret (32+ chars) |
-| `TOKEN_ENCRYPTION_KEY` | ✓ | — | AES-256-GCM key for encrypting GitHub tokens at rest (32 bytes hex) |
-| `CORS_ALLOWED_ORIGINS` | prod | — | Comma-separated allowed browser origins |
-| `COOKIE_DOMAIN` | — | — | Apex domain for cross-subdomain cookies (e.g. `.yourdomain.com`) |
-| `RATE_LIMIT_MAX` | — | `120` | API rate limit (requests per window) |
-| `RATE_LIMIT_WINDOW` | — | `1 minute` | Rate limit window |
-| `AUTH_RATE_LIMIT_MAX` | — | `10` | Login endpoint rate limit |
-| `GITHUB_TOKEN` | — | — | Fallback GitHub PAT (user-level tokens preferred) |
-| `GITHUB_WEBHOOK_SECRET` | prod | — | HMAC secret for verifying GitHub webhooks (min 16 chars) |
-| `GITHUB_OAUTH_CLIENT_ID` | — | — | GitHub OAuth App client ID |
-| `GITHUB_OAUTH_CLIENT_SECRET` | — | — | GitHub OAuth App client secret |
-| `GITHUB_OAUTH_REDIRECT_URI` | — | — | OAuth callback URL |
-| `WEB_BASE_URL` | — | `http://localhost:4800` | Public URL of web frontend |
-| `MINIO_ACCESS_KEY` | — | `meshagent` | MinIO access key (file attachments) |
-| `MINIO_SECRET_KEY` | — | — | MinIO secret key |
-| `MINIO_BUCKET` | — | `mesh-agent` | MinIO bucket name |
-| `ORCHESTRATOR_URL` | — | `http://localhost:4802` | Internal orchestrator URL |
-| `REPOS_BASE_DIR` | — | `/repos` | Root directory สำหรับ clone repos (orchestrator + api) |
-| `MAX_CONCURRENT_SESSIONS` | — | `8` | Max simultaneous agent sessions |
-| `SESSION_IDLE_TIMEOUT_MS` | — | `3600000` | Auto-kill idle sessions (ms) |
-| `CLAUDE_CMD` | — | `claude` | Path to Claude Code CLI binary |
-| `DEFAULT_CLI_PROVIDER` | — | `claude` | CLI provider fallback เมื่อ task ไม่ระบุ provider (claude / gemini / cursor) |
-| `LEAD_SYSTEM_PROMPT` | — | — | Override Lead AI system prompt (inline) |
-| `LEAD_SYSTEM_PROMPT_FILE` | — | — | Path to file containing Lead system prompt |
-| `LEAD_SYNTHESIS_PROMPT` | — | — | Override Lead debrief system prompt |
-| `LOG_LEVEL` | — | `info` | Pino log level |
+| Variable                     | Required | Default                 | Description                                                                  |
+| ---------------------------- | -------- | ----------------------- | ---------------------------------------------------------------------------- |
+| `DATABASE_URL`               | ✓        | —                       | PostgreSQL connection URL                                                    |
+| `DB_POOL_MAX`                | —        | `10`                    | DB connection pool size                                                      |
+| `REDIS_URL`                  | ✓        | —                       | Redis connection URL                                                         |
+| `AUTH_EMAIL`                 | ✓        | —                       | Initial admin email (seeded on first boot)                                   |
+| `AUTH_PASSWORD`              | ✓        | —                       | Initial admin password                                                       |
+| `JWT_SECRET`                 | ✓        | —                       | JWT signing secret (32+ chars)                                               |
+| `TOKEN_ENCRYPTION_KEY`       | ✓        | —                       | AES-256-GCM key for encrypting GitHub tokens at rest (32 bytes hex)          |
+| `CORS_ALLOWED_ORIGINS`       | prod     | —                       | Comma-separated allowed browser origins                                      |
+| `COOKIE_DOMAIN`              | —        | —                       | Apex domain for cross-subdomain cookies (e.g. `.yourdomain.com`)             |
+| `RATE_LIMIT_MAX`             | —        | `120`                   | API rate limit (requests per window)                                         |
+| `RATE_LIMIT_WINDOW`          | —        | `1 minute`              | Rate limit window                                                            |
+| `AUTH_RATE_LIMIT_MAX`        | —        | `10`                    | Login endpoint rate limit                                                    |
+| `GITHUB_TOKEN`               | —        | —                       | Fallback GitHub PAT (user-level tokens preferred)                            |
+| `GITHUB_WEBHOOK_SECRET`      | prod     | —                       | HMAC secret for verifying GitHub webhooks (min 16 chars)                     |
+| `GITHUB_OAUTH_CLIENT_ID`     | —        | —                       | GitHub OAuth App client ID                                                   |
+| `GITHUB_OAUTH_CLIENT_SECRET` | —        | —                       | GitHub OAuth App client secret                                               |
+| `GITHUB_OAUTH_REDIRECT_URI`  | —        | —                       | OAuth callback URL                                                           |
+| `WEB_BASE_URL`               | —        | `http://localhost:4800` | Public URL of web frontend                                                   |
+| `MINIO_ACCESS_KEY`           | —        | `meshagent`             | MinIO access key (file attachments)                                          |
+| `MINIO_SECRET_KEY`           | —        | —                       | MinIO secret key                                                             |
+| `MINIO_BUCKET`               | —        | `mesh-agent`            | MinIO bucket name                                                            |
+| `ORCHESTRATOR_URL`           | —        | `http://localhost:4802` | Internal orchestrator URL                                                    |
+| `REPOS_BASE_DIR`             | —        | `/repos`                | Root directory สำหรับ clone repos (orchestrator + api)                       |
+| `MAX_CONCURRENT_SESSIONS`    | —        | `8`                     | Max simultaneous agent sessions                                              |
+| `SESSION_IDLE_TIMEOUT_MS`    | —        | `3600000`               | Auto-kill idle sessions (ms)                                                 |
+| `CLAUDE_CMD`                 | —        | `claude`                | Path to Claude Code CLI binary                                               |
+| `DEFAULT_CLI_PROVIDER`       | —        | `claude`                | CLI provider fallback เมื่อ task ไม่ระบุ provider (claude / gemini / cursor) |
+| `LEAD_SYSTEM_PROMPT`         | —        | —                       | Override Lead AI system prompt (inline)                                      |
+| `LEAD_SYSTEM_PROMPT_FILE`    | —        | —                       | Path to file containing Lead system prompt                                   |
+| `LEAD_SYNTHESIS_PROMPT`      | —        | —                       | Override Lead debrief system prompt                                          |
+| `LOG_LEVEL`                  | —        | `info`                  | Pino log level                                                               |
 
 ### Generating secrets
 
@@ -626,11 +630,11 @@ sequenceDiagram
 
 > เป้าหมาย: จาก "นั่งรอดูหน้าจอ" เป็น "สั่งแล้วไปทำอย่างอื่นได้"
 
-| | Feature | รายละเอียด |
-|---|---|---|
-| 🔔 | **Notifications** | LINE / Slack / email แจ้งเตือนเมื่อ agent เสร็จหรือต้องการ input |
-| ⚡ | **Local stdout streaming** | WebSocket push แทน polling ทุก 3 วินาที — output ไหลต่อเนื่องแบบ real-time |
-| 📋 | **Task templates** | บันทึก task ที่ใช้บ่อยเป็น template กด 1 ครั้งสั่งได้เลย |
+|     | Feature                    | รายละเอียด                                                                 |
+| --- | -------------------------- | -------------------------------------------------------------------------- |
+| 🔔  | **Notifications**          | LINE / Slack / email แจ้งเตือนเมื่อ agent เสร็จหรือต้องการ input           |
+| ⚡  | **Local stdout streaming** | WebSocket push แทน polling ทุก 3 วินาที — output ไหลต่อเนื่องแบบ real-time |
+| 📋  | **Task templates**         | บันทึก task ที่ใช้บ่อยเป็น template กด 1 ครั้งสั่งได้เลย                   |
 
 ---
 
@@ -638,11 +642,11 @@ sequenceDiagram
 
 > เป้าหมาย: agents ทำงานได้ฉลาดขึ้นและ integrate กับ workflow ที่มีอยู่
 
-| | Feature | รายละเอียด |
-|---|---|---|
-| 🧠 | **Agent memory** | inject project context + task history ให้ agent — ไม่ต้องอธิบาย codebase ซ้ำทุกครั้ง |
-| 🗂️ | **Agent queue** | งานรอ queue อัตโนมัติเมื่อ session เต็ม dispatch ต่อเมื่อมี slot ว่าง |
-| 🔗 | **External triggers** | webhook และ Slack command สำหรับ dispatch agent จาก workflow ภายนอก |
+|     | Feature               | รายละเอียด                                                                           |
+| --- | --------------------- | ------------------------------------------------------------------------------------ |
+| 🧠  | **Agent memory**      | inject project context + task history ให้ agent — ไม่ต้องอธิบาย codebase ซ้ำทุกครั้ง |
+| 🗂️  | **Agent queue**       | งานรอ queue อัตโนมัติเมื่อ session เต็ม dispatch ต่อเมื่อมี slot ว่าง                |
+| 🔗  | **External triggers** | webhook และ Slack command สำหรับ dispatch agent จาก workflow ภายนอก                  |
 
 ---
 
@@ -650,8 +654,8 @@ sequenceDiagram
 
 > เป้าหมาย: รองรับทีมขนาดใหญ่ วัดผลได้ ขยาย org ได้
 
-| | Feature | รายละเอียด |
-|---|---|---|
-| 💰 | **Cost tracking** | token usage และ cost per task / per user — รู้ว่าจ่ายเงินไปกับอะไร |
-| 📊 | **Team analytics** | success rate, avg duration, bottleneck analysis — ปรับ workflow ได้แม่นขึ้น |
-| 🏢 | **Multi-org** | isolate users และ projects per organization — รองรับหลาย team หรือ B2B |
+|     | Feature            | รายละเอียด                                                                  |
+| --- | ------------------ | --------------------------------------------------------------------------- |
+| 💰  | **Cost tracking**  | token usage และ cost per task / per user — รู้ว่าจ่ายเงินไปกับอะไร          |
+| 📊  | **Team analytics** | success rate, avg duration, bottleneck analysis — ปรับ workflow ได้แม่นขึ้น |
+| 🏢  | **Multi-org**      | isolate users และ projects per organization — รองรับหลาย team หรือ B2B      |

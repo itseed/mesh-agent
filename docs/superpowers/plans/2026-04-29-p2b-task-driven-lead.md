@@ -12,21 +12,22 @@
 
 ## File Map
 
-| File | Action | Responsibility |
-|------|--------|----------------|
-| `apps/api/src/lib/wave-store.ts` | **Modify** | Add `rootTaskId?: string` to `WaveState` |
-| `apps/api/src/lib/lead-task.ts` | **Create** | `runLeadTask()` — task-driven Lead prompt, always outputs `waves[]` |
-| `apps/api/src/routes/tasks.ts` | **Modify** | Add `POST /tasks/:id/start` — download attachments, call Lead, dispatch wave 0 |
-| `apps/api/src/routes/internal.ts` | **Modify** | Log `taskActivities` entries on wave events when `rootTaskId` present |
-| `apps/web/lib/api.ts` | **Modify** | Add `tasks.start(id)` |
-| `apps/web/components/kanban/TaskDetailPanel.tsx` | **Modify** | "Start with Lead" button in header (backlog only) |
-| `apps/web/components/kanban/TaskCard.tsx` | **Modify** | `▶` hover button on backlog cards |
+| File                                             | Action     | Responsibility                                                                 |
+| ------------------------------------------------ | ---------- | ------------------------------------------------------------------------------ |
+| `apps/api/src/lib/wave-store.ts`                 | **Modify** | Add `rootTaskId?: string` to `WaveState`                                       |
+| `apps/api/src/lib/lead-task.ts`                  | **Create** | `runLeadTask()` — task-driven Lead prompt, always outputs `waves[]`            |
+| `apps/api/src/routes/tasks.ts`                   | **Modify** | Add `POST /tasks/:id/start` — download attachments, call Lead, dispatch wave 0 |
+| `apps/api/src/routes/internal.ts`                | **Modify** | Log `taskActivities` entries on wave events when `rootTaskId` present          |
+| `apps/web/lib/api.ts`                            | **Modify** | Add `tasks.start(id)`                                                          |
+| `apps/web/components/kanban/TaskDetailPanel.tsx` | **Modify** | "Start with Lead" button in header (backlog only)                              |
+| `apps/web/components/kanban/TaskCard.tsx`        | **Modify** | `▶` hover button on backlog cards                                              |
 
 ---
 
 ### Task 1: Add rootTaskId to WaveState
 
 **Files:**
+
 - Modify: `apps/api/src/lib/wave-store.ts`
 
 - [ ] **Step 1: Add `rootTaskId` field to WaveState interface**
@@ -35,19 +36,19 @@ In `apps/api/src/lib/wave-store.ts`, find the `WaveState` interface and add one 
 
 ```typescript
 export interface WaveState {
-  proposalId: string
-  waves: LeadWave[]
-  currentWave: number
-  taskTitle: string
-  taskDescription: string
-  projectId: string | null
-  baseBranch: string
-  branchSuffix: string
-  createdBy: string
-  imagePaths: string[]
-  pendingSessions: string[]
-  completedSessions: WaveCompletedSession[]
-  rootTaskId?: string    // NEW — task.id that triggered this wave run (for activity logging)
+  proposalId: string;
+  waves: LeadWave[];
+  currentWave: number;
+  taskTitle: string;
+  taskDescription: string;
+  projectId: string | null;
+  baseBranch: string;
+  branchSuffix: string;
+  createdBy: string;
+  imagePaths: string[];
+  pendingSessions: string[];
+  completedSessions: WaveCompletedSession[];
+  rootTaskId?: string; // NEW — task.id that triggered this wave run (for activity logging)
 }
 ```
 
@@ -57,6 +58,7 @@ export interface WaveState {
 /Users/kriangkrai/project/mesh-agent/apps/api/node_modules/.bin/tsc \
   -p /Users/kriangkrai/project/mesh-agent/apps/api/tsconfig.json --noEmit
 ```
+
 Expected: 0 errors
 
 - [ ] **Step 3: Commit**
@@ -71,19 +73,20 @@ git -C /Users/kriangkrai/project/mesh-agent commit -m "feat(api): add rootTaskId
 ### Task 2: Create lead-task.ts
 
 **Files:**
+
 - Create: `apps/api/src/lib/lead-task.ts`
 
 - [ ] **Step 1: Create the file**
 
 ```typescript
 // apps/api/src/lib/lead-task.ts
-import type { LeadWave } from './wave-store.js'
+import type { LeadWave } from './wave-store.js';
 
-const ORCHESTRATOR_URL = process.env.ORCHESTRATOR_URL ?? 'http://localhost:4802'
+const ORCHESTRATOR_URL = process.env.ORCHESTRATOR_URL ?? 'http://localhost:4802';
 
 export interface LeadTaskResult {
-  waves: LeadWave[]
-  taskBrief: { title: string; description: string }
+  waves: LeadWave[];
+  taskBrief: { title: string; description: string };
 }
 
 async function callOrchestrator(prompt: string): Promise<string> {
@@ -92,13 +95,13 @@ async function callOrchestrator(prompt: string): Promise<string> {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ prompt, timeoutMs: 60_000 }),
     signal: AbortSignal.timeout(65_000),
-  })
+  });
   if (!res.ok) {
-    const body = await res.json().catch(() => ({})) as { error?: string }
-    throw new Error(`Orchestrator error ${res.status}: ${body.error ?? 'unknown'}`)
+    const body = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(`Orchestrator error ${res.status}: ${body.error ?? 'unknown'}`);
   }
-  const { stdout } = await res.json() as { stdout: string }
-  return stdout
+  const { stdout } = (await res.json()) as { stdout: string };
+  return stdout;
 }
 
 function buildPrompt(
@@ -108,9 +111,9 @@ function buildPrompt(
 ): string {
   const pathLines = Object.entries(projectPaths)
     .map(([role, dir]) => `  ${role}: ${dir}`)
-    .join('\n')
+    .join('\n');
 
-  const fileLines = localFilePaths.map((p) => `- ${p}`).join('\n')
+  const fileLines = localFilePaths.map((p) => `- ${p}`).join('\n');
 
   return [
     'You are the Lead of a software development team. A task is ready to be worked on.',
@@ -145,50 +148,60 @@ function buildPrompt(
     '}',
     '',
     'Reply in Thai if the task title is Thai, otherwise English.',
-  ].join('\n')
+  ].join('\n');
 }
 
-const ALLOWED_ROLES = new Set(['frontend', 'backend', 'mobile', 'devops', 'designer', 'qa', 'reviewer'])
+const ALLOWED_ROLES = new Set([
+  'frontend',
+  'backend',
+  'mobile',
+  'devops',
+  'designer',
+  'qa',
+  'reviewer',
+]);
 
 function parseResult(stdout: string): LeadTaskResult {
-  let text = stdout.trim()
+  let text = stdout.trim();
   try {
-    const w = JSON.parse(text)
-    if (typeof w.result === 'string') text = w.result.trim()
-    else if (typeof w.stdout === 'string') text = w.stdout.trim()
-  } catch { /* not wrapped */ }
-
-  const match = text.match(/\{[\s\S]*\}/)
-  if (!match) throw new Error(`Lead task returned no JSON. Raw: ${text.slice(0, 300)}`)
-
-  const parsed = JSON.parse(match[0]) as Record<string, unknown>
-
-  const wavesRaw = Array.isArray(parsed.waves) ? parsed.waves : []
-  const waves: LeadWave[] = []
-  for (const w of wavesRaw) {
-    if (!w || typeof w !== 'object') continue
-    const wObj = w as Record<string, unknown>
-    const rolesRaw = Array.isArray(wObj.roles) ? wObj.roles : []
-    const roles: LeadWave['roles'] = []
-    for (const r of rolesRaw) {
-      if (!r || typeof r !== 'object') continue
-      const slug = String((r as Record<string, unknown>).slug ?? '').toLowerCase()
-      if (!ALLOWED_ROLES.has(slug)) continue
-      const reason = (r as Record<string, unknown>).reason
-      roles.push({ slug, reason: typeof reason === 'string' ? reason : undefined })
-    }
-    if (roles.length === 0) continue
-    const brief = typeof wObj.brief === 'string' ? wObj.brief.trim() : ''
-    waves.push({ roles, brief })
+    const w = JSON.parse(text);
+    if (typeof w.result === 'string') text = w.result.trim();
+    else if (typeof w.stdout === 'string') text = w.stdout.trim();
+  } catch {
+    /* not wrapped */
   }
-  if (waves.length === 0) throw new Error('Lead task returned no valid waves')
 
-  const briefRaw = parsed.taskBrief as Record<string, unknown> | undefined
-  const title = typeof briefRaw?.title === 'string' ? briefRaw.title.trim().slice(0, 80) : ''
-  const description = typeof briefRaw?.description === 'string' ? briefRaw.description.trim() : ''
-  if (!title || !description) throw new Error('Lead task returned invalid taskBrief')
+  const match = text.match(/\{[\s\S]*\}/);
+  if (!match) throw new Error(`Lead task returned no JSON. Raw: ${text.slice(0, 300)}`);
 
-  return { waves, taskBrief: { title, description } }
+  const parsed = JSON.parse(match[0]) as Record<string, unknown>;
+
+  const wavesRaw = Array.isArray(parsed.waves) ? parsed.waves : [];
+  const waves: LeadWave[] = [];
+  for (const w of wavesRaw) {
+    if (!w || typeof w !== 'object') continue;
+    const wObj = w as Record<string, unknown>;
+    const rolesRaw = Array.isArray(wObj.roles) ? wObj.roles : [];
+    const roles: LeadWave['roles'] = [];
+    for (const r of rolesRaw) {
+      if (!r || typeof r !== 'object') continue;
+      const slug = String((r as Record<string, unknown>).slug ?? '').toLowerCase();
+      if (!ALLOWED_ROLES.has(slug)) continue;
+      const reason = (r as Record<string, unknown>).reason;
+      roles.push({ slug, reason: typeof reason === 'string' ? reason : undefined });
+    }
+    if (roles.length === 0) continue;
+    const brief = typeof wObj.brief === 'string' ? wObj.brief.trim() : '';
+    waves.push({ roles, brief });
+  }
+  if (waves.length === 0) throw new Error('Lead task returned no valid waves');
+
+  const briefRaw = parsed.taskBrief as Record<string, unknown> | undefined;
+  const title = typeof briefRaw?.title === 'string' ? briefRaw.title.trim().slice(0, 80) : '';
+  const description = typeof briefRaw?.description === 'string' ? briefRaw.description.trim() : '';
+  if (!title || !description) throw new Error('Lead task returned invalid taskBrief');
+
+  return { waves, taskBrief: { title, description } };
 }
 
 export async function runLeadTask(
@@ -196,8 +209,8 @@ export async function runLeadTask(
   localFilePaths: string[],
   projectPaths: Record<string, string>,
 ): Promise<LeadTaskResult> {
-  const stdout = await callOrchestrator(buildPrompt(task, localFilePaths, projectPaths))
-  return parseResult(stdout)
+  const stdout = await callOrchestrator(buildPrompt(task, localFilePaths, projectPaths));
+  return parseResult(stdout);
 }
 ```
 
@@ -207,6 +220,7 @@ export async function runLeadTask(
 /Users/kriangkrai/project/mesh-agent/apps/api/node_modules/.bin/tsc \
   -p /Users/kriangkrai/project/mesh-agent/apps/api/tsconfig.json --noEmit
 ```
+
 Expected: 0 errors
 
 - [ ] **Step 3: Commit**
@@ -221,6 +235,7 @@ git -C /Users/kriangkrai/project/mesh-agent commit -m "feat(api): add runLeadTas
 ### Task 3: Add POST /tasks/:id/start
 
 **Files:**
+
 - Modify: `apps/api/src/routes/tasks.ts`
 
 - [ ] **Step 1: Add imports at top of tasks.ts**
@@ -228,17 +243,13 @@ git -C /Users/kriangkrai/project/mesh-agent commit -m "feat(api): add runLeadTas
 After the existing imports, add:
 
 ```typescript
-import { mkdir, writeFile } from 'node:fs/promises'
-import path from 'node:path'
-import { taskActivities, taskAttachments } from '@meshagent/shared'
-import { runLeadTask } from '../lib/lead-task.js'
-import {
-  saveWaveState,
-  indexSession,
-  type WaveState,
-} from '../lib/wave-store.js'
-import { dispatchAgent, buildGitInstructions } from '../lib/dispatch.js'
-import { findRoleBySlug } from '../lib/roles.js'
+import { mkdir, writeFile } from 'node:fs/promises';
+import path from 'node:path';
+import { taskActivities, taskAttachments } from '@meshagent/shared';
+import { runLeadTask } from '../lib/lead-task.js';
+import { saveWaveState, indexSession, type WaveState } from '../lib/wave-store.js';
+import { dispatchAgent, buildGitInstructions } from '../lib/dispatch.js';
+import { findRoleBySlug } from '../lib/roles.js';
 ```
 
 (Skip any already imported — `tasks`, `projects`, `eq`, `FastifyInstance` etc. are likely already there.)
@@ -249,64 +260,71 @@ Add this route inside `export async function taskRoutes(fastify: FastifyInstance
 
 ```typescript
 fastify.post('/tasks/:id/start', { preHandler }, async (request, reply) => {
-  const { id } = request.params as { id: string }
-  const userId = (request.user as { id: string }).id
+  const { id } = request.params as { id: string };
+  const userId = (request.user as { id: string }).id;
 
   // 1. Load task
-  const [task] = await fastify.db.select().from(tasks).where(eq(tasks.id, id)).limit(1)
-  if (!task) return reply.status(404).send({ error: 'Task not found' })
+  const [task] = await fastify.db.select().from(tasks).where(eq(tasks.id, id)).limit(1);
+  if (!task) return reply.status(404).send({ error: 'Task not found' });
   if (task.stage !== 'backlog') {
-    return reply.status(409).send({ error: `Task is already ${task.stage} — cannot start again` })
+    return reply.status(409).send({ error: `Task is already ${task.stage} — cannot start again` });
   }
   if (!fastify.minio) {
-    return reply.status(503).send({ error: 'MinIO not configured — file attachments unavailable' })
+    return reply.status(503).send({ error: 'MinIO not configured — file attachments unavailable' });
   }
 
   // 2. Load attachments
   const attachments = await fastify.db
     .select()
     .from(taskAttachments)
-    .where(eq(taskAttachments.taskId, id))
+    .where(eq(taskAttachments.taskId, id));
 
   // 3. Download attachments to local tmp dir
-  const tmpDir = `/tmp/mesh-agent/tasks/${id}`
-  await mkdir(tmpDir, { recursive: true })
-  const localFilePaths: string[] = []
+  const tmpDir = `/tmp/mesh-agent/tasks/${id}`;
+  await mkdir(tmpDir, { recursive: true });
+  const localFilePaths: string[] = [];
 
   for (const att of attachments) {
-    const localPath = path.join(tmpDir, att.fileName)
+    const localPath = path.join(tmpDir, att.fileName);
     try {
-      const url = await fastify.minio.presignedGetObject(fastify.minioBucket, att.storageKey, 300)
-      const res = await fetch(url)
-      if (!res.ok) throw new Error(`MinIO returned ${res.status}`)
-      await writeFile(localPath, Buffer.from(await res.arrayBuffer()))
-      localFilePaths.push(localPath)
+      const url = await fastify.minio.presignedGetObject(fastify.minioBucket, att.storageKey, 300);
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`MinIO returned ${res.status}`);
+      await writeFile(localPath, Buffer.from(await res.arrayBuffer()));
+      localFilePaths.push(localPath);
     } catch (err) {
-      fastify.log.warn({ err, storageKey: att.storageKey }, 'Failed to download attachment — skipping')
+      fastify.log.warn(
+        { err, storageKey: att.storageKey },
+        'Failed to download attachment — skipping',
+      );
     }
   }
 
   // 4. Load project paths
-  let projectPaths: Record<string, string> = {}
-  let baseBranch = 'main'
+  let projectPaths: Record<string, string> = {};
+  let baseBranch = 'main';
   if (task.projectId) {
-    const [proj] = await fastify.db.select().from(projects).where(eq(projects.id, task.projectId)).limit(1)
+    const [proj] = await fastify.db
+      .select()
+      .from(projects)
+      .where(eq(projects.id, task.projectId))
+      .limit(1);
     if (proj) {
-      projectPaths = (proj.paths as Record<string, string>) ?? {}
-      baseBranch = proj.baseBranch ?? 'main'
+      projectPaths = (proj.paths as Record<string, string>) ?? {};
+      baseBranch = proj.baseBranch ?? 'main';
     }
   }
 
   // 5. Run Lead to plan waves
-  let leadResult: Awaited<ReturnType<typeof runLeadTask>>
+  let leadResult: Awaited<ReturnType<typeof runLeadTask>>;
   try {
-    leadResult = await runLeadTask(task, localFilePaths, projectPaths)
+    leadResult = await runLeadTask(task, localFilePaths, projectPaths);
   } catch (err: any) {
-    fastify.log.error({ err, taskId: id }, 'Lead task planning failed')
-    return reply.status(502).send({ error: `Lead planning failed: ${err?.message ?? 'unknown'}` })
+    fastify.log.error({ err, taskId: id }, 'Lead task planning failed');
+    return reply.status(502).send({ error: `Lead planning failed: ${err?.message ?? 'unknown'}` });
   }
 
-  const { waves, taskBrief } = leadResult
+  const { waves, taskBrief } = leadResult;
 
   // 6. Log: lead.wave.planned
   await fastify.db.insert(taskActivities).values({
@@ -317,27 +335,28 @@ fastify.post('/tasks/:id/start', { preHandler }, async (request, reply) => {
       waveCount: waves.length,
       waves: waves.map((w) => ({ roles: w.roles.map((r) => r.slug), brief: w.brief })),
     },
-  })
+  });
 
   // 7. Dispatch Wave 0
-  const branchSuffix = Date.now().toString(36)
-  const gitInstructions = buildGitInstructions(baseBranch, branchSuffix)
-  const imageBlock = localFilePaths.length > 0
-    ? `\n\n## Attached requirement files\nUse the Read tool on each path before starting work:\n${localFilePaths.map((p) => `- ${p}`).join('\n')}`
-    : ''
-  const fullPrompt = `${taskBrief.description}${imageBlock}${gitInstructions}`
+  const branchSuffix = Date.now().toString(36);
+  const gitInstructions = buildGitInstructions(baseBranch, branchSuffix);
+  const imageBlock =
+    localFilePaths.length > 0
+      ? `\n\n## Attached requirement files\nUse the Read tool on each path before starting work:\n${localFilePaths.map((p) => `- ${p}`).join('\n')}`
+      : '';
+  const fullPrompt = `${taskBrief.description}${imageBlock}${gitInstructions}`;
 
-  const wave0 = waves[0]
-  const pendingSessions: string[] = []
+  const wave0 = waves[0];
+  const pendingSessions: string[] = [];
 
   for (const r of wave0.roles) {
-    const role = await findRoleBySlug(fastify, r.slug)
+    const role = await findRoleBySlug(fastify, r.slug);
     if (!role) {
-      fastify.log.warn({ slug: r.slug }, 'start: skipping unknown role')
-      continue
+      fastify.log.warn({ slug: r.slug }, 'start: skipping unknown role');
+      continue;
     }
 
-    const agentWorkingDir = projectPaths[r.slug] ?? Object.values(projectPaths)[0] ?? '/tmp'
+    const agentWorkingDir = projectPaths[r.slug] ?? Object.values(projectPaths)[0] ?? '/tmp';
 
     const [agentTask] = await fastify.db
       .insert(tasks)
@@ -349,30 +368,36 @@ fastify.post('/tasks/:id/start', { preHandler }, async (request, reply) => {
         projectId: task.projectId ?? null,
         parentTaskId: id,
       })
-      .returning()
+      .returning();
 
-    const result = await dispatchAgent(r.slug, agentWorkingDir, fullPrompt, {
-      projectId: task.projectId ?? null,
-      taskId: agentTask?.id ?? null,
-      createdBy: userId,
-    }, role?.systemPrompt ?? undefined)
+    const result = await dispatchAgent(
+      r.slug,
+      agentWorkingDir,
+      fullPrompt,
+      {
+        projectId: task.projectId ?? null,
+        taskId: agentTask?.id ?? null,
+        createdBy: userId,
+      },
+      role?.systemPrompt ?? undefined,
+    );
 
     if (!result.id && agentTask?.id) {
       await fastify.db
         .update(tasks)
         .set({ stage: 'backlog', status: 'blocked', updatedAt: new Date() })
-        .where(eq(tasks.id, agentTask.id))
+        .where(eq(tasks.id, agentTask.id));
     }
 
     if (result.id) {
-      pendingSessions.push(result.id)
-      await indexSession(fastify.redis, result.id, id)   // proposalId = task.id (unique per run)
+      pendingSessions.push(result.id);
+      await indexSession(fastify.redis, result.id, id); // proposalId = task.id (unique per run)
     }
   }
 
   if (pendingSessions.length === 0) {
     // Revert — nothing dispatched
-    return reply.status(500).send({ error: 'No agents could be dispatched' })
+    return reply.status(500).send({ error: 'No agents could be dispatched' });
   }
 
   // 8. Log: wave.dispatched (wave 0)
@@ -381,12 +406,12 @@ fastify.post('/tasks/:id/start', { preHandler }, async (request, reply) => {
     actorId: null,
     type: 'wave.dispatched',
     payload: { waveIndex: 0, roles: wave0.roles.map((r) => r.slug) },
-  })
+  });
 
   // 9. Save WaveState (only if multiple waves)
   if (waves.length > 1) {
     const waveState: WaveState = {
-      proposalId: id,   // use task.id as the proposalId for this run
+      proposalId: id, // use task.id as the proposalId for this run
       waves,
       currentWave: 0,
       taskTitle: taskBrief.title,
@@ -399,23 +424,28 @@ fastify.post('/tasks/:id/start', { preHandler }, async (request, reply) => {
       pendingSessions,
       completedSessions: [],
       rootTaskId: id,
-    }
-    await saveWaveState(fastify.redis, waveState)
+    };
+    await saveWaveState(fastify.redis, waveState);
   }
 
   // 10. Update task stage
   await fastify.db
     .update(tasks)
     .set({ stage: 'in_progress', updatedAt: new Date() })
-    .where(eq(tasks.id, id))
+    .where(eq(tasks.id, id));
 
   await fastify.redis.publish(
     'tasks:events',
-    JSON.stringify({ type: 'task.stage', taskId: id, stage: 'in_progress', projectId: task.projectId ?? null }),
-  )
+    JSON.stringify({
+      type: 'task.stage',
+      taskId: id,
+      stage: 'in_progress',
+      projectId: task.projectId ?? null,
+    }),
+  );
 
-  return { ok: true, waveCount: waves.length, pendingSessions }
-})
+  return { ok: true, waveCount: waves.length, pendingSessions };
+});
 ```
 
 - [ ] **Step 3: Verify TypeScript compiles**
@@ -424,6 +454,7 @@ fastify.post('/tasks/:id/start', { preHandler }, async (request, reply) => {
 /Users/kriangkrai/project/mesh-agent/apps/api/node_modules/.bin/tsc \
   -p /Users/kriangkrai/project/mesh-agent/apps/api/tsconfig.json --noEmit
 ```
+
 Expected: 0 errors
 
 - [ ] **Step 4: Commit**
@@ -438,6 +469,7 @@ git -C /Users/kriangkrai/project/mesh-agent commit -m "feat(api): add POST /task
 ### Task 4: Update internal.ts — log taskActivities on wave events
 
 **Files:**
+
 - Modify: `apps/api/src/routes/internal.ts`
 
 - [ ] **Step 1: Add taskActivities import**
@@ -445,7 +477,7 @@ git -C /Users/kriangkrai/project/mesh-agent commit -m "feat(api): add POST /task
 In `apps/api/src/routes/internal.ts`, find the existing shared import line and add `taskActivities`:
 
 ```typescript
-import { tasks, taskComments, taskActivities } from '@meshagent/shared'
+import { tasks, taskComments, taskActivities } from '@meshagent/shared';
 ```
 
 - [ ] **Step 2: Add activity logging helper before internalRoutes**
@@ -460,13 +492,13 @@ async function logTaskActivity(
   payload: Record<string, unknown>,
 ): Promise<void> {
   try {
-    await fastify.db.insert(taskActivities).values({ taskId, actorId: null, type, payload })
+    await fastify.db.insert(taskActivities).values({ taskId, actorId: null, type, payload });
     await fastify.redis.publish(
       TASKS_CHANNEL,
       JSON.stringify({ type: 'task.activity', taskId, activityType: type }),
-    )
+    );
   } catch (err) {
-    fastify.log.warn({ err, taskId, type }, 'Failed to log task activity')
+    fastify.log.warn({ err, taskId, type }, 'Failed to log task activity');
   }
 }
 ```
@@ -557,6 +589,7 @@ In `apps/api/src/routes/internal.ts`, inside the wave progression try-block (the
 /Users/kriangkrai/project/mesh-agent/apps/api/node_modules/.bin/tsc \
   -p /Users/kriangkrai/project/mesh-agent/apps/api/tsconfig.json --noEmit
 ```
+
 Expected: 0 errors
 
 - [ ] **Step 5: Commit**
@@ -571,6 +604,7 @@ git -C /Users/kriangkrai/project/mesh-agent commit -m "feat(api): log taskActivi
 ### Task 5: Add tasks.start() to api.ts + UI buttons
 
 **Files:**
+
 - Modify: `apps/web/lib/api.ts`
 - Modify: `apps/web/components/kanban/TaskDetailPanel.tsx`
 - Modify: `apps/web/components/kanban/TaskCard.tsx`
@@ -592,24 +626,24 @@ start: (id: string) =>
 In `apps/web/components/kanban/TaskDetailPanel.tsx`, add state for the start button near the top of the component (with the other `useState` calls):
 
 ```typescript
-const [starting, setStarting] = useState(false)
+const [starting, setStarting] = useState(false);
 ```
 
 Then add `handleStart` function before the `return` statement:
 
 ```typescript
 async function handleStart() {
-  setStarting(true)
+  setStarting(true);
   try {
-    await api.tasks.start(task.id)
-    setLocalTask((t: any) => ({ ...t, stage: 'in_progress' }))
+    await api.tasks.start(task.id);
+    setLocalTask((t: any) => ({ ...t, stage: 'in_progress' }));
     // Refresh activities tab
-    const fresh = await api.tasks.activities(task.id)
-    setActivities(fresh)
+    const fresh = await api.tasks.activities(task.id);
+    setActivities(fresh);
   } catch (e: any) {
-    alert(e.message ?? 'Start failed')
+    alert(e.message ?? 'Start failed');
   } finally {
-    setStarting(false)
+    setStarting(false);
   }
 }
 ```
@@ -617,16 +651,18 @@ async function handleStart() {
 In the header JSX, find the `{confirmDelete ? ... : <button onClick={() => setConfirmDelete(true)}>🗑</button>}` block. Add the Start button **before** the delete button (only when `localTask.stage === 'backlog'`):
 
 ```tsx
-{localTask.stage === 'backlog' && !confirmDelete && (
-  <button
-    onClick={handleStart}
-    disabled={starting}
-    className="text-[12px] px-2.5 py-1 rounded border border-accent/40 text-accent hover:bg-accent/10 transition-colors disabled:opacity-50 shrink-0"
-    title="Let Lead analyze and dispatch agents"
-  >
-    {starting ? 'Starting…' : '▶ Start with Lead'}
-  </button>
-)}
+{
+  localTask.stage === 'backlog' && !confirmDelete && (
+    <button
+      onClick={handleStart}
+      disabled={starting}
+      className="text-[12px] px-2.5 py-1 rounded border border-accent/40 text-accent hover:bg-accent/10 transition-colors disabled:opacity-50 shrink-0"
+      title="Let Lead analyze and dispatch agents"
+    >
+      {starting ? 'Starting…' : '▶ Start with Lead'}
+    </button>
+  );
+}
 ```
 
 - [ ] **Step 3: Add ▶ button to TaskCard for backlog tasks**
@@ -635,14 +671,14 @@ In `apps/web/components/kanban/TaskCard.tsx`, add `onStart` to the props interfa
 
 ```typescript
 interface TaskCardProps {
-  task: any
-  projects?: any[]
-  allTasks?: any[]
-  onClick?: () => void
-  onDelete?: (id: string) => void
-  onStart?: (id: string) => void    // NEW
-  stageColor?: string
-  isDragging?: boolean
+  task: any;
+  projects?: any[];
+  allTasks?: any[];
+  onClick?: () => void;
+  onDelete?: (id: string) => void;
+  onStart?: (id: string) => void; // NEW
+  stageColor?: string;
+  isDragging?: boolean;
 }
 ```
 
@@ -658,7 +694,10 @@ In the JSX, find the `{onDelete && <button onClick={(e) => { e.stopPropagation()
 <div className="flex items-center gap-1 shrink-0">
   {onStart && task.stage === 'backlog' && (
     <button
-      onClick={(e) => { e.stopPropagation(); onStart(task.id) }}
+      onClick={(e) => {
+        e.stopPropagation();
+        onStart(task.id);
+      }}
       className="text-accent opacity-0 group-hover:opacity-100 transition-all text-[12px] px-1 hover:text-accent/70"
       title="Start with Lead"
     >
@@ -667,7 +706,10 @@ In the JSX, find the `{onDelete && <button onClick={(e) => { e.stopPropagation()
   )}
   {onDelete && (
     <button
-      onClick={(e) => { e.stopPropagation(); onDelete(task.id) }}
+      onClick={(e) => {
+        e.stopPropagation();
+        onDelete(task.id);
+      }}
       className="text-dim hover:text-danger opacity-0 group-hover:opacity-100 transition-all text-[13px] shrink-0"
     >
       ✕
@@ -697,6 +739,7 @@ onStart={async (id) => {
 /Users/kriangkrai/project/mesh-agent/apps/web/node_modules/.bin/tsc \
   -p /Users/kriangkrai/project/mesh-agent/apps/web/tsconfig.json --noEmit 2>&1 | head -30
 ```
+
 Expected: 0 errors (or only pre-existing errors unrelated to this change)
 
 - [ ] **Step 6: Commit**
@@ -714,6 +757,7 @@ git -C /Users/kriangkrai/project/mesh-agent commit -m "feat(web): add Start with
 ## Self-Review
 
 **Spec coverage:**
+
 - ✅ `rootTaskId` in WaveState — Task 1
 - ✅ `runLeadTask()` with task context + local file paths — Task 2
 - ✅ `POST /tasks/:id/start`: download attachments, call Lead, dispatch wave 0, save WaveState — Task 3
@@ -731,6 +775,7 @@ git -C /Users/kriangkrai/project/mesh-agent commit -m "feat(web): add Start with
 **Placeholder scan:** No TBDs, no vague steps, all code blocks complete.
 
 **Type consistency:**
+
 - `runLeadTask` returns `LeadTaskResult` (defined in lead-task.ts) — used in tasks.ts Task 3 ✓
 - `WaveState.rootTaskId` added in Task 1, used in tasks.ts (Task 3) and internal.ts (Task 4) ✓
 - `indexSession(fastify.redis, sessionId, proposalId)` — in tasks.ts uses `task.id` as `proposalId`, same key the wave-store uses ✓

@@ -17,14 +17,14 @@ MeshAgent เป็น web platform สำหรับ orchestrate AI dev team a
 
 ### Services
 
-| Service | Tech | หน้าที่ |
-|---|---|---|
-| **web** | Next.js (PWA) | Frontend — Kanban, agent monitoring, command input |
-| **api** | Node.js + Fastify | REST API, WebSocket, GitHub webhook handler, auth |
-| **orchestrator** | Node.js | จัดการ Claude Code CLI agent sessions, task queue |
-| **db** | PostgreSQL | tasks, projects, Kanban state, GitHub data |
-| **cache** | Redis | real-time pub/sub, job queue, session |
-| **proxy** | Nginx | HTTPS (Let's Encrypt), reverse proxy |
+| Service          | Tech              | หน้าที่                                            |
+| ---------------- | ----------------- | -------------------------------------------------- |
+| **web**          | Next.js (PWA)     | Frontend — Kanban, agent monitoring, command input |
+| **api**          | Node.js + Fastify | REST API, WebSocket, GitHub webhook handler, auth  |
+| **orchestrator** | Node.js           | จัดการ Claude Code CLI agent sessions, task queue  |
+| **db**           | PostgreSQL        | tasks, projects, Kanban state, GitHub data         |
+| **cache**        | Redis             | real-time pub/sub, job queue, session              |
+| **proxy**        | Nginx             | HTTPS (Let's Encrypt), reverse proxy               |
 
 ### Monorepo Structure
 
@@ -72,11 +72,13 @@ Mobile/iPad → HTTPS → Nginx → web (Next.js)
 ### 3. Command Input
 
 **Quick bar** — ติดด้านล่างทุกหน้า
+
 - dropdown เลือก agent
 - text field พิมพ์ prompt
 - ส่งได้เลยโดยไม่ต้องเปลี่ยนหน้า
 
 **Modal** — กด expand หรือ "New Task" button
+
 - เลือก agent + project
 - text area ขนาดใหญ่ พิมพ์ prompt ยาวได้
 - แนบ GitHub issue/PR URL เป็น context ได้ — ระบบดึง title + body มาใส่ใน prompt อัตโนมัติ
@@ -84,16 +86,19 @@ Mobile/iPad → HTTPS → Nginx → web (Next.js)
 ### 4. GitHub Integration
 
 **Overview Widget**
+
 - จำนวน PRs open / needs review
 - จำนวน commits วันนี้
 - Recent activity feed
 
 **GitHub Tab (full page)**
+
 - PRs — list พร้อม status, สร้าง PR จาก platform ได้
 - Commits — history per project
 - Issues — list, สามารถ trigger agent จาก issue ได้
 
 **Webhooks (inbound)**
+
 - PR opened/merged → อัปเดต Kanban card
 - Issue created → แจ้ง Lead, option trigger agent
 - Push event → อัปเดต commit feed
@@ -133,6 +138,7 @@ Mobile/iPad → HTTPS → Nginx → web (Next.js)
 ## Agent Orchestration
 
 แทนที่ tmux local ด้วย orchestrator service ที่:
+
 - รัน Claude Code CLI ใน subprocess ต่อ agent session
 - Stream stdout/stderr → Redis pub/sub → WebSocket → frontend
 - รองรับ agent definitions จาก `.claude/agents/` เหมือนเดิม

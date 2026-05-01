@@ -1,21 +1,21 @@
-import { z } from 'zod'
-import { config } from 'dotenv'
-import { resolve } from 'node:path'
+import { z } from 'zod';
+import { config } from 'dotenv';
+import { resolve } from 'node:path';
 
-config({ path: resolve(process.cwd(), '../../.env') })
+config({ path: resolve(process.cwd(), '../../.env') });
 
 const csv = (raw: string | undefined) =>
   (raw ?? '')
     .split(',')
     .map((s) => s.trim())
-    .filter(Boolean)
+    .filter(Boolean);
 
 // Empty strings from .env should be treated as "not set"
 const optStr = (minLen?: number) =>
   z.preprocess(
     (v) => (!v ? undefined : v),
     minLen ? z.string().min(minLen).optional() : z.string().optional(),
-  )
+  );
 
 const envSchema = z.object({
   DATABASE_URL: z.string().url(),
@@ -56,23 +56,23 @@ const envSchema = z.object({
   CLAUDE_CMD: z.string().default('claude'),
   WORKSPACES_ROOT: z.string().default('/workspaces'),
   REPOS_BASE_DIR: z.string().default('/repos'),
-})
+});
 
-const parsed = envSchema.parse(process.env)
+const parsed = envSchema.parse(process.env);
 
 if (parsed.NODE_ENV === 'production') {
   if (!parsed.GITHUB_WEBHOOK_SECRET) {
     throw new Error(
       'GITHUB_WEBHOOK_SECRET is required in production (min 16 chars). Generate one: openssl rand -hex 32',
-    )
+    );
   }
   if (parsed.CORS_ALLOWED_ORIGINS.length === 0) {
     throw new Error(
       'CORS_ALLOWED_ORIGINS is required in production. Example: https://app.example.com,https://admin.example.com',
-    )
+    );
   }
 }
 
-export const env = parsed
-export const isProd = parsed.NODE_ENV === 'production'
-export const isTest = parsed.NODE_ENV === 'test'
+export const env = parsed;
+export const isProd = parsed.NODE_ENV === 'production';
+export const isTest = parsed.NODE_ENV === 'test';

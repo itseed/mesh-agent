@@ -1,6 +1,6 @@
-import { eq } from 'drizzle-orm'
-import { agentRoles, BUILTIN_AGENT_ROLES } from '@meshagent/shared'
-import type { FastifyInstance } from 'fastify'
+import { eq } from 'drizzle-orm';
+import { agentRoles, BUILTIN_AGENT_ROLES } from '@meshagent/shared';
+import type { FastifyInstance } from 'fastify';
 
 const BUILTIN_DEFINITIONS: Record<
   (typeof BUILTIN_AGENT_ROLES)[number],
@@ -170,11 +170,11 @@ Always include exact \`file/path:line_number\` for every issue.
 In the TASK_COMPLETE block, format the summary exactly as:
 summary: พบ CRITICAL N จุด (issue1, issue2), HIGH N จุด (...), MEDIUM N จุด (...), LOW N จุด (...)`,
   },
-}
+};
 
 export async function ensureBuiltinRoles(fastify: FastifyInstance): Promise<void> {
   for (const slug of BUILTIN_AGENT_ROLES) {
-    const def = BUILTIN_DEFINITIONS[slug]
+    const def = BUILTIN_DEFINITIONS[slug];
     await fastify.db
       .insert(agentRoles)
       .values({
@@ -193,39 +193,39 @@ export async function ensureBuiltinRoles(fastify: FastifyInstance): Promise<void
           systemPrompt: def.systemPrompt,
           keywords: def.keywords,
         },
-      })
+      });
   }
 }
 
 export async function listRoles(fastify: FastifyInstance) {
-  return fastify.db.select().from(agentRoles)
+  return fastify.db.select().from(agentRoles);
 }
 
 export async function findRoleBySlug(fastify: FastifyInstance, slug: string) {
-  const [row] = await fastify.db.select().from(agentRoles).where(eq(agentRoles.slug, slug))
-  return row ?? null
+  const [row] = await fastify.db.select().from(agentRoles).where(eq(agentRoles.slug, slug));
+  return row ?? null;
 }
 
 export interface RoleResolution {
-  slug: string
-  name: string
-  matched: number
+  slug: string;
+  name: string;
+  matched: number;
 }
 
 export async function detectRolesFromMessage(
   fastify: FastifyInstance,
   message: string,
 ): Promise<RoleResolution[]> {
-  const all = await listRoles(fastify)
-  const lower = message.toLowerCase()
-  const hits: RoleResolution[] = []
+  const all = await listRoles(fastify);
+  const lower = message.toLowerCase();
+  const hits: RoleResolution[] = [];
   for (const role of all) {
-    let matched = 0
+    let matched = 0;
     for (const kw of role.keywords) {
-      if (kw && lower.includes(kw.toLowerCase())) matched += 1
+      if (kw && lower.includes(kw.toLowerCase())) matched += 1;
     }
-    if (matched > 0) hits.push({ slug: role.slug, name: role.name, matched })
+    if (matched > 0) hits.push({ slug: role.slug, name: role.name, matched });
   }
-  hits.sort((a, b) => b.matched - a.matched)
-  return hits
+  hits.sort((a, b) => b.matched - a.matched);
+  return hits;
 }

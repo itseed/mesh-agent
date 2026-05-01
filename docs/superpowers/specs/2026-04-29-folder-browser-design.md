@@ -6,14 +6,14 @@ Add a folder browser component to the project path editor that lets users drag f
 
 ## Decisions
 
-| Decision | Choice | Reason |
-|---|---|---|
-| Entry point | "Open Folder Browser" button in existing project edit modal | No new route; keeps modal-based UX consistent |
-| Layout when open | Modal expands to ~80vw split panel | Enough room for browser without full-page context switch |
-| Assignment UX | Drag folder from right panel → drop on role row | Intuitive; no extra clicks or popup menus |
-| Folder navigation | Click folder to navigate deeper; breadcrumb to go back | Standard file browser pattern |
-| Companion not connected | Button hidden (companion status checked on mount) | Clean; no disabled-state confusion |
-| fs.list API | New `GET /companion/fs/list?path=` server endpoint | Frontend can't call companion directly; server proxies via CompanionManager |
+| Decision                | Choice                                                      | Reason                                                                      |
+| ----------------------- | ----------------------------------------------------------- | --------------------------------------------------------------------------- |
+| Entry point             | "Open Folder Browser" button in existing project edit modal | No new route; keeps modal-based UX consistent                               |
+| Layout when open        | Modal expands to ~80vw split panel                          | Enough room for browser without full-page context switch                    |
+| Assignment UX           | Drag folder from right panel → drop on role row             | Intuitive; no extra clicks or popup menus                                   |
+| Folder navigation       | Click folder to navigate deeper; breadcrumb to go back      | Standard file browser pattern                                               |
+| Companion not connected | Button hidden (companion status checked on mount)           | Clean; no disabled-state confusion                                          |
+| fs.list API             | New `GET /companion/fs/list?path=` server endpoint          | Frontend can't call companion directly; server proxies via CompanionManager |
 
 ## Scope (Subsystem 2 only)
 
@@ -26,19 +26,19 @@ Add a folder browser component to the project path editor that lets users drag f
 
 ## New / Modified Files
 
-| File | Action | Responsibility |
-|---|---|---|
-| `apps/api/src/routes/companion.ts` | Modify | Add `GET /companion/fs/list` and `GET /companion/fs/stat` endpoints |
-| `apps/web/lib/api.ts` | Modify | Add `api.companion.fsList()` and `api.companion.fsStat()` |
-| `apps/web/components/companion/FolderBrowser.tsx` | Create | Breadcrumb + directory listing + draggable entries |
-| `apps/web/app/projects/page.tsx` | Modify | Expand/collapse toggle + drop targets on PathRows |
+| File                                              | Action | Responsibility                                                      |
+| ------------------------------------------------- | ------ | ------------------------------------------------------------------- |
+| `apps/api/src/routes/companion.ts`                | Modify | Add `GET /companion/fs/list` and `GET /companion/fs/stat` endpoints |
+| `apps/web/lib/api.ts`                             | Modify | Add `api.companion.fsList()` and `api.companion.fsStat()`           |
+| `apps/web/components/companion/FolderBrowser.tsx` | Create | Breadcrumb + directory listing + draggable entries                  |
+| `apps/web/app/projects/page.tsx`                  | Modify | Expand/collapse toggle + drop targets on PathRows                   |
 
 ## API Endpoints
 
-| Method | Path | Auth | Description |
-|---|---|---|---|
-| `GET` | `/companion/fs/list` | JWT | Proxy `fs.list` to companion. Query param: `path` (required). Returns `{ entries: { name, type }[] }` |
-| `GET` | `/companion/fs/stat` | JWT | Proxy `fs.stat` to companion. Query param: `path` (required). Returns `{ exists, readable, type }` |
+| Method | Path                 | Auth | Description                                                                                           |
+| ------ | -------------------- | ---- | ----------------------------------------------------------------------------------------------------- |
+| `GET`  | `/companion/fs/list` | JWT  | Proxy `fs.list` to companion. Query param: `path` (required). Returns `{ entries: { name, type }[] }` |
+| `GET`  | `/companion/fs/stat` | JWT  | Proxy `fs.stat` to companion. Query param: `path` (required). Returns `{ exists, readable, type }`    |
 
 Both endpoints return `503` if no companion is connected for the user, and forward any companion-side errors as `500`.
 
@@ -46,18 +46,21 @@ Both endpoints return `503` if no companion is connected for the user, and forwa
 
 ```typescript
 fastify.get('/companion/fs/list', { preHandler }, async (request, reply) => {
-  const { id: userId } = request.user as { id: string }
-  const { path } = z.object({ path: z.string().min(1) }).parse(request.query)
+  const { id: userId } = request.user as { id: string };
+  const { path } = z.object({ path: z.string().min(1) }).parse(request.query);
   try {
     const result = await companionManager.call<{ entries: { name: string; type: string }[] }>(
-      userId, 'fs.list', { path }
-    )
-    return result
+      userId,
+      'fs.list',
+      { path },
+    );
+    return result;
   } catch (err: any) {
-    if (err.message === 'No companion connected for this user') return reply.status(503).send({ error: 'Companion not connected' })
-    return reply.status(500).send({ error: err.message })
+    if (err.message === 'No companion connected for this user')
+      return reply.status(503).send({ error: 'Companion not connected' });
+    return reply.status(500).send({ error: err.message });
   }
-})
+});
 ```
 
 `/companion/fs/stat` follows the same pattern with method `'fs.stat'`.
@@ -79,19 +82,22 @@ apps/web/components/companion/FolderBrowser.tsx
 ```
 
 **Props:**
+
 ```typescript
 interface FolderBrowserProps {
-  initialPath?: string   // defaults to '/'
+  initialPath?: string; // defaults to '/'
 }
 ```
 
 **Internal state:**
+
 - `currentPath: string` — path currently displayed
 - `entries: { name: string; type: 'dir' | 'file' }[]` — result of fsList for currentPath
 - `loading: boolean`
 - `error: string | null`
 
 **Behavior:**
+
 - On mount (and when `currentPath` changes): call `api.companion.fsList(currentPath)`
 - Breadcrumb: split `currentPath` by `/`, each segment is clickable → navigate to that path
 - Directory entries: rendered as draggable items. `onDragStart(fullPath)` fires on `dragstart`. Click navigates into the directory.
@@ -104,10 +110,11 @@ interface FolderBrowserProps {
 Changes to `apps/web/app/projects/page.tsx`:
 
 **New state:**
+
 ```typescript
-const [browserOpen, setBrowserOpen] = useState(false)
-const [companionConnected, setCompanionConnected] = useState(false)
-const [dropTargetIdx, setDropTargetIdx] = useState<number | null>(null)
+const [browserOpen, setBrowserOpen] = useState(false);
+const [companionConnected, setCompanionConnected] = useState(false);
+const [dropTargetIdx, setDropTargetIdx] = useState<number | null>(null);
 ```
 
 **On modal open:** call `api.companion.status()` to set `companionConnected`.
@@ -119,34 +126,38 @@ const [dropTargetIdx, setDropTargetIdx] = useState<number | null>(null)
 **Drag data:** Use HTML5 `dataTransfer` — no extra state needed. `FolderBrowser` calls `e.dataTransfer.setData('text/plain', fullPath)` on `dragstart`. Drop targets read it with `e.dataTransfer.getData('text/plain')`.
 
 **PathRows in expand mode:** pass additional props when `browserOpen`:
+
 ```typescript
 interface PathRowsProps {
-  rows: PathEntry[]
-  onChange: (next: PathEntry[]) => void
-  baseDir?: string | null
+  rows: PathEntry[];
+  onChange: (next: PathEntry[]) => void;
+  baseDir?: string | null;
   // drop-mode props (only used when browser is open)
-  dropTargetIdx?: number | null
-  onRowDragOver?: (idx: number) => void
-  onRowDrop?: (idx: number, path: string) => void
-  onRowDragLeave?: () => void
+  dropTargetIdx?: number | null;
+  onRowDragOver?: (idx: number) => void;
+  onRowDrop?: (idx: number, path: string) => void;
+  onRowDragLeave?: () => void;
 }
 ```
 
 Each role row in drop mode:
+
 - `onDragOver`: `e.preventDefault(); onRowDragOver?.(i)`
 - `onDrop`: `e.preventDefault(); onRowDrop?.(i, e.dataTransfer.getData('text/plain'))`
 - `onDragLeave`: `onRowDragLeave?.()`
 - Visual when `dropTargetIdx === i`: dashed border + blue tint + "drop folder here" label
 
 **`onRowDrop` handler in parent:**
+
 ```typescript
 const handleRowDrop = (idx: number, droppedPath: string) => {
-  setPathEntries(prev => prev.map((e, i) => i === idx ? { ...e, value: droppedPath } : e))
-  setDropTargetIdx(null)
-}
+  setPathEntries((prev) => prev.map((e, i) => (i === idx ? { ...e, value: droppedPath } : e)));
+  setDropTargetIdx(null);
+};
 ```
 
 **Layout when `browserOpen`:**
+
 ```tsx
 <div className="flex gap-4">
   <div className="flex-1">
@@ -179,10 +190,10 @@ const handleRowDrop = (idx: number, droppedPath: string) => {
 
 ## Error Handling
 
-| Scenario | Behaviour |
-|---|---|
-| Companion not connected | "Open Folder Browser" button hidden |
-| `fsList` returns 503 | FolderBrowser shows "Companion not connected" with close button |
-| `fsList` returns 500 | FolderBrowser shows error message + Retry button |
-| Path has no read permission | Entry shows EACCES note; still navigable up via breadcrumb |
+| Scenario                             | Behaviour                                                                            |
+| ------------------------------------ | ------------------------------------------------------------------------------------ |
+| Companion not connected              | "Open Folder Browser" button hidden                                                  |
+| `fsList` returns 503                 | FolderBrowser shows "Companion not connected" with close button                      |
+| `fsList` returns 500                 | FolderBrowser shows error message + Retry button                                     |
+| Path has no read permission          | Entry shows EACCES note; still navigable up via breadcrumb                           |
 | Companion disconnects while browsing | Next `fsList` call fails → error state in panel; paths already dropped are preserved |

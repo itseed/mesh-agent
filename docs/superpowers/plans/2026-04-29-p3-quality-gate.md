@@ -12,87 +12,96 @@
 
 ## File Map
 
-| File | Action | Responsibility |
-|------|--------|----------------|
+| File                               | Action     | Responsibility                                                                                                          |
+| ---------------------------------- | ---------- | ----------------------------------------------------------------------------------------------------------------------- |
 | `apps/api/src/lib/quality-gate.ts` | **Create** | `QualityGateState` interface, Redis CRUD helpers, `buildReviewerPrompt()`, `parseVerdictJson()`, `triggerQualityGate()` |
-| `apps/api/src/routes/internal.ts` | **Modify** | QG reviewer detection + verdict handling; trigger QG at wave final and single-agent completion |
+| `apps/api/src/routes/internal.ts`  | **Modify** | QG reviewer detection + verdict handling; trigger QG at wave final and single-agent completion                          |
 
 ---
 
 ### Task 1: Create quality-gate.ts
 
 **Files:**
+
 - Create: `apps/api/src/lib/quality-gate.ts`
 
 - [ ] **Step 1: Create the file**
 
 ```typescript
 // apps/api/src/lib/quality-gate.ts
-import type { FastifyInstance } from 'fastify'
-import type { Redis } from 'ioredis'
-import { taskActivities } from '@meshagent/shared'
-import { dispatchAgent } from './dispatch.js'
-import { findRoleBySlug } from './roles.js'
+import type { FastifyInstance } from 'fastify';
+import type { Redis } from 'ioredis';
+import { taskActivities } from '@meshagent/shared';
+import { dispatchAgent } from './dispatch.js';
+import { findRoleBySlug } from './roles.js';
 
-const QG_TTL = 86400 // 24 h
+const QG_TTL = 86400; // 24 h
 
 export interface QualityGateState {
-  taskId: string
-  reviewerSessionId: string
-  prUrls: string[]
-  projectId: string | null
-  projectPaths: Record<string, string>
-  baseBranch: string
-  branchSuffix: string
-  createdBy: string
-  attempt: number             // starts at 0; escalate when attempt >= 2
-  taskTitle: string
-  taskDescription: string
+  taskId: string;
+  reviewerSessionId: string;
+  prUrls: string[];
+  projectId: string | null;
+  projectPaths: Record<string, string>;
+  baseBranch: string;
+  branchSuffix: string;
+  createdBy: string;
+  attempt: number; // starts at 0; escalate when attempt >= 2
+  taskTitle: string;
+  taskDescription: string;
 }
 
 export interface ReviewerVerdict {
-  verdict: 'pass' | 'block'
-  fixRoles: { slug: string; brief: string }[]
-  issues: { severity: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW'; description: string }[]
-  message: string
+  verdict: 'pass' | 'block';
+  fixRoles: { slug: string; brief: string }[];
+  issues: { severity: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW'; description: string }[];
+  message: string;
 }
 
-const qgStateKey = (taskId: string) => `qg:state:${taskId}`
-const qgSessionKey = (sessionId: string) => `qg:session:${sessionId}`
+const qgStateKey = (taskId: string) => `qg:state:${taskId}`;
+const qgSessionKey = (sessionId: string) => `qg:session:${sessionId}`;
 
 export async function saveQgState(redis: Redis, state: QualityGateState): Promise<void> {
-  await redis.set(qgStateKey(state.taskId), JSON.stringify(state), 'EX', QG_TTL)
+  await redis.set(qgStateKey(state.taskId), JSON.stringify(state), 'EX', QG_TTL);
 }
 
 export async function getQgState(redis: Redis, taskId: string): Promise<QualityGateState | null> {
-  const raw = await redis.get(qgStateKey(taskId))
-  if (!raw) return null
-  try { return JSON.parse(raw) as QualityGateState } catch { return null }
+  const raw = await redis.get(qgStateKey(taskId));
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw) as QualityGateState;
+  } catch {
+    return null;
+  }
 }
 
 export async function deleteQgState(redis: Redis, taskId: string): Promise<void> {
-  await redis.del(qgStateKey(taskId))
+  await redis.del(qgStateKey(taskId));
 }
 
-export async function indexQgSession(redis: Redis, sessionId: string, taskId: string): Promise<void> {
-  await redis.set(qgSessionKey(sessionId), taskId, 'EX', QG_TTL)
+export async function indexQgSession(
+  redis: Redis,
+  sessionId: string,
+  taskId: string,
+): Promise<void> {
+  await redis.set(qgSessionKey(sessionId), taskId, 'EX', QG_TTL);
 }
 
 export async function lookupQgSession(redis: Redis, sessionId: string): Promise<string | null> {
-  return redis.get(qgSessionKey(sessionId))
+  return redis.get(qgSessionKey(sessionId));
 }
 
 export async function removeQgSessionIndex(redis: Redis, sessionId: string): Promise<void> {
-  await redis.del(qgSessionKey(sessionId))
+  await redis.del(qgSessionKey(sessionId));
 }
 
 function buildReviewerPrompt(opts: {
-  taskTitle: string
-  taskDescription: string
-  prUrls: string[]
-  baseBranch: string
+  taskTitle: string;
+  taskDescription: string;
+  prUrls: string[];
+  baseBranch: string;
 }): string {
-  const prLines = opts.prUrls.map((u) => `- ${u}`).join('\n')
+  const prLines = opts.prUrls.map((u) => `- ${u}`).join('\n');
   return [
     'You are a code reviewer. Your job is to check a completed task before it is marked done.',
     '',
@@ -124,18 +133,18 @@ function buildReviewerPrompt(opts: {
     'summary: <1-2 sentence summary of what you found>',
     'verdict_json: {"verdict":"pass","fixRoles":[],"issues":[],"message":"<shown in chat to user>"}',
     'END_TASK_COMPLETE',
-  ].join('\n')
+  ].join('\n');
 }
 
 export function parseVerdictJson(outputLog: string): ReviewerVerdict | null {
-  const block = outputLog.match(/TASK_COMPLETE[\s\S]*?END_TASK_COMPLETE/)
-  if (!block) return null
-  const match = block[0].match(/verdict_json:\s*(\{[\s\S]*?\})(?:\n|$)/)
-  if (!match) return null
+  const block = outputLog.match(/TASK_COMPLETE[\s\S]*?END_TASK_COMPLETE/);
+  if (!block) return null;
+  const match = block[0].match(/verdict_json:\s*(\{[\s\S]*?\})(?:\n|$)/);
+  if (!match) return null;
   try {
-    return JSON.parse(match[1]) as ReviewerVerdict
+    return JSON.parse(match[1]) as ReviewerVerdict;
   } catch {
-    return null
+    return null;
   }
 }
 
@@ -145,38 +154,41 @@ export async function triggerQualityGate(
   prUrls: string[],
   projectPaths: Record<string, string>,
   opts: {
-    projectId: string | null
-    baseBranch: string
-    branchSuffix: string
-    createdBy: string
-    taskTitle: string
-    taskDescription: string
+    projectId: string | null;
+    baseBranch: string;
+    branchSuffix: string;
+    createdBy: string;
+    taskTitle: string;
+    taskDescription: string;
   },
 ): Promise<void> {
   // Read existing QG state to preserve attempt counter across retry loops
-  const existing = await getQgState(fastify.redis, taskId)
-  const attempt = existing?.attempt ?? 0
+  const existing = await getQgState(fastify.redis, taskId);
+  const attempt = existing?.attempt ?? 0;
 
-  const reviewerWorkingDir = Object.values(projectPaths)[0] ?? '/tmp'
+  const reviewerWorkingDir = Object.values(projectPaths)[0] ?? '/tmp';
   const prompt = buildReviewerPrompt({
     taskTitle: opts.taskTitle,
     taskDescription: opts.taskDescription,
     prUrls,
     baseBranch: opts.baseBranch,
-  })
+  });
 
-  const role = await findRoleBySlug(fastify, 'reviewer')
+  const role = await findRoleBySlug(fastify, 'reviewer');
   const result = await dispatchAgent(
     'reviewer',
     reviewerWorkingDir,
     prompt,
     { projectId: opts.projectId, taskId: null, createdBy: opts.createdBy },
     role?.systemPrompt ?? undefined,
-  )
+  );
 
   if (!result.id) {
-    fastify.log.warn({ taskId, error: result.error }, 'Quality gate reviewer dispatch failed — skipping')
-    return
+    fastify.log.warn(
+      { taskId, error: result.error },
+      'Quality gate reviewer dispatch failed — skipping',
+    );
+    return;
   }
 
   const state: QualityGateState = {
@@ -191,9 +203,9 @@ export async function triggerQualityGate(
     attempt,
     taskTitle: opts.taskTitle,
     taskDescription: opts.taskDescription,
-  }
-  await saveQgState(fastify.redis, state)
-  await indexQgSession(fastify.redis, result.id, taskId)
+  };
+  await saveQgState(fastify.redis, state);
+  await indexQgSession(fastify.redis, result.id, taskId);
 
   try {
     await fastify.db.insert(taskActivities).values({
@@ -201,9 +213,9 @@ export async function triggerQualityGate(
       actorId: null,
       type: 'quality_gate.started',
       payload: { attempt, prUrls },
-    })
+    });
   } catch (err) {
-    fastify.log.warn({ err, taskId }, 'Failed to log quality_gate.started activity')
+    fastify.log.warn({ err, taskId }, 'Failed to log quality_gate.started activity');
   }
 }
 ```
@@ -229,6 +241,7 @@ git -C /Users/kriangkrai/project/mesh-agent commit -m "feat(api): add quality-ga
 ### Task 2: Add QG reviewer handler to internal.ts
 
 **Files:**
+
 - Modify: `apps/api/src/routes/internal.ts`
 
 This task adds the handler that fires when the **reviewer** agent (not a dev agent) calls `/internal/agent-complete`. It detects the reviewer via `qg:session` Redis index, parses `verdict_json`, and handles pass / block / escalate.
@@ -246,7 +259,7 @@ import {
   deleteQgState,
   parseVerdictJson,
   type QualityGateState,
-} from '../lib/quality-gate.js'
+} from '../lib/quality-gate.js';
 ```
 
 - [ ] **Step 2: Add the QG reviewer handler block**
@@ -259,62 +272,69 @@ Inside `fastify.post('/internal/agent-complete', ...)`, **immediately after** th
 // Reviewer sessions have taskId: null so the task-update block below is a
 // no-op for them, but we return early to avoid synthesis.
 try {
-  const qgTaskId = await lookupQgSession(fastify.redis, body.sessionId)
+  const qgTaskId = await lookupQgSession(fastify.redis, body.sessionId);
   if (qgTaskId) {
-    await removeQgSessionIndex(fastify.redis, body.sessionId)
-    const qgState = await getQgState(fastify.redis, qgTaskId)
+    await removeQgSessionIndex(fastify.redis, body.sessionId);
+    const qgState = await getQgState(fastify.redis, qgTaskId);
     if (qgState) {
-      const verdict = parseVerdictJson(body.outputLog)
+      const verdict = parseVerdictJson(body.outputLog);
 
       if (verdict?.verdict === 'pass') {
         // ── Pass ──────────────────────────────────────────────────────────
         await fastify.db
           .update(tasks)
           .set({ stage: 'done', updatedAt: new Date() })
-          .where(eq(tasks.id, qgTaskId))
+          .where(eq(tasks.id, qgTaskId));
         await fastify.redis.publish(
           TASKS_CHANNEL,
-          JSON.stringify({ type: 'task.stage', taskId: qgTaskId, stage: 'done', projectId: qgState.projectId }),
-        )
+          JSON.stringify({
+            type: 'task.stage',
+            taskId: qgTaskId,
+            stage: 'done',
+            projectId: qgState.projectId,
+          }),
+        );
         await logTaskActivity(fastify, qgTaskId, 'quality_gate.passed', {
           attempt: qgState.attempt,
           issueCount: verdict.issues.length,
-        })
+        });
         await pushChatMessage(fastify, {
           id: crypto.randomUUID(),
           role: 'lead' as const,
           content: verdict.message,
           timestamp: Date.now(),
-        })
-        await deleteQgState(fastify.redis, qgTaskId)
+        });
+        await deleteQgState(fastify.redis, qgTaskId);
       } else if (verdict?.verdict === 'block') {
         // ── Block ─────────────────────────────────────────────────────────
         await logTaskActivity(fastify, qgTaskId, 'quality_gate.blocked', {
           attempt: qgState.attempt,
           issues: verdict.issues,
-        })
+        });
         await pushChatMessage(fastify, {
           id: crypto.randomUUID(),
           role: 'lead' as const,
           content: verdict.message,
           timestamp: Date.now(),
-        })
+        });
 
         if (qgState.attempt < 2 && verdict.fixRoles.length > 0) {
           // Dispatch fix agents as a new single-wave WaveState
-          const newBranchSuffix = Date.now().toString(36)
-          const newProposalId = crypto.randomUUID()
+          const newBranchSuffix = Date.now().toString(36);
+          const newProposalId = crypto.randomUUID();
           const issueLines = verdict.issues
             .map((i) => `- [${i.severity}] ${i.description}`)
-            .join('\n')
-          const fixDescription = `${qgState.taskDescription}\n\n## Issues to Fix (from Quality Gate):\n${issueLines}`
+            .join('\n');
+          const fixDescription = `${qgState.taskDescription}\n\n## Issues to Fix (from Quality Gate):\n${issueLines}`;
 
           const fixWaveState: WaveState = {
             proposalId: newProposalId,
-            waves: [{
-              roles: verdict.fixRoles.map((r) => ({ slug: r.slug, reason: r.brief })),
-              brief: 'Fix issues found by quality gate review',
-            }],
+            waves: [
+              {
+                roles: verdict.fixRoles.map((r) => ({ slug: r.slug, reason: r.brief })),
+                brief: 'Fix issues found by quality gate review',
+              },
+            ],
             currentWave: 0,
             taskTitle: qgState.taskTitle,
             taskDescription: fixDescription,
@@ -326,91 +346,101 @@ try {
             pendingSessions: [],
             completedSessions: [],
             rootTaskId: qgTaskId,
-          }
+          };
 
-          const pendingFixSessions: string[] = []
+          const pendingFixSessions: string[] = [];
           for (const r of verdict.fixRoles) {
-            const roleObj = await findRoleBySlug(fastify, r.slug)
+            const roleObj = await findRoleBySlug(fastify, r.slug);
             if (!roleObj) {
-              fastify.log.warn({ slug: r.slug }, 'QG block: skipping unknown fix role')
-              continue
+              fastify.log.warn({ slug: r.slug }, 'QG block: skipping unknown fix role');
+              continue;
             }
             const workingDir =
-              qgState.projectPaths[r.slug] ??
-              Object.values(qgState.projectPaths)[0] ??
-              '/tmp'
-            const fixPrompt = `${fixDescription}\n${buildGitInstructions(qgState.baseBranch, newBranchSuffix)}`
+              qgState.projectPaths[r.slug] ?? Object.values(qgState.projectPaths)[0] ?? '/tmp';
+            const fixPrompt = `${fixDescription}\n${buildGitInstructions(qgState.baseBranch, newBranchSuffix)}`;
             const result = await dispatchAgent(
               r.slug,
               workingDir,
               fixPrompt,
               { projectId: qgState.projectId, taskId: null, createdBy: qgState.createdBy },
               roleObj.systemPrompt ?? undefined,
-            )
+            );
             if (result.id) {
-              pendingFixSessions.push(result.id)
-              await indexSession(fastify.redis, result.id, newProposalId)
+              pendingFixSessions.push(result.id);
+              await indexSession(fastify.redis, result.id, newProposalId);
               await pushChatMessage(fastify, {
                 id: crypto.randomUUID(),
                 role: 'agent' as const,
                 content: `[${r.slug}] Fix agent เริ่มทำงานแล้ว (session ${result.id.slice(0, 8)})`,
                 timestamp: Date.now(),
                 meta: { agentRole: r.slug, sessionId: result.id },
-              })
+              });
             }
           }
 
           if (pendingFixSessions.length > 0) {
-            fixWaveState.pendingSessions = pendingFixSessions
-            await saveWaveState(fastify.redis, fixWaveState)
+            fixWaveState.pendingSessions = pendingFixSessions;
+            await saveWaveState(fastify.redis, fixWaveState);
             // Increment attempt in QG state (reviewer will read this on next trigger)
-            await saveQgState(fastify.redis, { ...qgState, attempt: qgState.attempt + 1 })
+            await saveQgState(fastify.redis, { ...qgState, attempt: qgState.attempt + 1 });
           } else {
             // No fix agents dispatched — escalate immediately
             await logTaskActivity(fastify, qgTaskId, 'quality_gate.escalated', {
               attempt: qgState.attempt,
               reason: 'no_fix_agents_dispatched',
-            })
+            });
             await pushChatMessage(fastify, {
               id: crypto.randomUUID(),
               role: 'lead' as const,
-              content: 'Quality gate blocked แต่ไม่สามารถ dispatch fix agents ได้ — กรุณาแก้ไขด้วยตนเอง',
+              content:
+                'Quality gate blocked แต่ไม่สามารถ dispatch fix agents ได้ — กรุณาแก้ไขด้วยตนเอง',
               timestamp: Date.now(),
-            })
-            await deleteQgState(fastify.redis, qgTaskId)
+            });
+            await deleteQgState(fastify.redis, qgTaskId);
           }
         } else {
           // Max attempts reached — escalate to user
           await logTaskActivity(fastify, qgTaskId, 'quality_gate.escalated', {
             attempt: qgState.attempt,
             reason: 'max_attempts_reached',
-          })
+          });
           await pushChatMessage(fastify, {
             id: crypto.randomUUID(),
             role: 'lead' as const,
             content: `Quality gate ล้มเหลวหลัง ${qgState.attempt + 1} ครั้ง — กรุณาแก้ไขปัญหาด้วยตนเองแล้วแจ้งกลับมา`,
             timestamp: Date.now(),
-          })
-          await deleteQgState(fastify.redis, qgTaskId)
+          });
+          await deleteQgState(fastify.redis, qgTaskId);
         }
       } else {
         // No valid verdict_json — log warning, treat as passed to avoid infinite loop
-        fastify.log.warn({ sessionId: body.sessionId, qgTaskId }, 'QG reviewer returned no valid verdict_json — treating as pass')
+        fastify.log.warn(
+          { sessionId: body.sessionId, qgTaskId },
+          'QG reviewer returned no valid verdict_json — treating as pass',
+        );
         await fastify.db
           .update(tasks)
           .set({ stage: 'done', updatedAt: new Date() })
-          .where(eq(tasks.id, qgTaskId))
+          .where(eq(tasks.id, qgTaskId));
         await fastify.redis.publish(
           TASKS_CHANNEL,
-          JSON.stringify({ type: 'task.stage', taskId: qgTaskId, stage: 'done', projectId: qgState.projectId }),
-        )
-        await deleteQgState(fastify.redis, qgTaskId)
+          JSON.stringify({
+            type: 'task.stage',
+            taskId: qgTaskId,
+            stage: 'done',
+            projectId: qgState.projectId,
+          }),
+        );
+        await deleteQgState(fastify.redis, qgTaskId);
       }
     }
-    return reply.status(200).send({ ok: true })
+    return reply.status(200).send({ ok: true });
   }
 } catch (err) {
-  fastify.log.warn({ err, sessionId: body.sessionId }, 'Quality gate reviewer handler failed — continuing as regular agent')
+  fastify.log.warn(
+    { err, sessionId: body.sessionId },
+    'Quality gate reviewer handler failed — continuing as regular agent',
+  );
 }
 // ── End Quality Gate reviewer check ──────────────────────────────────────
 ```
@@ -436,6 +466,7 @@ git -C /Users/kriangkrai/project/mesh-agent commit -m "feat(api): handle quality
 ### Task 3: Trigger QG at wave final completion
 
 **Files:**
+
 - Modify: `apps/api/src/routes/internal.ts`
 
 This task changes the wave final-wave handler: instead of pushing a "wave.done" chat message and marking the task done, it calls `triggerQualityGate()` when PR URLs were found. Fall back to existing behavior when no PRs.
@@ -445,7 +476,7 @@ This task changes the wave final-wave handler: instead of pushing a "wave.done" 
 Add to the import block at the top of `internal.ts`:
 
 ```typescript
-import { triggerQualityGate } from '../lib/quality-gate.js'
+import { triggerQualityGate } from '../lib/quality-gate.js';
 ```
 
 - [ ] **Step 2: Also add projects import if not already present**
@@ -453,7 +484,7 @@ import { triggerQualityGate } from '../lib/quality-gate.js'
 Ensure `projects` is imported from `@meshagent/shared`:
 
 ```typescript
-import { tasks, taskComments, taskActivities, projects } from '@meshagent/shared'
+import { tasks, taskComments, taskActivities, projects } from '@meshagent/shared';
 ```
 
 (It's already imported from the P2b work — verify it's there.)
@@ -549,6 +580,7 @@ git -C /Users/kriangkrai/project/mesh-agent commit -m "feat(api): trigger qualit
 ### Task 4: Trigger QG for single-agent completion
 
 **Files:**
+
 - Modify: `apps/api/src/routes/internal.ts`
 
 Single-agent tasks (dispatched from chat, not wave-based): when `success && prUrl`, trigger QG instead of leaving task at "review". Task stage stays "in_progress" until reviewer passes.
@@ -558,14 +590,14 @@ Single-agent tasks (dispatched from chat, not wave-based): when `success && prUr
 Find this line near the top of the agent-complete handler (after the QG reviewer block you added in Task 2):
 
 ```typescript
-const stage = success ? (prUrl ? 'review' : 'done') : 'in_progress'
+const stage = success ? (prUrl ? 'review' : 'done') : 'in_progress';
 ```
 
 Replace with:
 
 ```typescript
 // When success + prUrl, QG controls the final "done" transition — keep in_progress
-const stage = success ? (prUrl ? 'in_progress' : 'done') : 'in_progress'
+const stage = success ? (prUrl ? 'in_progress' : 'done') : 'in_progress';
 ```
 
 - [ ] **Step 2: Add single-agent QG trigger**
@@ -580,7 +612,7 @@ if (!handledByWave) {
     success,
     summary,
     prUrl,
-  })
+  });
 }
 ```
 
@@ -593,24 +625,20 @@ if (!handledByWave) {
     // Load task + project to get paths for QG
     void (async () => {
       try {
-        const [task] = await fastify.db
-          .select()
-          .from(tasks)
-          .where(eq(tasks.id, taskId))
-          .limit(1)
-        if (!task) return
+        const [task] = await fastify.db.select().from(tasks).where(eq(tasks.id, taskId)).limit(1);
+        if (!task) return;
 
-        let projectPaths: Record<string, string> = {}
-        let baseBranch = 'main'
+        let projectPaths: Record<string, string> = {};
+        let baseBranch = 'main';
         if (task.projectId) {
           const [proj] = await fastify.db
             .select()
             .from(projects)
             .where(eq(projects.id, task.projectId))
-            .limit(1)
+            .limit(1);
           if (proj) {
-            projectPaths = (proj.paths as Record<string, string>) ?? {}
-            baseBranch = proj.baseBranch ?? 'main'
+            projectPaths = (proj.paths as Record<string, string>) ?? {};
+            baseBranch = proj.baseBranch ?? 'main';
           }
         }
 
@@ -621,18 +649,18 @@ if (!handledByWave) {
           createdBy: task.createdBy ?? 'system',
           taskTitle: task.title ?? '',
           taskDescription: task.description ?? '',
-        })
+        });
       } catch (err) {
-        fastify.log.warn({ err, taskId }, 'Single-agent QG trigger failed — skipping')
+        fastify.log.warn({ err, taskId }, 'Single-agent QG trigger failed — skipping');
       }
-    })()
+    })();
   } else {
     void synthesizeAfterCompletion(fastify, {
       agentRole: role,
       success,
       summary,
       prUrl,
-    })
+    });
   }
 }
 ```
@@ -658,6 +686,7 @@ git -C /Users/kriangkrai/project/mesh-agent commit -m "feat(api): trigger qualit
 ## Self-Review
 
 **Spec coverage:**
+
 - ✅ `triggerQualityGate()` dispatches real reviewer agent — Task 1
 - ✅ Redis CRUD: `saveQgState`, `getQgState`, `deleteQgState`, `indexQgSession`, `lookupQgSession`, `removeQgSessionIndex` — Task 1
 - ✅ `parseVerdictJson()` extracts `verdict_json` from TASK_COMPLETE block — Task 1
@@ -676,6 +705,7 @@ git -C /Users/kriangkrai/project/mesh-agent commit -m "feat(api): trigger qualit
 **Placeholder scan:** No TBDs. All code blocks complete.
 
 **Type consistency:**
+
 - `QualityGateState` defined in Task 1, imported and used in Task 2 ✓
 - `ReviewerVerdict` defined in Task 1, returned by `parseVerdictJson()` used in Task 2 ✓
 - `triggerQualityGate()` signature in Task 1, called in Tasks 3 and 4 with same parameter shape ✓

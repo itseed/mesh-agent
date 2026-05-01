@@ -1,17 +1,17 @@
-'use client'
-import type { ReviewIssue } from './styles'
-import { SEVERITY_STYLE } from './styles'
+'use client';
+import type { ReviewIssue } from './styles';
+import { SEVERITY_STYLE } from './styles';
 
 interface FixIssuesPanelProps {
-  title?: string
-  issues: ReviewIssue[]
-  selected: Set<number>
-  onToggle: (idx: number) => void
-  onSelectAll: () => void
-  onConfirm: () => void
-  onCancel: () => void
-  busy?: boolean
-  showSelectAll?: boolean
+  title?: string;
+  issues: ReviewIssue[];
+  selected: Set<number>;
+  onToggle: (idx: number) => void;
+  onSelectAll: () => void;
+  onConfirm: () => void;
+  onCancel: () => void;
+  busy?: boolean;
+  showSelectAll?: boolean;
 }
 
 export function FixIssuesPanel({
@@ -28,12 +28,11 @@ export function FixIssuesPanel({
   return (
     <div className="border border-orange-400/20 rounded-lg p-3 bg-orange-400/5">
       <div className="flex items-center justify-between mb-2">
-        <div className="text-[12px] text-orange-300 font-semibold uppercase tracking-wide">{title}</div>
+        <div className="text-[12px] text-orange-300 font-semibold uppercase tracking-wide">
+          {title}
+        </div>
         {showSelectAll && (
-          <button
-            onClick={onSelectAll}
-            className="text-[11px] text-dim hover:text-muted"
-          >
+          <button onClick={onSelectAll} className="text-[11px] text-dim hover:text-muted">
             {selected.size === issues.length ? 'Deselect All' : 'Select All'}
           </button>
         )}
@@ -72,5 +71,5 @@ export function FixIssuesPanel({
         </button>
       </div>
     </div>
-  )
+  );
 }

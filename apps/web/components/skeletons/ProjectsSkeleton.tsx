@@ -1,4 +1,4 @@
-import { Skeleton } from '@/components/ui/Skeleton'
+import { Skeleton } from '@/components/ui/Skeleton';
 
 export function ProjectListSkeleton({ count = 6 }: { count?: number }) {
   return (
@@ -15,7 +15,7 @@ export function ProjectListSkeleton({ count = 6 }: { count?: number }) {
         </div>
       ))}
     </div>
-  )
+  );
 }
 
 export function RepoListSkeleton({ count = 5 }: { count?: number }) {
@@ -35,7 +35,7 @@ export function RepoListSkeleton({ count = 5 }: { count?: number }) {
         ))}
       </div>
     </div>
-  )
+  );
 }
 
 export function GitHubTabSkeleton({ count = 5 }: { count?: number }) {
@@ -53,5 +53,5 @@ export function GitHubTabSkeleton({ count = 5 }: { count?: number }) {
         </div>
       ))}
     </div>
-  )
+  );
 }

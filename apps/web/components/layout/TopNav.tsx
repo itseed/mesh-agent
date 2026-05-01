@@ -1,6 +1,6 @@
-'use client'
-import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+'use client';
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 
 const NAV_ITEMS = [
   { href: '/overview', label: 'Overview' },
@@ -8,10 +8,10 @@ const NAV_ITEMS = [
   { href: '/agents', label: 'Agents' },
   { href: '/github', label: 'GitHub' },
   { href: '/projects', label: 'Projects' },
-]
+];
 
 export function TopNav() {
-  const pathname = usePathname()
+  const pathname = usePathname();
   return (
     <nav className="bg-surface border-b border-border px-4 flex items-center gap-6 h-12 sticky top-0 z-50">
       <img src="/logo.svg" alt="MeshAgent" height={28} style={{ display: 'block' }} />
@@ -29,5 +29,5 @@ export function TopNav() {
         </Link>
       ))}
     </nav>
-  )
+  );
 }

@@ -1,9 +1,16 @@
-import { FastifyInstance } from 'fastify'
-import { z } from 'zod'
-import { eq, and, ne, count } from 'drizzle-orm'
-import { tasks, taskComments, taskActivities, projects, agentOutcomes, agentSessions } from '@meshagent/shared'
-import { env } from '../env.js'
-import { runLeadSynthesis, type LeadContextMessage } from '../lib/lead.js'
+import { FastifyInstance } from 'fastify';
+import { z } from 'zod';
+import { eq, and, ne, count } from 'drizzle-orm';
+import {
+  tasks,
+  taskComments,
+  taskActivities,
+  projects,
+  agentOutcomes,
+  agentSessions,
+} from '@meshagent/shared';
+import { env } from '../env.js';
+import { runLeadSynthesis, type LeadContextMessage } from '../lib/lead.js';
 import {
   lookupSessionProposal,
   getWaveState,
@@ -13,7 +20,7 @@ import {
   removeSessionIndex,
   indexSession,
   type WaveState,
-} from '../lib/wave-store.js'
+} from '../lib/wave-store.js';
 import {
   lookupQgSession,
   removeQgSessionIndex,
@@ -23,16 +30,16 @@ import {
   parseVerdictJson,
   triggerQualityGate,
   type QualityGateState,
-} from '../lib/quality-gate.js'
-import { runWaveEvaluation } from '../lib/lead-wave.js'
-import { dispatchAgent, buildGitInstructions } from '../lib/dispatch.js'
-import { findRoleBySlug } from '../lib/roles.js'
-import { buildContextBlock } from '../lib/context-builder.js'
+} from '../lib/quality-gate.js';
+import { runWaveEvaluation } from '../lib/lead-wave.js';
+import { dispatchAgent, buildGitInstructions } from '../lib/dispatch.js';
+import { findRoleBySlug } from '../lib/roles.js';
+import { buildContextBlock } from '../lib/context-builder.js';
 
-const HISTORY_KEY = 'chat:lead:history'
-const HISTORY_LIMIT = 200
-const CHAT_CHANNEL = 'chat:events'
-const TASKS_CHANNEL = 'tasks:events'
+const HISTORY_KEY = 'chat:lead:history';
+const HISTORY_LIMIT = 200;
+const CHAT_CHANNEL = 'chat:events';
+const TASKS_CHANNEL = 'tasks:events';
 
 const bodySchema = z.object({
   sessionId: z.string(),
@@ -42,53 +49,56 @@ const bodySchema = z.object({
   success: z.boolean(),
   outputLog: z.string().optional().default(''),
   exitCode: z.number().nullable().optional(),
-})
+});
 
 function extractPrUrl(output: string): string | null {
-  const match = output.match(/https:\/\/github\.com\/[^\s]+\/pull\/\d+/)
-  return match?.[0] ?? null
+  const match = output.match(/https:\/\/github\.com\/[^\s]+\/pull\/\d+/);
+  return match?.[0] ?? null;
 }
 
 function buildSummary(output: string): string {
-  const block = output.match(/TASK_COMPLETE[\s\S]*?END_TASK_COMPLETE/)
+  const block = output.match(/TASK_COMPLETE[\s\S]*?END_TASK_COMPLETE/);
   if (block) {
-    const summaryMatch = block[0].match(/summary:\s*(.+)/)
-    if (summaryMatch) return summaryMatch[1].trim()
+    const summaryMatch = block[0].match(/summary:\s*(.+)/);
+    if (summaryMatch) return summaryMatch[1].trim();
   }
-  const lines = output.split('\n').map(l => l.trim()).filter(Boolean)
-  return lines.slice(-3).join(' ').slice(0, 300)
+  const lines = output
+    .split('\n')
+    .map((l) => l.trim())
+    .filter(Boolean);
+  return lines.slice(-3).join(' ').slice(0, 300);
 }
 
 async function pushChatMessage(fastify: FastifyInstance, message: object) {
-  const str = JSON.stringify(message)
-  await fastify.redis.rpush(HISTORY_KEY, str)
-  await fastify.redis.ltrim(HISTORY_KEY, -HISTORY_LIMIT, -1)
-  await fastify.redis.publish(CHAT_CHANNEL, JSON.stringify({ type: 'message', message }))
+  const str = JSON.stringify(message);
+  await fastify.redis.rpush(HISTORY_KEY, str);
+  await fastify.redis.ltrim(HISTORY_KEY, -HISTORY_LIMIT, -1);
+  await fastify.redis.publish(CHAT_CHANNEL, JSON.stringify({ type: 'message', message }));
 }
 
 interface RawChatMessage {
-  role: 'user' | 'lead' | 'agent' | 'system'
-  content: string
-  meta?: { agentRole?: string; topicReset?: boolean }
+  role: 'user' | 'lead' | 'agent' | 'system';
+  content: string;
+  meta?: { agentRole?: string; topicReset?: boolean };
 }
 
 async function loadRecentContext(fastify: FastifyInstance): Promise<LeadContextMessage[]> {
-  const raw = await fastify.redis.lrange(HISTORY_KEY, -100, -1)
+  const raw = await fastify.redis.lrange(HISTORY_KEY, -100, -1);
   const parsed = raw
     .map((s: string): RawChatMessage | null => {
       try {
-        return JSON.parse(s) as RawChatMessage
+        return JSON.parse(s) as RawChatMessage;
       } catch {
-        return null
+        return null;
       }
     })
-    .filter((m): m is RawChatMessage => m !== null)
+    .filter((m): m is RawChatMessage => m !== null);
 
-  let startIdx = 0
+  let startIdx = 0;
   for (let i = parsed.length - 1; i >= 0; i -= 1) {
     if (parsed[i].meta?.topicReset) {
-      startIdx = i + 1
-      break
+      startIdx = i + 1;
+      break;
     }
   }
 
@@ -100,43 +110,43 @@ async function loadRecentContext(fastify: FastifyInstance): Promise<LeadContextM
       role: m.role as 'user' | 'lead' | 'agent',
       content: m.content,
       agentRole: m.meta?.agentRole,
-    }))
+    }));
 }
 
 async function synthesizeAfterCompletion(
   fastify: FastifyInstance,
   input: {
-    agentRole: string
-    success: boolean
-    summary: string
-    prUrl: string | null
+    agentRole: string;
+    success: boolean;
+    summary: string;
+    prUrl: string | null;
   },
 ): Promise<void> {
   await fastify.redis
     .publish(CHAT_CHANNEL, JSON.stringify({ type: 'lead-status', status: 'thinking' }))
-    .catch(() => {})
+    .catch(() => {});
   try {
-    const context = await loadRecentContext(fastify)
+    const context = await loadRecentContext(fastify);
     const reply = await runLeadSynthesis({
       agentRole: input.agentRole,
       success: input.success,
       summary: input.summary,
       prUrl: input.prUrl,
       context,
-    })
+    });
     await pushChatMessage(fastify, {
       id: crypto.randomUUID(),
       role: 'lead' as const,
       content: reply,
       timestamp: Date.now(),
       meta: { intent: 'chat' as const, synthesisFor: input.agentRole },
-    })
+    });
   } catch (err) {
-    fastify.log.warn({ err, role: input.agentRole }, 'Lead synthesis failed; skipping')
+    fastify.log.warn({ err, role: input.agentRole }, 'Lead synthesis failed; skipping');
   } finally {
     await fastify.redis
       .publish(CHAT_CHANNEL, JSON.stringify({ type: 'lead-status', status: 'idle' }))
-      .catch(() => {})
+      .catch(() => {});
   }
 }
 
@@ -147,56 +157,61 @@ async function logTaskActivity(
   payload: Record<string, unknown>,
 ): Promise<void> {
   try {
-    await fastify.db.insert(taskActivities).values({ taskId, actorId: null, type, payload })
+    await fastify.db.insert(taskActivities).values({ taskId, actorId: null, type, payload });
     await fastify.redis.publish(
       TASKS_CHANNEL,
       JSON.stringify({ type: 'task.activity', taskId, activityType: type }),
-    )
+    );
   } catch (err) {
-    fastify.log.warn({ err, taskId, type }, 'Failed to log task activity')
+    fastify.log.warn({ err, taskId, type }, 'Failed to log task activity');
   }
 }
 
-async function dispatchNextWave(fastify: FastifyInstance, state: WaveState, waveIndex: number): Promise<string[]> {
-  const wave = state.waves[waveIndex]
-  if (!wave) return []
+async function dispatchNextWave(
+  fastify: FastifyInstance,
+  state: WaveState,
+  waveIndex: number,
+): Promise<string[]> {
+  const wave = state.waves[waveIndex];
+  if (!wave) return [];
 
-  let projectPaths: Record<string, string> = {}
+  let projectPaths: Record<string, string> = {};
   if (state.projectId) {
     const [proj] = await fastify.db
       .select()
       .from(projects)
       .where(eq(projects.id, state.projectId))
-      .limit(1)
-    if (proj) projectPaths = (proj.paths as Record<string, string>) ?? {}
+      .limit(1);
+    if (proj) projectPaths = (proj.paths as Record<string, string>) ?? {};
   }
 
   // Inject previous wave summaries so agents have artifact context
   const prevSummary = state.completedSessions
     .map((s) => `[${s.role}] ${s.success ? '✓' : '✗'}: ${s.summary}`)
-    .join('\n')
+    .join('\n');
   const waveSummaryBlock = prevSummary
     ? `\n\n## ผลงานจาก Wave ก่อนหน้า\n${prevSummary}\n\n## คำสั่งปัจจุบัน`
-    : ''
+    : '';
 
-  const imageBlock = state.imagePaths.length > 0
-    ? `\n\n## Attached images\n${state.imagePaths.map((p) => `- ${p}`).join('\n')}`
-    : ''
+  const imageBlock =
+    state.imagePaths.length > 0
+      ? `\n\n## Attached images\n${state.imagePaths.map((p) => `- ${p}`).join('\n')}`
+      : '';
 
-  const projectCtxBlock = await buildContextBlock(state.projectId, fastify)
-  const gitInstructions = buildGitInstructions(state.baseBranch, state.branchSuffix)
-  const fullPrompt = `${projectCtxBlock ? projectCtxBlock + '\n\n' : ''}${waveSummaryBlock}\n${state.taskDescription}${imageBlock}${gitInstructions}`
+  const projectCtxBlock = await buildContextBlock(state.projectId, fastify);
+  const gitInstructions = buildGitInstructions(state.baseBranch, state.branchSuffix);
+  const fullPrompt = `${projectCtxBlock ? projectCtxBlock + '\n\n' : ''}${waveSummaryBlock}\n${state.taskDescription}${imageBlock}${gitInstructions}`;
 
-  const pendingSessions: string[] = []
+  const pendingSessions: string[] = [];
 
   for (const r of wave.roles) {
-    const role = await findRoleBySlug(fastify, r.slug)
+    const role = await findRoleBySlug(fastify, r.slug);
     if (!role) {
-      fastify.log.warn({ slug: r.slug }, 'dispatchNextWave: skipping unknown role')
-      continue
+      fastify.log.warn({ slug: r.slug }, 'dispatchNextWave: skipping unknown role');
+      continue;
     }
 
-    const agentWorkingDir = projectPaths[r.slug] ?? Object.values(projectPaths)[0] ?? '/tmp'
+    const agentWorkingDir = projectPaths[r.slug] ?? Object.values(projectPaths)[0] ?? '/tmp';
 
     const [task] = await fastify.db
       .insert(tasks)
@@ -207,31 +222,41 @@ async function dispatchNextWave(fastify: FastifyInstance, state: WaveState, wave
         agentRole: r.slug,
         projectId: state.projectId ?? null,
       })
-      .returning()
+      .returning();
 
     if (task?.id) {
       await fastify.redis.publish(
         TASKS_CHANNEL,
-        JSON.stringify({ type: 'task.created', taskId: task.id, projectId: state.projectId ?? null }),
-      )
+        JSON.stringify({
+          type: 'task.created',
+          taskId: task.id,
+          projectId: state.projectId ?? null,
+        }),
+      );
     }
 
-    const result = await dispatchAgent(r.slug, agentWorkingDir, fullPrompt, {
-      projectId: state.projectId ?? null,
-      taskId: task?.id ?? null,
-      createdBy: state.createdBy,
-    }, role?.systemPrompt ?? undefined)
+    const result = await dispatchAgent(
+      r.slug,
+      agentWorkingDir,
+      fullPrompt,
+      {
+        projectId: state.projectId ?? null,
+        taskId: task?.id ?? null,
+        createdBy: state.createdBy,
+      },
+      role?.systemPrompt ?? undefined,
+    );
 
     if (!result.id && task?.id) {
       await fastify.db
         .update(tasks)
         .set({ stage: 'backlog', status: 'blocked', updatedAt: new Date() })
-        .where(eq(tasks.id, task.id))
+        .where(eq(tasks.id, task.id));
     }
 
     if (result.id) {
-      pendingSessions.push(result.id)
-      await indexSession(fastify.redis, result.id, state.proposalId)
+      pendingSessions.push(result.id);
+      await indexSession(fastify.redis, result.id, state.proposalId);
     }
 
     await pushChatMessage(fastify, {
@@ -242,82 +267,89 @@ async function dispatchNextWave(fastify: FastifyInstance, state: WaveState, wave
         : `[${r.slug}] ไม่สามารถเริ่ม session ได้ — ${result.error ?? 'orchestrator ไม่ตอบ'}`,
       timestamp: Date.now(),
       meta: { agentRole: r.slug, sessionId: result.id ?? undefined },
-    })
+    });
   }
 
-  return pendingSessions
+  return pendingSessions;
 }
 
 export async function internalRoutes(fastify: FastifyInstance) {
   fastify.post('/internal/agent-complete', async (request, reply) => {
-    const secret = request.headers['x-internal-secret']
+    const secret = request.headers['x-internal-secret'];
     if (secret !== env.INTERNAL_SECRET) {
-      return reply.status(401).send({ error: 'Unauthorized' })
+      return reply.status(401).send({ error: 'Unauthorized' });
     }
 
-    const body = bodySchema.parse(request.body)
+    const body = bodySchema.parse(request.body);
 
     // ── Quality Gate reviewer completion ──────────────────────────────────────
     // Check if this session belongs to a QG reviewer BEFORE any regular logic.
     // Reviewer sessions have taskId: null so the task-update block below is a
     // no-op for them, but we return early to avoid synthesis.
     try {
-      const qgTaskId = await lookupQgSession(fastify.redis, body.sessionId)
+      const qgTaskId = await lookupQgSession(fastify.redis, body.sessionId);
       if (qgTaskId) {
-        await removeQgSessionIndex(fastify.redis, body.sessionId)
-        const qgState = await getQgState(fastify.redis, qgTaskId)
+        await removeQgSessionIndex(fastify.redis, body.sessionId);
+        const qgState = await getQgState(fastify.redis, qgTaskId);
         if (qgState) {
-          const verdict = parseVerdictJson(body.outputLog)
+          const verdict = parseVerdictJson(body.outputLog);
 
           if (verdict?.verdict === 'pass') {
             // ── Pass ──────────────────────────────────────────────────────────
             await fastify.db
               .update(tasks)
               .set({ stage: 'done', updatedAt: new Date() })
-              .where(eq(tasks.id, qgTaskId))
+              .where(eq(tasks.id, qgTaskId));
             await fastify.redis.publish(
               TASKS_CHANNEL,
-              JSON.stringify({ type: 'task.stage', taskId: qgTaskId, stage: 'done', projectId: qgState.projectId }),
-            )
+              JSON.stringify({
+                type: 'task.stage',
+                taskId: qgTaskId,
+                stage: 'done',
+                projectId: qgState.projectId,
+              }),
+            );
             await logTaskActivity(fastify, qgTaskId, 'quality_gate.passed', {
               attempt: qgState.attempt,
               issueCount: verdict.issues.length,
-            })
+            });
             await pushChatMessage(fastify, {
               id: crypto.randomUUID(),
               role: 'lead' as const,
               content: verdict.message,
               timestamp: Date.now(),
-            })
-            await deleteQgState(fastify.redis, qgTaskId)
+            });
+            await deleteQgState(fastify.redis, qgTaskId);
           } else if (verdict?.verdict === 'block') {
             // ── Block ─────────────────────────────────────────────────────────
             await logTaskActivity(fastify, qgTaskId, 'quality_gate.blocked', {
               attempt: qgState.attempt,
               issues: verdict.issues,
-            })
+            });
             await pushChatMessage(fastify, {
               id: crypto.randomUUID(),
               role: 'lead' as const,
               content: verdict.message,
               timestamp: Date.now(),
-            })
+            });
 
             if (qgState.attempt < 2 && verdict.fixRoles.length > 0) {
               // Dispatch fix agents as a new single-wave WaveState
-              const newBranchSuffix = Date.now().toString(36)
-              const newProposalId = crypto.randomUUID()
+              const newBranchSuffix = Date.now().toString(36);
+              const newProposalId = crypto.randomUUID();
               const issueLines = verdict.issues
                 .map((i) => `- [${i.severity}] ${i.description}`)
-                .join('\n')
-              const fixDescription = `${qgState.taskDescription}\n\n## Issues to Fix (from Quality Gate):\n${issueLines}`
+                .join('\n');
+              const fixDescription = `${qgState.taskDescription}\n\n## Issues to Fix (from Quality Gate):\n${issueLines}`;
 
               const fixWaveState: WaveState = {
                 proposalId: newProposalId,
-                waves: [{
-                  roles: verdict.fixRoles.map((r) => ({ slug: r.slug, reason: r.brief })),
-                  brief: 'Fix issues found by quality gate review',
-                }],
+                waves: [
+                  {
+                    roles: verdict.fixRoles.map((r) => ({ slug: r.slug, reason: r.brief })),
+                    brief: 'Fix issues found by quality gate review',
+                  },
+                ],
                 currentWave: 0,
                 taskTitle: qgState.taskTitle,
                 taskDescription: fixDescription,
@@ -329,95 +361,105 @@ export async function internalRoutes(fastify: FastifyInstance) {
                 pendingSessions: [],
                 completedSessions: [],
                 rootTaskId: qgTaskId,
-              }
+              };
 
-              const pendingFixSessions: string[] = []
+              const pendingFixSessions: string[] = [];
               for (const r of verdict.fixRoles) {
-                const roleObj = await findRoleBySlug(fastify, r.slug)
+                const roleObj = await findRoleBySlug(fastify, r.slug);
                 if (!roleObj) {
-                  fastify.log.warn({ slug: r.slug }, 'QG block: skipping unknown fix role')
-                  continue
+                  fastify.log.warn({ slug: r.slug }, 'QG block: skipping unknown fix role');
+                  continue;
                 }
                 const workingDir =
-                  qgState.projectPaths[r.slug] ??
-                  Object.values(qgState.projectPaths)[0] ??
-                  '/tmp'
-                const fixPrompt = `${fixDescription}\n${buildGitInstructions(qgState.baseBranch, newBranchSuffix)}`
+                  qgState.projectPaths[r.slug] ?? Object.values(qgState.projectPaths)[0] ?? '/tmp';
+                const fixPrompt = `${fixDescription}\n${buildGitInstructions(qgState.baseBranch, newBranchSuffix)}`;
                 const result = await dispatchAgent(
                   r.slug,
                   workingDir,
                   fixPrompt,
                   { projectId: qgState.projectId, taskId: null, createdBy: qgState.createdBy },
                   roleObj.systemPrompt ?? undefined,
-                )
+                );
                 if (result.id) {
-                  pendingFixSessions.push(result.id)
-                  await indexSession(fastify.redis, result.id, newProposalId)
+                  pendingFixSessions.push(result.id);
+                  await indexSession(fastify.redis, result.id, newProposalId);
                   await pushChatMessage(fastify, {
                     id: crypto.randomUUID(),
                     role: 'agent' as const,
                     content: `[${r.slug}] Fix agent เริ่มทำงานแล้ว (session ${result.id.slice(0, 8)})`,
                     timestamp: Date.now(),
                     meta: { agentRole: r.slug, sessionId: result.id },
-                  })
+                  });
                 }
               }
 
               if (pendingFixSessions.length > 0) {
-                fixWaveState.pendingSessions = pendingFixSessions
-                await saveWaveState(fastify.redis, fixWaveState)
+                fixWaveState.pendingSessions = pendingFixSessions;
+                await saveWaveState(fastify.redis, fixWaveState);
                 // Increment attempt in QG state (reviewer will read this on next trigger)
-                await saveQgState(fastify.redis, { ...qgState, attempt: qgState.attempt + 1 })
+                await saveQgState(fastify.redis, { ...qgState, attempt: qgState.attempt + 1 });
               } else {
                 // No fix agents dispatched — escalate immediately
                 await logTaskActivity(fastify, qgTaskId, 'quality_gate.escalated', {
                   attempt: qgState.attempt,
                   reason: 'no_fix_agents_dispatched',
-                })
+                });
                 await pushChatMessage(fastify, {
                   id: crypto.randomUUID(),
                   role: 'lead' as const,
-                  content: 'Quality gate blocked แต่ไม่สามารถ dispatch fix agents ได้ — กรุณาแก้ไขด้วยตนเอง',
+                  content:
+                    'Quality gate blocked แต่ไม่สามารถ dispatch fix agents ได้ — กรุณาแก้ไขด้วยตนเอง',
                   timestamp: Date.now(),
-                })
-                await deleteQgState(fastify.redis, qgTaskId)
+                });
+                await deleteQgState(fastify.redis, qgTaskId);
               }
             } else {
               // Max attempts reached — escalate to user
               await logTaskActivity(fastify, qgTaskId, 'quality_gate.escalated', {
                 attempt: qgState.attempt,
                 reason: 'max_attempts_reached',
-              })
+              });
               await pushChatMessage(fastify, {
                 id: crypto.randomUUID(),
                 role: 'lead' as const,
                 content: `Quality gate ล้มเหลวหลัง ${qgState.attempt + 1} ครั้ง — กรุณาแก้ไขปัญหาด้วยตนเองแล้วแจ้งกลับมา`,
                 timestamp: Date.now(),
-              })
-              await deleteQgState(fastify.redis, qgTaskId)
+              });
+              await deleteQgState(fastify.redis, qgTaskId);
             }
           } else {
             // No valid verdict_json — log warning, treat as passed to avoid infinite loop
-            fastify.log.warn({ sessionId: body.sessionId, qgTaskId }, 'QG reviewer returned no valid verdict_json — treating as pass')
+            fastify.log.warn(
+              { sessionId: body.sessionId, qgTaskId },
+              'QG reviewer returned no valid verdict_json — treating as pass',
+            );
             await fastify.db
               .update(tasks)
               .set({ stage: 'done', updatedAt: new Date() })
-              .where(eq(tasks.id, qgTaskId))
+              .where(eq(tasks.id, qgTaskId));
             await fastify.redis.publish(
               TASKS_CHANNEL,
-              JSON.stringify({ type: 'task.stage', taskId: qgTaskId, stage: 'done', projectId: qgState.projectId }),
-            )
-            await deleteQgState(fastify.redis, qgTaskId)
+              JSON.stringify({
+                type: 'task.stage',
+                taskId: qgTaskId,
+                stage: 'done',
+                projectId: qgState.projectId,
+              }),
+            );
+            await deleteQgState(fastify.redis, qgTaskId);
           }
         }
-        return reply.status(200).send({ ok: true })
+        return reply.status(200).send({ ok: true });
       }
     } catch (err) {
-      fastify.log.warn({ err, sessionId: body.sessionId }, 'Quality gate reviewer handler failed — continuing as regular agent')
+      fastify.log.warn(
+        { err, sessionId: body.sessionId },
+        'Quality gate reviewer handler failed — continuing as regular agent',
+      );
     }
     // ── End Quality Gate reviewer check ──────────────────────────────────────
 
-    const { taskId, role, success, outputLog, projectId } = body
+    const { taskId, role, success, outputLog, projectId } = body;
 
     // Update agent_sessions status immediately (fire-and-forget)
     fastify.db
@@ -425,32 +467,38 @@ export async function internalRoutes(fastify: FastifyInstance) {
       .set({
         status: success ? 'completed' : 'errored',
         endedAt: new Date(),
-        ...(success ? {} : { error: buildSummary(outputLog).slice(0, 500) || 'Agent reported failure' }),
+        ...(success
+          ? {}
+          : { error: buildSummary(outputLog).slice(0, 500) || 'Agent reported failure' }),
       })
       .where(eq(agentSessions.id, body.sessionId))
-      .catch((err: unknown) => fastify.log.warn({ err, sessionId: body.sessionId }, 'Failed to update session status'))
+      .catch((err: unknown) =>
+        fastify.log.warn({ err, sessionId: body.sessionId }, 'Failed to update session status'),
+      );
 
-    const prUrl = extractPrUrl(outputLog)
-    const summary = buildSummary(outputLog)
+    const prUrl = extractPrUrl(outputLog);
+    const summary = buildSummary(outputLog);
 
     // Persist outcome for future context injection (fire-and-forget)
     if (projectId) {
       fastify.db
         .insert(agentOutcomes)
         .values({ projectId, role, summary, prUrl: prUrl ?? null })
-        .catch((err: unknown) => fastify.log.warn({ err, projectId, role }, 'Failed to insert agentOutcomes'))
+        .catch((err: unknown) =>
+          fastify.log.warn({ err, projectId, role }, 'Failed to insert agentOutcomes'),
+        );
     }
 
     // When success + prUrl, QG controls the final "done" transition — keep in_progress
     // On failure, return to backlog so the subtask can be retried
-    const stage = success ? (prUrl ? 'in_progress' : 'done') : 'backlog'
+    const stage = success ? (prUrl ? 'in_progress' : 'done') : 'backlog';
 
     // 1. Update task stage + save output as comment
     if (taskId) {
       await fastify.db
         .update(tasks)
         .set({ stage, githubPrUrl: prUrl ?? null, updatedAt: new Date() })
-        .where(eq(tasks.id, taskId))
+        .where(eq(tasks.id, taskId));
 
       const commentBody = [
         `**Agent [${role}] ${success ? 'เสร็จแล้ว ✓' : 'มีข้อผิดพลาด ✕'}**`,
@@ -461,19 +509,24 @@ export async function internalRoutes(fastify: FastifyInstance) {
         '```',
         outputLog.split('\n').slice(-50).join('\n'),
         '```',
-      ].filter(l => l !== undefined).join('\n')
+      ]
+        .filter((l) => l !== undefined)
+        .join('\n');
 
       await fastify.db.insert(taskComments).values({
         taskId,
         body: commentBody,
         source: 'agent',
         authorId: null,
-      })
+      });
 
-      await fastify.redis.publish(TASKS_CHANNEL, JSON.stringify({ type: 'task.stage', taskId, stage, projectId }))
+      await fastify.redis.publish(
+        TASKS_CHANNEL,
+        JSON.stringify({ type: 'task.stage', taskId, stage, projectId }),
+      );
 
       // 2. Load task for wave check and parent completion
-      const [task] = await fastify.db.select().from(tasks).where(eq(tasks.id, taskId)).limit(1)
+      const [task] = await fastify.db.select().from(tasks).where(eq(tasks.id, taskId)).limit(1);
 
       // Mirror condensed summary to parent task so Task Complete CTA can aggregate issues
       if (task?.parentTaskId && summary) {
@@ -482,68 +535,80 @@ export async function internalRoutes(fastify: FastifyInstance) {
           '',
           `**สรุป:** ${summary}`,
           prUrl ? `**PR:** ${prUrl}` : '',
-        ].filter(Boolean).join('\n')
-        fastify.db.insert(taskComments).values({
-          taskId: task.parentTaskId,
-          body: parentCommentBody,
-          source: 'agent',
-          authorId: null,
-        }).catch((err: unknown) => fastify.log.warn({ err }, 'Failed to mirror summary to parent task'))
+        ]
+          .filter(Boolean)
+          .join('\n');
+        fastify.db
+          .insert(taskComments)
+          .values({
+            taskId: task.parentTaskId,
+            body: parentCommentBody,
+            source: 'agent',
+            authorId: null,
+          })
+          .catch((err: unknown) =>
+            fastify.log.warn({ err }, 'Failed to mirror summary to parent task'),
+          );
       }
 
       // 2a. Next-wave dispatch for approve→start workflow
       if (task?.parentTaskId && success) {
-        const completingWave = (task as any).wave ?? 1
+        const completingWave = (task as any).wave ?? 1;
 
         const [{ pendingInWave }] = await fastify.db
           .select({ pendingInWave: count() })
           .from(tasks)
-          .where(and(
-            eq(tasks.parentTaskId, task.parentTaskId),
-            eq(tasks.wave, completingWave),
-            ne(tasks.stage, 'done'),
-            ne(tasks.id, taskId),
-          ))
+          .where(
+            and(
+              eq(tasks.parentTaskId, task.parentTaskId),
+              eq(tasks.wave, completingWave),
+              ne(tasks.stage, 'done'),
+              ne(tasks.id, taskId),
+            ),
+          );
 
         if (Number(pendingInWave) === 0) {
           const nextWaveSubtasks = await fastify.db
             .select()
             .from(tasks)
-            .where(and(
-              eq(tasks.parentTaskId, task.parentTaskId),
-              eq(tasks.wave, completingWave + 1),
-              eq(tasks.stage, 'backlog'),
-            ))
+            .where(
+              and(
+                eq(tasks.parentTaskId, task.parentTaskId),
+                eq(tasks.wave, completingWave + 1),
+                eq(tasks.stage, 'backlog'),
+              ),
+            );
 
           if (nextWaveSubtasks.length > 0) {
-            const ctxRaw = await fastify.redis.get(`subtask-wave-ctx:${task.parentTaskId}`)
+            const ctxRaw = await fastify.redis.get(`subtask-wave-ctx:${task.parentTaskId}`);
             if (ctxRaw) {
               try {
                 const ctx = JSON.parse(ctxRaw) as {
-                  executionMode: string
-                  branchSuffix: string
-                  baseBranch: string
-                  projectId: string | null
-                  repoUrl: string | null
-                  projectPaths: Record<string, string>
-                  parentTaskTitle: string
-                  parentTaskDescription: string
-                  projectCtxBlock: string
-                  userId?: string
-                  cliProvider?: string | null
-                }
-                const gitInstructions = buildGitInstructions(ctx.baseBranch, ctx.branchSuffix)
+                  executionMode: string;
+                  branchSuffix: string;
+                  baseBranch: string;
+                  projectId: string | null;
+                  repoUrl: string | null;
+                  projectPaths: Record<string, string>;
+                  parentTaskTitle: string;
+                  parentTaskDescription: string;
+                  projectCtxBlock: string;
+                  userId?: string;
+                  cliProvider?: string | null;
+                };
+                const gitInstructions = buildGitInstructions(ctx.baseBranch, ctx.branchSuffix);
 
                 for (const subtask of nextWaveSubtasks) {
-                  const role = subtask.agentRole ?? 'reviewer'
-                  let agentWorkingDir: string
-                  let repoUrl: string | undefined
+                  const role = subtask.agentRole ?? 'reviewer';
+                  let agentWorkingDir: string;
+                  let repoUrl: string | undefined;
                   if (ctx.repoUrl) {
-                    const repoName = ctx.repoUrl.split('/').pop()?.replace('.git', '') ?? 'repo'
-                    agentWorkingDir = `${env.REPOS_BASE_DIR}/${ctx.projectId}/${repoName}`
-                    repoUrl = ctx.repoUrl
+                    const repoName = ctx.repoUrl.split('/').pop()?.replace('.git', '') ?? 'repo';
+                    agentWorkingDir = `${env.REPOS_BASE_DIR}/${ctx.projectId}/${repoName}`;
+                    repoUrl = ctx.repoUrl;
                   } else {
-                    agentWorkingDir = ctx.projectPaths[role] ?? Object.values(ctx.projectPaths)[0] ?? '/tmp'
+                    agentWorkingDir =
+                      ctx.projectPaths[role] ?? Object.values(ctx.projectPaths)[0] ?? '/tmp';
                   }
 
                   const fullPrompt = [
@@ -556,33 +621,64 @@ export async function internalRoutes(fastify: FastifyInstance) {
                     subtask.title,
                     subtask.description ?? '',
                     gitInstructions,
-                  ].filter(Boolean).join('\n')
+                  ]
+                    .filter(Boolean)
+                    .join('\n');
 
-                  const result = await dispatchAgent(role, agentWorkingDir, fullPrompt, {
-                    projectId: ctx.projectId,
-                    taskId: subtask.id,
-                    createdBy: ctx.userId ?? 'system',
-                    executionMode: ctx.executionMode as 'cloud' | 'local',
-                    userId: ctx.userId,
-                    cliProvider: ctx.cliProvider ?? undefined,
-                    db: fastify.db,
-                  }, undefined, repoUrl)
+                  const result = await dispatchAgent(
+                    role,
+                    agentWorkingDir,
+                    fullPrompt,
+                    {
+                      projectId: ctx.projectId,
+                      taskId: subtask.id,
+                      createdBy: ctx.userId ?? 'system',
+                      executionMode: ctx.executionMode as 'cloud' | 'local',
+                      userId: ctx.userId,
+                      cliProvider: ctx.cliProvider ?? undefined,
+                      db: fastify.db,
+                    },
+                    undefined,
+                    repoUrl,
+                  );
 
                   if (result.id) {
-                    await fastify.db.update(tasks).set({ stage: 'in_progress', updatedAt: new Date() }).where(eq(tasks.id, subtask.id))
-                    await fastify.redis.publish(TASKS_CHANNEL, JSON.stringify({ type: 'task.stage', taskId: subtask.id, stage: 'in_progress', projectId: ctx.projectId }))
-                    fastify.log.info({ subtaskId: subtask.id, wave: completingWave + 1 }, 'Next wave subtask dispatched')
+                    await fastify.db
+                      .update(tasks)
+                      .set({ stage: 'in_progress', updatedAt: new Date() })
+                      .where(eq(tasks.id, subtask.id));
+                    await fastify.redis.publish(
+                      TASKS_CHANNEL,
+                      JSON.stringify({
+                        type: 'task.stage',
+                        taskId: subtask.id,
+                        stage: 'in_progress',
+                        projectId: ctx.projectId,
+                      }),
+                    );
+                    fastify.log.info(
+                      { subtaskId: subtask.id, wave: completingWave + 1 },
+                      'Next wave subtask dispatched',
+                    );
                   } else {
-                    fastify.log.warn({ subtaskId: subtask.id, wave: completingWave + 1, error: result.error }, 'Next wave subtask dispatch failed')
+                    fastify.log.warn(
+                      { subtaskId: subtask.id, wave: completingWave + 1, error: result.error },
+                      'Next wave subtask dispatch failed',
+                    );
                   }
                 }
 
                 await fastify.redis.publish(
                   TASKS_CHANNEL,
-                  JSON.stringify({ type: 'task.wave.advanced', taskId: task.parentTaskId, wave: completingWave + 1, projectId }),
-                )
+                  JSON.stringify({
+                    type: 'task.wave.advanced',
+                    taskId: task.parentTaskId,
+                    wave: completingWave + 1,
+                    projectId,
+                  }),
+                );
               } catch (err) {
-                fastify.log.warn({ err }, 'Next-wave dispatch failed')
+                fastify.log.warn({ err }, 'Next-wave dispatch failed');
               }
             }
           }
@@ -599,20 +695,28 @@ export async function internalRoutes(fastify: FastifyInstance) {
               eq(tasks.parentTaskId, task.parentTaskId),
               ne(tasks.stage, 'done'),
               ne(tasks.id, taskId),
-            )
-          )
+            ),
+          );
         if (Number(pendingCount) === 0) {
           await fastify.db
             .update(tasks)
             .set({ stage: 'done', updatedAt: new Date() })
-            .where(eq(tasks.id, task.parentTaskId))
-          await fastify.redis.publish(TASKS_CHANNEL, JSON.stringify({ type: 'task.stage', taskId: task.parentTaskId, stage: 'done', projectId }))
+            .where(eq(tasks.id, task.parentTaskId));
+          await fastify.redis.publish(
+            TASKS_CHANNEL,
+            JSON.stringify({
+              type: 'task.stage',
+              taskId: task.parentTaskId,
+              stage: 'done',
+              projectId,
+            }),
+          );
         }
       }
     }
 
     // 3. Push completion message to Lead chat
-    const statusIcon = success ? '✓' : '✕'
+    const statusIcon = success ? '✓' : '✕';
     const chatMsg = {
       id: crypto.randomUUID(),
       role: 'agent' as const,
@@ -620,26 +724,28 @@ export async function internalRoutes(fastify: FastifyInstance) {
         `[${role}] ${statusIcon} ${success ? 'เสร็จแล้ว' : 'มีข้อผิดพลาด'}`,
         summary ? `สรุป: ${summary}` : '',
         prUrl ? `PR: ${prUrl}` : '',
-      ].filter(Boolean).join('\n'),
+      ]
+        .filter(Boolean)
+        .join('\n'),
       timestamp: Date.now(),
       meta: {
         agentRole: role,
         prUrl: prUrl ?? undefined,
         success,
       },
-    }
+    };
 
-    await pushChatMessage(fastify, chatMsg)
+    await pushChatMessage(fastify, chatMsg);
 
     // Wave progression — if this session belongs to a wave, handle the wave logic.
     // Otherwise fall through to the normal single-agent synthesis.
-    let handledByWave = false
+    let handledByWave = false;
     try {
-      const proposalId = await lookupSessionProposal(fastify.redis, body.sessionId)
+      const proposalId = await lookupSessionProposal(fastify.redis, body.sessionId);
       if (proposalId) {
-        handledByWave = true
-        await removeSessionIndex(fastify.redis, body.sessionId)
-        const state = await getWaveState(fastify.redis, proposalId)
+        handledByWave = true;
+        await removeSessionIndex(fastify.redis, body.sessionId);
+        const state = await getWaveState(fastify.redis, proposalId);
         if (state) {
           state.completedSessions.push({
             sessionId: body.sessionId,
@@ -647,49 +753,51 @@ export async function internalRoutes(fastify: FastifyInstance) {
             success,
             summary,
             exitCode: body.exitCode ?? null,
-          })
-          state.pendingSessions = state.pendingSessions.filter((id) => id !== body.sessionId)
+          });
+          state.pendingSessions = state.pendingSessions.filter((id) => id !== body.sessionId);
 
           if (state.pendingSessions.length > 0) {
             // Still waiting for other agents in this wave — just persist updated state
-            await updateWaveState(fastify.redis, state)
+            await updateWaveState(fastify.redis, state);
           } else {
             // All agents in current wave done — evaluate
-            const hasNextWave = state.currentWave + 1 < state.waves.length
-            const evalResult = await runWaveEvaluation(state)
+            const hasNextWave = state.currentWave + 1 < state.waves.length;
+            const evalResult = await runWaveEvaluation(state);
 
             // Log wave.completed for root task (if any)
             if (state.rootTaskId) {
-              const waveSuccess = state.completedSessions.every((s) => s.success)
-              const waveSummary = state.completedSessions.map((s) => `[${s.role}] ${s.summary}`).join('; ')
+              const waveSuccess = state.completedSessions.every((s) => s.success);
+              const waveSummary = state.completedSessions
+                .map((s) => `[${s.role}] ${s.summary}`)
+                .join('; ');
               await logTaskActivity(fastify, state.rootTaskId, 'wave.completed', {
                 waveIndex: state.currentWave,
                 success: waveSuccess,
                 summary: waveSummary,
-              })
+              });
             }
 
             if (!hasNextWave) {
               // Final wave complete — attempt quality gate if any PRs were created
               const prUrls = state.completedSessions
                 .map((s) => s.summary.match(/https:\/\/github\.com\/[^\s]+\/pull\/\d+/)?.[0])
-                .filter((u): u is string => Boolean(u))
+                .filter((u): u is string => Boolean(u));
 
-              let projectPaths: Record<string, string> = {}
+              let projectPaths: Record<string, string> = {};
               if (state.projectId) {
                 const [proj] = await fastify.db
                   .select()
                   .from(projects)
                   .where(eq(projects.id, state.projectId))
-                  .limit(1)
-                if (proj) projectPaths = (proj.paths as Record<string, string>) ?? {}
+                  .limit(1);
+                if (proj) projectPaths = (proj.paths as Record<string, string>) ?? {};
               }
 
               if (state.rootTaskId && prUrls.length > 0) {
                 // Hand off to Quality Gate — reviewer will move task to "done" on pass
                 await logTaskActivity(fastify, state.rootTaskId, 'wave.done', {
                   totalWaves: state.waves.length,
-                })
+                });
                 await triggerQualityGate(fastify, state.rootTaskId, prUrls, projectPaths, {
                   projectId: state.projectId,
                   baseBranch: state.baseBranch,
@@ -697,7 +805,7 @@ export async function internalRoutes(fastify: FastifyInstance) {
                   createdBy: state.createdBy,
                   taskTitle: state.taskTitle,
                   taskDescription: state.taskDescription,
-                })
+                });
               } else {
                 // No PRs or no rootTaskId — existing behavior
                 await pushChatMessage(fastify, {
@@ -705,14 +813,14 @@ export async function internalRoutes(fastify: FastifyInstance) {
                   role: 'lead' as const,
                   content: evalResult.message,
                   timestamp: Date.now(),
-                })
+                });
                 if (state.rootTaskId) {
                   await logTaskActivity(fastify, state.rootTaskId, 'wave.done', {
                     totalWaves: state.waves.length,
-                  })
+                  });
                 }
               }
-              await deleteWaveState(fastify.redis, proposalId)
+              await deleteWaveState(fastify.redis, proposalId);
             } else if (evalResult.ask) {
               // Lead unsure — surface to user, stop auto-progression
               await pushChatMessage(fastify, {
@@ -720,8 +828,8 @@ export async function internalRoutes(fastify: FastifyInstance) {
                 role: 'lead' as const,
                 content: evalResult.message,
                 timestamp: Date.now(),
-              })
-              await deleteWaveState(fastify.redis, proposalId)
+              });
+              await deleteWaveState(fastify.redis, proposalId);
             } else if (evalResult.proceed) {
               // Auto-proceed: push status message then dispatch next wave
               await pushChatMessage(fastify, {
@@ -729,22 +837,22 @@ export async function internalRoutes(fastify: FastifyInstance) {
                 role: 'lead' as const,
                 content: evalResult.message,
                 timestamp: Date.now(),
-              })
-              const nextWaveIndex = state.currentWave + 1
-              const newPending = await dispatchNextWave(fastify, state, nextWaveIndex)
-              state.currentWave = nextWaveIndex
-              state.pendingSessions = newPending
-              state.completedSessions = []   // fresh slate for next wave
+              });
+              const nextWaveIndex = state.currentWave + 1;
+              const newPending = await dispatchNextWave(fastify, state, nextWaveIndex);
+              state.currentWave = nextWaveIndex;
+              state.pendingSessions = newPending;
+              state.completedSessions = []; // fresh slate for next wave
               if (state.rootTaskId) {
                 await logTaskActivity(fastify, state.rootTaskId, 'wave.dispatched', {
                   waveIndex: nextWaveIndex,
                   roles: state.waves[nextWaveIndex]?.roles.map((r) => r.slug) ?? [],
-                })
+                });
               }
               if (newPending.length > 0) {
-                await updateWaveState(fastify.redis, state)
+                await updateWaveState(fastify.redis, state);
               } else {
-                await deleteWaveState(fastify.redis, proposalId)
+                await deleteWaveState(fastify.redis, proposalId);
               }
             } else {
               // proceed: false, ask: false — treat as done
@@ -753,15 +861,18 @@ export async function internalRoutes(fastify: FastifyInstance) {
                 role: 'lead' as const,
                 content: evalResult.message,
                 timestamp: Date.now(),
-              })
-              await deleteWaveState(fastify.redis, proposalId)
+              });
+              await deleteWaveState(fastify.redis, proposalId);
             }
           }
         }
       }
     } catch (err) {
-      fastify.log.warn({ err, sessionId: body.sessionId }, 'Wave progression failed — falling through to synthesis')
-      handledByWave = false
+      fastify.log.warn(
+        { err, sessionId: body.sessionId },
+        'Wave progression failed — falling through to synthesis',
+      );
+      handledByWave = false;
     }
 
     // Single-agent completion — trigger QG if PR was created, otherwise synthesize
@@ -774,20 +885,20 @@ export async function internalRoutes(fastify: FastifyInstance) {
               .select()
               .from(tasks)
               .where(eq(tasks.id, taskId))
-              .limit(1)
-            if (!task) return
+              .limit(1);
+            if (!task) return;
 
-            let projectPaths: Record<string, string> = {}
-            let baseBranch = 'main'
+            let projectPaths: Record<string, string> = {};
+            let baseBranch = 'main';
             if (task.projectId) {
               const [proj] = await fastify.db
                 .select()
                 .from(projects)
                 .where(eq(projects.id, task.projectId))
-                .limit(1)
+                .limit(1);
               if (proj) {
-                projectPaths = (proj.paths as Record<string, string>) ?? {}
-                baseBranch = proj.baseBranch ?? 'main'
+                projectPaths = (proj.paths as Record<string, string>) ?? {};
+                baseBranch = proj.baseBranch ?? 'main';
               }
             }
 
@@ -798,21 +909,21 @@ export async function internalRoutes(fastify: FastifyInstance) {
               createdBy: 'system',
               taskTitle: task.title ?? '',
               taskDescription: task.description ?? '',
-            })
+            });
           } catch (err) {
-            fastify.log.warn({ err, taskId }, 'Single-agent QG trigger failed — skipping')
+            fastify.log.warn({ err, taskId }, 'Single-agent QG trigger failed — skipping');
           }
-        })()
+        })();
       } else {
         void synthesizeAfterCompletion(fastify, {
           agentRole: role,
           success,
           summary,
           prUrl,
-        })
+        });
       }
     }
 
-    return reply.status(200).send({ ok: true })
-  })
+    return reply.status(200).send({ ok: true });
+  });
 }

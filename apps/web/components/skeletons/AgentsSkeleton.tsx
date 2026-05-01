@@ -1,4 +1,4 @@
-import { Skeleton } from '@/components/ui/Skeleton'
+import { Skeleton } from '@/components/ui/Skeleton';
 
 function AgentCardSkeleton() {
   return (
@@ -21,7 +21,7 @@ function AgentCardSkeleton() {
         ))}
       </div>
     </div>
-  )
+  );
 }
 
 function HistoryRowSkeleton() {
@@ -34,21 +34,25 @@ function HistoryRowSkeleton() {
       <Skeleton width={36} height={12} />
       <Skeleton width={48} height={12} />
     </div>
-  )
+  );
 }
 
 export function AgentsSkeleton({ cards = 8, rows = 5 }: { cards?: number; rows?: number }) {
   return (
     <div role="status" aria-label="Loading agents">
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-        {Array.from({ length: cards }).map((_, i) => <AgentCardSkeleton key={i} />)}
+        {Array.from({ length: cards }).map((_, i) => (
+          <AgentCardSkeleton key={i} />
+        ))}
       </div>
       <div className="mt-8">
         <Skeleton width={130} height={11} className="mb-3" />
         <div className="flex flex-col gap-1.5">
-          {Array.from({ length: rows }).map((_, i) => <HistoryRowSkeleton key={i} />)}
+          {Array.from({ length: rows }).map((_, i) => (
+            <HistoryRowSkeleton key={i} />
+          ))}
         </div>
       </div>
     </div>
-  )
+  );
 }

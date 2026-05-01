@@ -6,22 +6,24 @@ Add a public landing page at `/` in the existing `apps/web` Next.js app that exp
 
 ## Decisions
 
-| Decision | Choice | Reason |
-|---|---|---|
-| Location | `/` route in `apps/web` | No new app/repo needed; auth redirect is natural here |
-| Language | English only | Open-source community audience |
-| Visual style | Dark gradient (purple → blue → green) | Modern developer tool aesthetic |
-| Animations | CSS-only (Tailwind + keyframes) | No new dependencies; keeps bundle light |
-| Sections | 6 (see below) | Balanced: tells the story without overwhelming |
+| Decision     | Choice                                | Reason                                                |
+| ------------ | ------------------------------------- | ----------------------------------------------------- |
+| Location     | `/` route in `apps/web`               | No new app/repo needed; auth redirect is natural here |
+| Language     | English only                          | Open-source community audience                        |
+| Visual style | Dark gradient (purple → blue → green) | Modern developer tool aesthetic                       |
+| Animations   | CSS-only (Tailwind + keyframes)       | No new dependencies; keeps bundle light               |
+| Sections     | 6 (see below)                         | Balanced: tells the story without overwhelming        |
 
 ## Page Structure
 
 ### 1. Nav (sticky)
+
 - Logo: pulsing purple dot + "MeshAgent"
 - Links: Features · How it works · Docs · GitHub
 - CTA button: "Login →" → links to `/login`
 
 ### 2. Hero
+
 - Badge: "Open Source · Self-hosted" (pulsing dot)
 - Headline: "Your AI dev team, unified & observable" (gradient on second line)
 - Subtext: one-liner about Claude/Gemini/Cursor + natural language dispatch
@@ -29,36 +31,42 @@ Add a public landing page at `/` in the existing `apps/web` Next.js app that exp
 - Agent node row: 7 colored pulsing dots (frontend, backend, mobile, devops, designer, qa, reviewer) — CSS animation only, staggered delay
 
 ### 3. What is MeshAgent
+
 - Section label + title: "A control center for AI development teams"
 - Two-column layout:
   - Left: 2 paragraphs explaining the concept
   - Right: architecture diagram (styled boxes + arrows) showing Browser → Next.js/Fastify → Orchestrator → claude/gemini/cursor → PostgreSQL/Redis/MinIO
 
 ### 4. Features (6 cards, 3-column grid)
-| Icon | Title | Description |
-|---|---|---|
-| 💬 | Lead Chat | Natural language → Lead AI proposes brief → agents execute |
-| 📋 | Kanban Board | Real-time Backlog → In Progress → Review → Done |
-| 📡 | Live Monitoring | WebSocket streaming of all agent output |
-| 🔄 | Automated Review Loop | Reviewer finds issues → subtasks auto-created |
-| 🐙 | GitHub Integration | Pull PRs/commits/issues; agents create PRs |
-| 📱 | PWA — Works Everywhere | Install on iOS/Android/desktop |
+
+| Icon | Title                  | Description                                                |
+| ---- | ---------------------- | ---------------------------------------------------------- |
+| 💬   | Lead Chat              | Natural language → Lead AI proposes brief → agents execute |
+| 📋   | Kanban Board           | Real-time Backlog → In Progress → Review → Done            |
+| 📡   | Live Monitoring        | WebSocket streaming of all agent output                    |
+| 🔄   | Automated Review Loop  | Reviewer finds issues → subtasks auto-created              |
+| 🐙   | GitHub Integration     | Pull PRs/commits/issues; agents create PRs                 |
+| 📱   | PWA — Works Everywhere | Install on iOS/Android/desktop                             |
 
 ### 5. How it works (4 steps, connected by gradient line)
+
 1. **Describe** — Type task in Lead Chat (natural language)
 2. **Dispatch** — Lead AI assigns to right agent roles
 3. **Monitor** — Watch Kanban board + live output stream
 4. **Ship** — Review output, approve PRs, merge
 
 ### 6. Tech Stack
+
 Pills row: Claude Code CLI · Gemini · Cursor Agent · Next.js 14 · Fastify · PostgreSQL · Redis · Docker · GitHub Webhooks
 
 ### 7. Footer CTA
+
 - Headline: "Ready to ship with your AI team?"
 - Subtext: "Self-hosted. Open-source. One command to deploy."
 - Buttons: "Login to dashboard →" + "★ Star on GitHub" + "Read the docs"
 
 ### 8. Footer bar
+
 - "MeshAgent is open-source software released under the MIT License."
 
 ## Routing Behavior
@@ -70,18 +78,18 @@ Pills row: Claude Code CLI · Gemini · Cursor Agent · Next.js 14 · Fastify ·
 
 ## Files to Create/Modify
 
-| File | Action | Notes |
-|---|---|---|
-| `apps/web/app/page.tsx` | Modify | Replace redirect-only with auth check + landing page render |
-| `apps/web/app/components/landing/` | Create dir | Keep landing components isolated |
-| `apps/web/app/components/landing/Nav.tsx` | Create | Sticky nav |
-| `apps/web/app/components/landing/Hero.tsx` | Create | Hero section with agent nodes |
-| `apps/web/app/components/landing/WhatIsIt.tsx` | Create | 2-col layout + arch diagram |
-| `apps/web/app/components/landing/Features.tsx` | Create | 6-card grid |
-| `apps/web/app/components/landing/HowItWorks.tsx` | Create | 4-step flow |
-| `apps/web/app/components/landing/TechStack.tsx` | Create | Pills + footer CTA combined |
-| `apps/web/app/components/landing/FooterCta.tsx` | Create | Bottom CTA section |
-| `apps/web/app/globals.css` | Modify | Add CSS keyframe animations (pulse, nodePulse) |
+| File                                             | Action     | Notes                                                       |
+| ------------------------------------------------ | ---------- | ----------------------------------------------------------- |
+| `apps/web/app/page.tsx`                          | Modify     | Replace redirect-only with auth check + landing page render |
+| `apps/web/app/components/landing/`               | Create dir | Keep landing components isolated                            |
+| `apps/web/app/components/landing/Nav.tsx`        | Create     | Sticky nav                                                  |
+| `apps/web/app/components/landing/Hero.tsx`       | Create     | Hero section with agent nodes                               |
+| `apps/web/app/components/landing/WhatIsIt.tsx`   | Create     | 2-col layout + arch diagram                                 |
+| `apps/web/app/components/landing/Features.tsx`   | Create     | 6-card grid                                                 |
+| `apps/web/app/components/landing/HowItWorks.tsx` | Create     | 4-step flow                                                 |
+| `apps/web/app/components/landing/TechStack.tsx`  | Create     | Pills + footer CTA combined                                 |
+| `apps/web/app/components/landing/FooterCta.tsx`  | Create     | Bottom CTA section                                          |
+| `apps/web/app/globals.css`                       | Modify     | Add CSS keyframe animations (pulse, nodePulse)              |
 
 ## Visual Spec
 
@@ -99,15 +107,15 @@ Pills row: Claude Code CLI · Gemini · Cursor Agent · Next.js 14 · Fastify ·
 ## Auth Logic in `page.tsx`
 
 ```tsx
-import { cookies } from 'next/headers'
-import { redirect } from 'next/navigation'
-import LandingPage from './components/landing/LandingPage'
+import { cookies } from 'next/headers';
+import { redirect } from 'next/navigation';
+import LandingPage from './components/landing/LandingPage';
 
 export default async function Home() {
-  const cookieStore = cookies()
-  const token = cookieStore.get('auth-token')
-  if (token) redirect('/overview')
-  return <LandingPage />
+  const cookieStore = cookies();
+  const token = cookieStore.get('auth-token');
+  if (token) redirect('/overview');
+  return <LandingPage />;
 }
 ```
 

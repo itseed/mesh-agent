@@ -1,4 +1,4 @@
-import { Skeleton } from '@/components/ui/Skeleton'
+import { Skeleton } from '@/components/ui/Skeleton';
 
 function ProviderRowSkeleton() {
   return (
@@ -10,7 +10,7 @@ function ProviderRowSkeleton() {
       </div>
       <Skeleton width={36} height={20} rounded="full" />
     </div>
-  )
+  );
 }
 
 export function SettingsSkeleton() {
@@ -46,5 +46,5 @@ export function SettingsSkeleton() {
         </div>
       </div>
     </div>
-  )
+  );
 }

@@ -25,15 +25,15 @@ Wave N complete (P2a internal.ts handler)
 
 ## Files
 
-| File | Action | Responsibility |
-|------|--------|----------------|
-| `apps/api/src/lib/wave-store.ts` | **Modify** | Add `rootTaskId?: string` to `WaveState` |
-| `apps/api/src/lib/lead-task.ts` | **Create** | `runLeadTask()` — task-driven Lead prompt (always outputs waves, no chat/clarify intent) |
-| `apps/api/src/routes/tasks.ts` | **Modify** | Add `POST /tasks/:id/start` endpoint |
-| `apps/api/src/routes/internal.ts` | **Modify** | Log `taskActivities` entries on wave events |
-| `apps/web/lib/api.ts` | **Modify** | Add `tasks.start(id)` |
-| `apps/web/components/kanban/TaskDetailPanel.tsx` | **Modify** | "Start with Lead" button in header |
-| `apps/web/components/kanban/TaskCard.tsx` | **Modify** | "▶" button on backlog cards |
+| File                                             | Action     | Responsibility                                                                           |
+| ------------------------------------------------ | ---------- | ---------------------------------------------------------------------------------------- |
+| `apps/api/src/lib/wave-store.ts`                 | **Modify** | Add `rootTaskId?: string` to `WaveState`                                                 |
+| `apps/api/src/lib/lead-task.ts`                  | **Create** | `runLeadTask()` — task-driven Lead prompt (always outputs waves, no chat/clarify intent) |
+| `apps/api/src/routes/tasks.ts`                   | **Modify** | Add `POST /tasks/:id/start` endpoint                                                     |
+| `apps/api/src/routes/internal.ts`                | **Modify** | Log `taskActivities` entries on wave events                                              |
+| `apps/web/lib/api.ts`                            | **Modify** | Add `tasks.start(id)`                                                                    |
+| `apps/web/components/kanban/TaskDetailPanel.tsx` | **Modify** | "Start with Lead" button in header                                                       |
+| `apps/web/components/kanban/TaskCard.tsx`        | **Modify** | "▶" button on backlog cards                                                              |
 
 ---
 
@@ -46,7 +46,7 @@ Add `rootTaskId` so internal.ts can log activity to the correct task:
 ```typescript
 export interface WaveState {
   // ... existing fields ...
-  rootTaskId?: string   // NEW — the task that triggered this wave run
+  rootTaskId?: string; // NEW — the task that triggered this wave run
 }
 ```
 
@@ -54,12 +54,12 @@ export interface WaveState {
 
 All use the existing `taskActivities` table (`type` is free text, `payload` is jsonb):
 
-| type | payload | when |
-|------|---------|------|
-| `lead.wave.planned` | `{ waveCount, waves: [{roles, brief}] }` | after Lead plans, before dispatch |
-| `wave.dispatched` | `{ waveIndex, roles: string[] }` | when a wave's agents start |
-| `wave.completed` | `{ waveIndex, success: boolean, summary: string }` | when a wave finishes |
-| `wave.done` | `{ totalWaves }` | after final wave completes |
+| type                | payload                                            | when                              |
+| ------------------- | -------------------------------------------------- | --------------------------------- |
+| `lead.wave.planned` | `{ waveCount, waves: [{roles, brief}] }`           | after Lead plans, before dispatch |
+| `wave.dispatched`   | `{ waveIndex, roles: string[] }`                   | when a wave's agents start        |
+| `wave.completed`    | `{ waveIndex, success: boolean, summary: string }` | when a wave finishes              |
+| `wave.done`         | `{ totalWaves }`                                   | after final wave completes        |
 
 ---
 
@@ -108,8 +108,8 @@ Reply in Thai if the task title is Thai, otherwise English.
 
 ```typescript
 interface LeadTaskResult {
-  waves: LeadWave[]
-  taskBrief: { title: string; description: string }
+  waves: LeadWave[];
+  taskBrief: { title: string; description: string };
 }
 ```
 

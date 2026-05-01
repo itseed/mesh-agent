@@ -1,8 +1,8 @@
-'use client'
-import { useState, useEffect, useRef, useCallback } from 'react'
-import { usePathname } from 'next/navigation'
-import { api, ApiError } from '@/lib/api'
-import { useChatStream } from '@/lib/ws'
+'use client';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { usePathname } from 'next/navigation';
+import { api, ApiError } from '@/lib/api';
+import { useChatStream } from '@/lib/ws';
 
 const ROLE_DOT: Record<string, string> = {
   frontend: '#22d3ee',
@@ -13,235 +13,273 @@ const ROLE_DOT: Record<string, string> = {
   qa: '#fb923c',
   reviewer: '#f87171',
   lead: '#facc15',
-}
+};
 
-type ProposalStatus = 'pending' | 'consumed' | 'cancelled' | 'expired'
+type ProposalStatus = 'pending' | 'consumed' | 'cancelled' | 'expired';
 
 interface ProposalView {
-  id: string
-  status: ProposalStatus
-  taskBrief: { title: string; description: string }
-  roles: { slug: string; reason?: string }[]
-  waves?: { roles: { slug: string; reason?: string }[]; brief: string }[]
-  projectId: string | null
-  baseBranch: string
+  id: string;
+  status: ProposalStatus;
+  taskBrief: { title: string; description: string };
+  roles: { slug: string; reason?: string }[];
+  waves?: { roles: { slug: string; reason?: string }[]; brief: string }[];
+  projectId: string | null;
+  baseBranch: string;
 }
 
 interface ChatMessage {
-  id: string
-  role: 'user' | 'lead' | 'agent' | 'system'
-  content: string
-  timestamp: number
-  imageRefs?: string[]
+  id: string;
+  role: 'user' | 'lead' | 'agent' | 'system';
+  content: string;
+  timestamp: number;
+  imageRefs?: string[];
   meta?: {
-    agentRole?: string
-    sessionId?: string
-    taskId?: string
-    intent?: 'chat' | 'clarify' | 'dispatch'
-    proposal?: ProposalView
-    questions?: string[]
-    confirmed?: boolean
-    topicReset?: boolean
-  }
+    agentRole?: string;
+    sessionId?: string;
+    taskId?: string;
+    intent?: 'chat' | 'clarify' | 'dispatch';
+    proposal?: ProposalView;
+    questions?: string[];
+    confirmed?: boolean;
+    topicReset?: boolean;
+  };
 }
 
 interface Attachment {
-  id: string
-  name: string
-  mimeType: string
-  data: string // base64
-  preview: string // data URL
+  id: string;
+  name: string;
+  mimeType: string;
+  data: string; // base64
+  preview: string; // data URL
 }
 
 interface TextFile {
-  id: string
-  name: string
-  ext: string
-  content: string
+  id: string;
+  name: string;
+  ext: string;
+  content: string;
 }
 
-const MAX_ATTACHMENTS = 4
-const MAX_FILE_BYTES = 4 * 1024 * 1024 // 4MB per image
-const MAX_TEXT_FILES = 4
-const MAX_TEXT_BYTES = 50 * 1024 // 50KB per text file
+const MAX_ATTACHMENTS = 4;
+const MAX_FILE_BYTES = 4 * 1024 * 1024; // 4MB per image
+const MAX_TEXT_FILES = 4;
+const MAX_TEXT_BYTES = 50 * 1024; // 50KB per text file
 const TEXT_EXTS = new Set([
-  '.ts', '.tsx', '.js', '.jsx', '.mjs', '.json', '.md', '.py', '.go', '.rs',
-  '.sh', '.yaml', '.yml', '.toml', '.env', '.txt', '.css', '.html', '.sql',
-  '.xml', '.graphql', '.prisma', '.csv',
-])
+  '.ts',
+  '.tsx',
+  '.js',
+  '.jsx',
+  '.mjs',
+  '.json',
+  '.md',
+  '.py',
+  '.go',
+  '.rs',
+  '.sh',
+  '.yaml',
+  '.yml',
+  '.toml',
+  '.env',
+  '.txt',
+  '.css',
+  '.html',
+  '.sql',
+  '.xml',
+  '.graphql',
+  '.prisma',
+  '.csv',
+]);
 
 function readAsBase64(file: File): Promise<{ data: string; preview: string }> {
   return new Promise((resolve, reject) => {
-    const reader = new FileReader()
+    const reader = new FileReader();
     reader.onload = () => {
-      const result = reader.result as string
+      const result = reader.result as string;
       // result is data:<mime>;base64,<payload>
-      const base64 = result.split(',')[1] ?? ''
-      resolve({ data: base64, preview: result })
-    }
-    reader.onerror = () => reject(reader.error)
-    reader.readAsDataURL(file)
-  })
+      const base64 = result.split(',')[1] ?? '';
+      resolve({ data: base64, preview: result });
+    };
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
 }
 
 function readAsText(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload = () => resolve(reader.result as string)
-    reader.onerror = () => reject(reader.error)
-    reader.readAsText(file)
-  })
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = () => reject(reader.error);
+    reader.readAsText(file);
+  });
 }
 
 export function CommandBar() {
-  const pathname = usePathname()
-  const [open, setOpen] = useState(false)
-  const [history, setHistory] = useState<ChatMessage[]>([])
-  const [message, setMessage] = useState('')
-  const [attachments, setAttachments] = useState<Attachment[]>([])
-  const [textFiles, setTextFiles] = useState<TextFile[]>([])
-  const [projects, setProjects] = useState<any[]>([])
-  const [selectedProjectId, setSelectedProjectId] = useState<string>('')
-  const [sending, setSending] = useState(false)
-  const [error, setError] = useState('')
-  const [unread, setUnread] = useState(0)
-  const [busyProposalId, setBusyProposalId] = useState<string | null>(null)
-  const [leadThinking, setLeadThinking] = useState(false)
-  const [stoppedSessions, setStoppedSessions] = useState<Set<string>>(new Set())
-  const [executionMode, setExecutionMode] = useState<'cloud' | 'local'>('cloud')
-  const [companionConnected, setCompanionConnected] = useState(false)
-  const fileInputRef = useRef<HTMLInputElement>(null)
-  const scrollRef = useRef<HTMLDivElement>(null)
-  const openRef = useRef(open)
-  openRef.current = open
+  const pathname = usePathname();
+  const [open, setOpen] = useState(false);
+  const [history, setHistory] = useState<ChatMessage[]>([]);
+  const [message, setMessage] = useState('');
+  const [attachments, setAttachments] = useState<Attachment[]>([]);
+  const [textFiles, setTextFiles] = useState<TextFile[]>([]);
+  const [projects, setProjects] = useState<any[]>([]);
+  const [selectedProjectId, setSelectedProjectId] = useState<string>('');
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState('');
+  const [unread, setUnread] = useState(0);
+  const [busyProposalId, setBusyProposalId] = useState<string | null>(null);
+  const [leadThinking, setLeadThinking] = useState(false);
+  const [stoppedSessions, setStoppedSessions] = useState<Set<string>>(new Set());
+  const [executionMode, setExecutionMode] = useState<'cloud' | 'local'>('cloud');
+  const [companionConnected, setCompanionConnected] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const openRef = useRef(open);
+  openRef.current = open;
 
   const loadHistory = useCallback(async () => {
     try {
-      const [list, projectList] = await Promise.all([
-        api.chat.history(),
-        api.projects.list(),
-      ])
-      setHistory(list)
-      setProjects(projectList)
+      const [list, projectList] = await Promise.all([api.chat.history(), api.projects.list()]);
+      setHistory(list);
+      setProjects(projectList);
       if (!selectedProjectId && projectList.length > 0) {
-        setSelectedProjectId(projectList[0].id)
+        setSelectedProjectId(projectList[0].id);
       }
     } catch {
       /* ignore */
     }
-  }, [selectedProjectId])
+  }, [selectedProjectId]);
 
   useEffect(() => {
     if (open) {
-      loadHistory()
-      setUnread(0)
+      loadHistory();
+      setUnread(0);
     }
-  }, [open, loadHistory])
+  }, [open, loadHistory]);
 
   // Real-time push from server-side chat events
   const handleStream = useCallback((msg: ChatMessage) => {
     setHistory((prev) => {
-      if (prev.some((m) => m.id === msg.id)) return prev
-      return [...prev, msg]
-    })
+      if (prev.some((m) => m.id === msg.id)) return prev;
+      return [...prev, msg];
+    });
     if (!openRef.current && msg.role !== 'user') {
-      setUnread((u) => u + 1)
+      setUnread((u) => u + 1);
     }
-  }, [])
+  }, []);
   const handleProposalUpdate = useCallback((proposalId: string, status: string) => {
     setHistory((prev) =>
       prev.map((m) => {
-        if (m.meta?.proposal?.id !== proposalId) return m
+        if (m.meta?.proposal?.id !== proposalId) return m;
         return {
           ...m,
           meta: {
             ...m.meta,
             proposal: { ...m.meta.proposal, status: status as ProposalStatus },
           },
-        }
+        };
       }),
-    )
-  }, [])
+    );
+  }, []);
   const handleLeadStatus = useCallback((status: 'thinking' | 'idle') => {
-    setLeadThinking(status === 'thinking')
-  }, [])
+    setLeadThinking(status === 'thinking');
+  }, []);
   const handleReconnect = useCallback(() => {
     // Catch up on anything we missed during the disconnect
-    api.chat.history().then(setHistory).catch(() => {})
-  }, [])
+    api.chat
+      .history()
+      .then(setHistory)
+      .catch(() => {});
+  }, []);
   useChatStream({
     onMessage: handleStream,
     onProposalUpdate: handleProposalUpdate,
     onLeadStatus: handleLeadStatus,
     onReconnect: handleReconnect,
-  })
+  });
 
   useEffect(() => {
-    if (!open) return
+    if (!open) return;
     const t = setTimeout(() => {
-      scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
-    }, 30)
-    return () => clearTimeout(t)
-  }, [history, open, leadThinking])
+      scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
+    }, 30);
+    return () => clearTimeout(t);
+  }, [history, open, leadThinking]);
 
   useEffect(() => {
     const check = () =>
-      api.companion.status()
-        .then(s => setCompanionConnected(s.connected))
-        .catch(() => setCompanionConnected(false))
-    check()
-    const t = setInterval(check, 10_000)
-    return () => clearInterval(t)
-  }, [])
+      api.companion
+        .status()
+        .then((s) => setCompanionConnected(s.connected))
+        .catch(() => setCompanionConnected(false));
+    check();
+    const t = setInterval(check, 10_000);
+    return () => clearInterval(t);
+  }, []);
 
   async function handleFiles(files: FileList | null) {
-    if (!files || files.length === 0) return
-    setError('')
-    const nextAttachments: Attachment[] = []
-    const nextTextFiles: TextFile[] = []
+    if (!files || files.length === 0) return;
+    setError('');
+    const nextAttachments: Attachment[] = [];
+    const nextTextFiles: TextFile[] = [];
     for (const f of Array.from(files)) {
-      const ext = '.' + f.name.split('.').pop()!.toLowerCase()
-      const isImage = f.type.startsWith('image/')
-      const isPdf = f.type === 'application/pdf'
-      const isText = TEXT_EXTS.has(ext) || f.type.startsWith('text/')
+      const ext = '.' + f.name.split('.').pop()!.toLowerCase();
+      const isImage = f.type.startsWith('image/');
+      const isPdf = f.type === 'application/pdf';
+      const isText = TEXT_EXTS.has(ext) || f.type.startsWith('text/');
 
       if (isImage || isPdf) {
-        if (attachments.length + nextAttachments.length >= MAX_ATTACHMENTS) continue
-        if (f.size > MAX_FILE_BYTES) { setError(`${f.name}: ใหญ่เกิน 4MB`); continue }
+        if (attachments.length + nextAttachments.length >= MAX_ATTACHMENTS) continue;
+        if (f.size > MAX_FILE_BYTES) {
+          setError(`${f.name}: ใหญ่เกิน 4MB`);
+          continue;
+        }
         try {
-          const { data, preview } = await readAsBase64(f)
-          nextAttachments.push({ id: `${Date.now()}-${f.name}`, name: f.name, mimeType: f.type, data, preview })
-        } catch { setError(`${f.name}: อ่านไฟล์ไม่ได้`) }
+          const { data, preview } = await readAsBase64(f);
+          nextAttachments.push({
+            id: `${Date.now()}-${f.name}`,
+            name: f.name,
+            mimeType: f.type,
+            data,
+            preview,
+          });
+        } catch {
+          setError(`${f.name}: อ่านไฟล์ไม่ได้`);
+        }
       } else if (isText) {
-        if (textFiles.length + nextTextFiles.length >= MAX_TEXT_FILES) continue
-        if (f.size > MAX_TEXT_BYTES) { setError(`${f.name}: ใหญ่เกิน 50KB`); continue }
+        if (textFiles.length + nextTextFiles.length >= MAX_TEXT_FILES) continue;
+        if (f.size > MAX_TEXT_BYTES) {
+          setError(`${f.name}: ใหญ่เกิน 50KB`);
+          continue;
+        }
         try {
-          const content = await readAsText(f)
-          nextTextFiles.push({ id: `${Date.now()}-${f.name}`, name: f.name, ext, content })
-        } catch { setError(`${f.name}: อ่านไฟล์ไม่ได้`) }
+          const content = await readAsText(f);
+          nextTextFiles.push({ id: `${Date.now()}-${f.name}`, name: f.name, ext, content });
+        } catch {
+          setError(`${f.name}: อ่านไฟล์ไม่ได้`);
+        }
       } else {
-        setError(`${f.name}: ไม่รองรับประเภทไฟล์นี้`)
+        setError(`${f.name}: ไม่รองรับประเภทไฟล์นี้`);
       }
     }
-    if (nextAttachments.length > 0) setAttachments((prev) => [...prev, ...nextAttachments])
-    if (nextTextFiles.length > 0) setTextFiles((prev) => [...prev, ...nextTextFiles])
+    if (nextAttachments.length > 0) setAttachments((prev) => [...prev, ...nextAttachments]);
+    if (nextTextFiles.length > 0) setTextFiles((prev) => [...prev, ...nextTextFiles]);
   }
 
   function removeAttachment(id: string) {
-    setAttachments((prev) => prev.filter((a) => a.id !== id))
+    setAttachments((prev) => prev.filter((a) => a.id !== id));
   }
 
   async function send() {
-    if (!message.trim() && attachments.length === 0 && textFiles.length === 0) return
-    setSending(true)
-    setError('')
+    if (!message.trim() && attachments.length === 0 && textFiles.length === 0) return;
+    setSending(true);
+    setError('');
     const fileBlocks = textFiles.map((f) => {
-      const lang = f.ext.replace('.', '')
-      return `\`\`\`${lang}\n// ${f.name}\n${f.content}\n\`\`\``
-    })
-    const fullMessage = fileBlocks.length > 0
-      ? fileBlocks.join('\n\n') + (message.trim() ? '\n\n' + message.trim() : '')
-      : (message.trim() || '(แนบไฟล์อย่างเดียว)')
+      const lang = f.ext.replace('.', '');
+      return `\`\`\`${lang}\n// ${f.name}\n${f.content}\n\`\`\``;
+    });
+    const fullMessage =
+      fileBlocks.length > 0
+        ? fileBlocks.join('\n\n') + (message.trim() ? '\n\n' + message.trim() : '')
+        : message.trim() || '(แนบไฟล์อย่างเดียว)';
     const payload = {
       message: fullMessage,
       images: attachments.map((a) => ({
@@ -251,98 +289,102 @@ export function CommandBar() {
       })),
       projectId: selectedProjectId || undefined,
       executionMode,
-    }
+    };
     try {
-      await api.chat.send(payload)
-      setMessage('')
-      setAttachments([])
-      setTextFiles([])
+      await api.chat.send(payload);
+      setMessage('');
+      setAttachments([]);
+      setTextFiles([]);
     } catch (e: any) {
-      setError(e.message ?? 'ส่งไม่สำเร็จ')
+      setError(e.message ?? 'ส่งไม่สำเร็จ');
     } finally {
-      setSending(false)
+      setSending(false);
     }
   }
 
   async function sendQuickReply(text: string) {
-    if (sending) return
-    setSending(true)
-    setError('')
+    if (sending) return;
+    setSending(true);
+    setError('');
     try {
-      await api.chat.send({ message: text, projectId: selectedProjectId || undefined, executionMode })
+      await api.chat.send({
+        message: text,
+        projectId: selectedProjectId || undefined,
+        executionMode,
+      });
     } catch (e: any) {
-      setError(e.message ?? 'ส่งไม่สำเร็จ')
+      setError(e.message ?? 'ส่งไม่สำเร็จ');
     } finally {
-      setSending(false)
+      setSending(false);
     }
   }
 
   async function clearHistory() {
-    if (!confirm('ล้างประวัติแชท?')) return
-    await api.chat.clear()
-    setHistory([])
+    if (!confirm('ล้างประวัติแชท?')) return;
+    await api.chat.clear();
+    setHistory([]);
   }
 
   async function startNewTopic() {
     try {
-      await api.chat.newTopic()
+      await api.chat.newTopic();
       // server publishes the marker via WS; no manual append needed
     } catch (e: any) {
-      setError(e?.message ?? 'เริ่มหัวข้อใหม่ไม่สำเร็จ')
+      setError(e?.message ?? 'เริ่มหัวข้อใหม่ไม่สำเร็จ');
     }
   }
 
   function applyProposalStatus(id: string, status: ProposalStatus) {
     setHistory((prev) =>
       prev.map((m) => {
-        if (m.meta?.proposal?.id !== id) return m
+        if (m.meta?.proposal?.id !== id) return m;
         return {
           ...m,
           meta: { ...m.meta, proposal: { ...m.meta.proposal, status } },
-        }
+        };
       }),
-    )
+    );
   }
 
   async function confirmProposal(id: string) {
-    setBusyProposalId(id)
-    setError('')
+    setBusyProposalId(id);
+    setError('');
     try {
-      await api.chat.dispatch(id)
+      await api.chat.dispatch(id);
       // server pushes proposal-update via WS; optimistic mark just in case
-      applyProposalStatus(id, 'consumed')
+      applyProposalStatus(id, 'consumed');
     } catch (e: any) {
       if (e instanceof ApiError) {
-        const serverStatus = e.body?.status as ProposalStatus | undefined
+        const serverStatus = e.body?.status as ProposalStatus | undefined;
         if (e.status === 410) {
-          applyProposalStatus(id, 'expired')
+          applyProposalStatus(id, 'expired');
         } else if (e.status === 409 && serverStatus) {
-          applyProposalStatus(id, serverStatus)
+          applyProposalStatus(id, serverStatus);
         } else {
-          setError(e.message || 'ยืนยันไม่สำเร็จ')
+          setError(e.message || 'ยืนยันไม่สำเร็จ');
         }
       } else {
-        setError(e?.message ?? 'ยืนยันไม่สำเร็จ')
+        setError(e?.message ?? 'ยืนยันไม่สำเร็จ');
       }
     } finally {
-      setBusyProposalId(null)
+      setBusyProposalId(null);
     }
   }
 
   async function cancelProposal(id: string) {
-    setBusyProposalId(id)
-    setError('')
+    setBusyProposalId(id);
+    setError('');
     try {
-      await api.chat.cancelProposal(id)
-      applyProposalStatus(id, 'cancelled')
+      await api.chat.cancelProposal(id);
+      applyProposalStatus(id, 'cancelled');
     } catch (e: any) {
-      setError(e.message ?? 'ยกเลิกไม่สำเร็จ')
+      setError(e.message ?? 'ยกเลิกไม่สำเร็จ');
     } finally {
-      setBusyProposalId(null)
+      setBusyProposalId(null);
     }
   }
 
-  if (pathname === '/login') return null
+  if (pathname === '/login') return null;
 
   return (
     <>
@@ -353,7 +395,17 @@ export function CommandBar() {
           className="fixed bottom-5 right-5 z-30 flex items-center gap-2 px-4 py-2.5 rounded-full font-semibold transition-all duration-200 bg-[#0d1117]/90 backdrop-blur-sm border border-[#facc15]/30 text-[#facc15] hover:border-[#facc15]/60 hover:shadow-[0_0_24px_rgba(250,204,21,0.25)] shadow-[0_0_12px_rgba(250,204,21,0.12),0_4px_16px_rgba(0,0,0,0.4)]"
           title="เปิดแชทกับ Lead"
         >
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="opacity-80">
+          <svg
+            width="15"
+            height="15"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="opacity-80"
+          >
             <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
           </svg>
           <span>Lead</span>
@@ -371,10 +423,7 @@ export function CommandBar() {
           {/* Header */}
           <div className="flex items-center justify-between px-4 py-3 border-b border-border">
             <div className="flex items-center gap-2">
-              <span
-                className="w-2 h-2 rounded-full"
-                style={{ backgroundColor: ROLE_DOT.lead }}
-              />
+              <span className="w-2 h-2 rounded-full" style={{ backgroundColor: ROLE_DOT.lead }} />
               <div>
                 <div className="text-[14px] font-semibold text-text">Lead</div>
                 <div className="text-[11px] text-muted">สั่งงาน · วิเคราะห์ · Dispatch agents</div>
@@ -432,26 +481,24 @@ export function CommandBar() {
             ) : (
               history.map((m) => {
                 if (m.meta?.topicReset || m.role === 'system') {
-                  return <TopicDivider key={m.id} label={m.content} />
+                  return <TopicDivider key={m.id} label={m.content} />;
                 }
                 return (
                   <ChatBubble
                     key={m.id}
                     m={m}
-                    busy={
-                      m.meta?.proposal ? busyProposalId === m.meta.proposal.id : false
-                    }
+                    busy={m.meta?.proposal ? busyProposalId === m.meta.proposal.id : false}
                     onConfirm={confirmProposal}
                     onCancel={cancelProposal}
                     stoppedSessions={stoppedSessions}
                     onStop={(sid) => {
-                      api.agents.stop(sid).catch(() => {})
-                      setStoppedSessions((prev) => new Set([...prev, sid]))
+                      api.agents.stop(sid).catch(() => {});
+                      setStoppedSessions((prev) => new Set([...prev, sid]));
                     }}
                     onQuickReply={sendQuickReply}
                     replying={sending}
                   />
-                )
+                );
               })
             )}
             {leadThinking && <LeadThinkingBubble />}
@@ -464,12 +511,14 @@ export function CommandBar() {
                 <span className="text-[11px] text-dim shrink-0">Project:</span>
                 <select
                   value={selectedProjectId}
-                  onChange={e => setSelectedProjectId(e.target.value)}
+                  onChange={(e) => setSelectedProjectId(e.target.value)}
                   className="flex-1 bg-canvas border border-border text-text text-[12px] rounded px-2 py-1 focus:border-accent/60 min-w-0"
                 >
                   <option value="">— ไม่ระบุ —</option>
                   {projects.map((p: any) => (
-                    <option key={p.id} value={p.id}>{p.name}</option>
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                    </option>
                   ))}
                 </select>
               </>
@@ -480,7 +529,9 @@ export function CommandBar() {
                 onClick={() => setExecutionMode('cloud')}
                 title="Cloud execution"
                 className={`flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium transition-colors ${
-                  executionMode === 'cloud' ? 'bg-accent/20 text-accent' : 'text-dim hover:text-muted'
+                  executionMode === 'cloud'
+                    ? 'bg-accent/20 text-accent'
+                    : 'text-dim hover:text-muted'
                 }`}
               >
                 ☁ Cloud
@@ -491,7 +542,9 @@ export function CommandBar() {
                 disabled={!companionConnected}
                 title={companionConnected ? 'Local execution' : 'Companion not connected'}
                 className={`flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium transition-colors disabled:opacity-30 disabled:cursor-not-allowed ${
-                  executionMode === 'local' ? 'bg-accent/20 text-accent' : 'text-dim hover:text-muted'
+                  executionMode === 'local'
+                    ? 'bg-accent/20 text-accent'
+                    : 'text-dim hover:text-muted'
                 }`}
               >
                 💻 Local
@@ -547,9 +600,7 @@ export function CommandBar() {
           )}
 
           {/* Error */}
-          {error && (
-            <p className="text-danger text-[12px] px-4 pb-1">✕ {error}</p>
-          )}
+          {error && <p className="text-danger text-[12px] px-4 pb-1">✕ {error}</p>}
 
           {/* Composer */}
           <div className="px-3 pt-3 pb-1 border-t border-border flex items-end gap-2">
@@ -560,8 +611,8 @@ export function CommandBar() {
               multiple
               hidden
               onChange={(e) => {
-                handleFiles(e.target.files)
-                if (fileInputRef.current) fileInputRef.current.value = ''
+                handleFiles(e.target.files);
+                if (fileInputRef.current) fileInputRef.current.value = '';
               }}
             />
             <button
@@ -571,8 +622,13 @@ export function CommandBar() {
               title="แนบไฟล์ — รูป, PDF, โค้ด"
             >
               <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                <path d="M14.5 7.5l-7.42 7.42a4.5 4.5 0 0 1-6.36-6.36L7.5 1.78a3 3 0 1 1 4.24 4.24l-6.78 6.78a1.5 1.5 0 1 1-2.12-2.12L8.7 5.6"
-                  fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+                <path
+                  d="M14.5 7.5l-7.42 7.42a4.5 4.5 0 0 1-6.36-6.36L7.5 1.78a3 3 0 1 1 4.24 4.24l-6.78 6.78a1.5 1.5 0 1 1-2.12-2.12L8.7 5.6"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.4"
+                  strokeLinecap="round"
+                />
               </svg>
             </button>
             <textarea
@@ -581,29 +637,29 @@ export function CommandBar() {
               onChange={(e) => setMessage(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault()
-                  send()
+                  e.preventDefault();
+                  send();
                 }
               }}
               onPaste={async (e) => {
-                const items = Array.from(e.clipboardData?.items ?? [])
-                const imageItems = items.filter((i) => i.type.startsWith('image/'))
-                if (imageItems.length === 0) return
-                e.preventDefault()
-                setError('')
+                const items = Array.from(e.clipboardData?.items ?? []);
+                const imageItems = items.filter((i) => i.type.startsWith('image/'));
+                if (imageItems.length === 0) return;
+                e.preventDefault();
+                setError('');
                 for (const item of imageItems) {
                   if (attachments.length >= MAX_ATTACHMENTS) {
-                    setError(`แนบรูปได้สูงสุด ${MAX_ATTACHMENTS} ไฟล์`)
-                    break
+                    setError(`แนบรูปได้สูงสุด ${MAX_ATTACHMENTS} ไฟล์`);
+                    break;
                   }
-                  const file = item.getAsFile()
-                  if (!file) continue
+                  const file = item.getAsFile();
+                  if (!file) continue;
                   if (file.size > MAX_FILE_BYTES) {
-                    setError('รูปที่ paste ใหญ่เกิน 4MB')
-                    continue
+                    setError('รูปที่ paste ใหญ่เกิน 4MB');
+                    continue;
                   }
                   try {
-                    const { data, preview } = await readAsBase64(file)
+                    const { data, preview } = await readAsBase64(file);
                     setAttachments((prev) => [
                       ...prev,
                       {
@@ -613,9 +669,9 @@ export function CommandBar() {
                         data,
                         preview,
                       },
-                    ])
+                    ]);
                   } catch {
-                    setError('paste รูปไม่สำเร็จ')
+                    setError('paste รูปไม่สำเร็จ');
                   }
                 }
               }}
@@ -625,7 +681,9 @@ export function CommandBar() {
             />
             <button
               onClick={send}
-              disabled={sending || (!message.trim() && attachments.length === 0 && textFiles.length === 0)}
+              disabled={
+                sending || (!message.trim() && attachments.length === 0 && textFiles.length === 0)
+              }
               className="bg-accent/90 hover:bg-accent text-canvas text-[13px] font-semibold px-3 py-2 rounded transition-colors disabled:opacity-40 shrink-0"
             >
               {sending ? '…' : 'ส่ง'}
@@ -637,18 +695,18 @@ export function CommandBar() {
         </div>
       )}
     </>
-  )
+  );
 }
 
 interface ChatBubbleProps {
-  m: ChatMessage
-  busy: boolean
-  onConfirm: (proposalId: string) => void
-  onCancel: (proposalId: string) => void
-  stoppedSessions: Set<string>
-  onStop: (sessionId: string) => void
-  onQuickReply: (text: string) => void
-  replying: boolean
+  m: ChatMessage;
+  busy: boolean;
+  onConfirm: (proposalId: string) => void;
+  onCancel: (proposalId: string) => void;
+  stoppedSessions: Set<string>;
+  onStop: (sessionId: string) => void;
+  onQuickReply: (text: string) => void;
+  replying: boolean;
 }
 
 function TopicDivider({ label }: { label: string }) {
@@ -660,7 +718,7 @@ function TopicDivider({ label }: { label: string }) {
       </span>
       <span className="flex-1 h-px bg-border" />
     </div>
-  )
+  );
 }
 
 function LeadThinkingBubble() {
@@ -675,38 +733,50 @@ function LeadThinkingBubble() {
           Lead
         </div>
         <div className="bg-surface-2 border border-border text-text rounded-2xl rounded-bl-sm px-3 py-2 inline-flex items-center gap-1">
-          <span className="w-1.5 h-1.5 rounded-full bg-muted/70 animate-bounce" style={{ animationDelay: '0ms' }} />
-          <span className="w-1.5 h-1.5 rounded-full bg-muted/70 animate-bounce" style={{ animationDelay: '150ms' }} />
-          <span className="w-1.5 h-1.5 rounded-full bg-muted/70 animate-bounce" style={{ animationDelay: '300ms' }} />
+          <span
+            className="w-1.5 h-1.5 rounded-full bg-muted/70 animate-bounce"
+            style={{ animationDelay: '0ms' }}
+          />
+          <span
+            className="w-1.5 h-1.5 rounded-full bg-muted/70 animate-bounce"
+            style={{ animationDelay: '150ms' }}
+          />
+          <span
+            className="w-1.5 h-1.5 rounded-full bg-muted/70 animate-bounce"
+            style={{ animationDelay: '300ms' }}
+          />
         </div>
       </div>
     </div>
-  )
+  );
 }
 
 function getQuickChips(content: string): string[] {
-  const t = content.toLowerCase()
-  if (/approve|permission|อนุมัติ|allow/.test(t))
-    return ['ใช่ approve เลย', 'ยังก่อน', 'ขอดูก่อน']
+  const t = content.toLowerCase();
+  if (/approve|permission|อนุมัติ|allow/.test(t)) return ['ใช่ approve เลย', 'ยังก่อน', 'ขอดูก่อน'];
   if (/dispatch|ส่ง agent|ให้.*ทำ|frontend|backend|mobile|devops|designer|qa|reviewer/.test(t))
-    return ['ใช่ ส่งเลย', 'ยังก่อน', 'ปรับ scope ก่อน']
-  if (/review|pr|pull request|merge/.test(t))
-    return ['ให้ review เลย', 'ยังก่อน', 'ขอแก้ก่อน']
-  if (/deploy|release|push|production/.test(t))
-    return ['ใช่ deploy เลย', 'ยังก่อน', 'ขอเช็คก่อน']
-  if (/test|qa|spec/.test(t))
-    return ['รัน test เลย', 'ยังก่อน', 'บอกรายละเอียดเพิ่ม']
-  return ['ใช่ ดำเนินการเลย', 'ยังก่อน', 'บอกรายละเอียดเพิ่ม']
+    return ['ใช่ ส่งเลย', 'ยังก่อน', 'ปรับ scope ก่อน'];
+  if (/review|pr|pull request|merge/.test(t)) return ['ให้ review เลย', 'ยังก่อน', 'ขอแก้ก่อน'];
+  if (/deploy|release|push|production/.test(t)) return ['ใช่ deploy เลย', 'ยังก่อน', 'ขอเช็คก่อน'];
+  if (/test|qa|spec/.test(t)) return ['รัน test เลย', 'ยังก่อน', 'บอกรายละเอียดเพิ่ม'];
+  return ['ใช่ ดำเนินการเลย', 'ยังก่อน', 'บอกรายละเอียดเพิ่ม'];
 }
 
-function ChatBubble({ m, busy, onConfirm, onCancel, stoppedSessions, onStop, onQuickReply, replying }: ChatBubbleProps) {
-  const isUser = m.role === 'user'
-  const isLead = m.role === 'lead'
-  const role = m.meta?.agentRole
+function ChatBubble({
+  m,
+  busy,
+  onConfirm,
+  onCancel,
+  stoppedSessions,
+  onStop,
+  onQuickReply,
+  replying,
+}: ChatBubbleProps) {
+  const isUser = m.role === 'user';
+  const isLead = m.role === 'lead';
+  const role = m.meta?.agentRole;
   const isLeadQuestion =
-    isLead &&
-    !m.meta?.proposal &&
-    /[?？]|ไหม\s*[?]?\s*$/.test(m.content.trim())
+    isLead && !m.meta?.proposal && /[?？]|ไหม\s*[?]?\s*$/.test(m.content.trim());
 
   if (isUser) {
     return (
@@ -720,25 +790,23 @@ function ChatBubble({ m, busy, onConfirm, onCancel, stoppedSessions, onStop, onQ
           )}
         </div>
       </div>
-    )
+    );
   }
 
-  const proposal = m.meta?.proposal
-  const questions = m.meta?.questions
+  const proposal = m.meta?.proposal;
+  const questions = m.meta?.questions;
 
   return (
     <div className="flex justify-start gap-2">
       <span
         className="w-2 h-2 rounded-full mt-2 shrink-0"
         style={{
-          backgroundColor: isLead
-            ? ROLE_DOT.lead
-            : (role && ROLE_DOT[role]) || '#6a7a8e',
+          backgroundColor: isLead ? ROLE_DOT.lead : (role && ROLE_DOT[role]) || '#6a7a8e',
         }}
       />
       <div className="max-w-[85%] flex-1 min-w-0">
         <div className="text-[11px] text-muted mb-0.5 font-medium uppercase tracking-wider">
-          {isLead ? 'Lead' : role ?? 'Agent'}
+          {isLead ? 'Lead' : (role ?? 'Agent')}
         </div>
         <div className="bg-surface-2 border border-border text-text rounded-2xl rounded-bl-sm px-3 py-2">
           <p className="text-[13.5px] whitespace-pre-wrap leading-relaxed">{m.content}</p>
@@ -759,22 +827,27 @@ function ChatBubble({ m, busy, onConfirm, onCancel, stoppedSessions, onStop, onQ
               → ดู Pull Request
             </a>
           )}
-          {m.role === 'agent' && m.meta?.sessionId && !stoppedSessions.has(m.meta.sessionId) && m.content.includes('เริ่มทำงานแล้ว') && (
-            <button
-              onClick={() => onStop(m.meta!.sessionId!)}
-              className="mt-1.5 text-[11px] text-danger/70 hover:text-danger border border-danger/20 hover:border-danger/50 px-2 py-0.5 rounded transition-colors"
-            >
-              ■ หยุดงาน
-            </button>
-          )}
-          {m.role === 'agent' && m.meta?.taskId && (m.content.includes('เสร็จแล้ว') || m.content.includes('✓')) && (
-            <a
-              href="/kanban"
-              className="mt-1.5 text-[11px] text-muted hover:text-accent border border-border hover:border-accent/40 px-2 py-0.5 rounded transition-colors inline-block"
-            >
-              ดู Task ใน Kanban →
-            </a>
-          )}
+          {m.role === 'agent' &&
+            m.meta?.sessionId &&
+            !stoppedSessions.has(m.meta.sessionId) &&
+            m.content.includes('เริ่มทำงานแล้ว') && (
+              <button
+                onClick={() => onStop(m.meta!.sessionId!)}
+                className="mt-1.5 text-[11px] text-danger/70 hover:text-danger border border-danger/20 hover:border-danger/50 px-2 py-0.5 rounded transition-colors"
+              >
+                ■ หยุดงาน
+              </button>
+            )}
+          {m.role === 'agent' &&
+            m.meta?.taskId &&
+            (m.content.includes('เสร็จแล้ว') || m.content.includes('✓')) && (
+              <a
+                href="/kanban"
+                className="mt-1.5 text-[11px] text-muted hover:text-accent border border-border hover:border-accent/40 px-2 py-0.5 rounded transition-colors inline-block"
+              >
+                ดู Task ใน Kanban →
+              </a>
+            )}
         </div>
         {isLeadQuestion && (
           <div className="flex gap-1.5 mt-1.5 flex-wrap">
@@ -791,23 +864,18 @@ function ChatBubble({ m, busy, onConfirm, onCancel, stoppedSessions, onStop, onQ
           </div>
         )}
         {proposal && (
-          <ProposalCard
-            proposal={proposal}
-            busy={busy}
-            onConfirm={onConfirm}
-            onCancel={onCancel}
-          />
+          <ProposalCard proposal={proposal} busy={busy} onConfirm={onConfirm} onCancel={onCancel} />
         )}
       </div>
     </div>
-  )
+  );
 }
 
 interface ProposalCardProps {
-  proposal: ProposalView
-  busy: boolean
-  onConfirm: (proposalId: string) => void
-  onCancel: (proposalId: string) => void
+  proposal: ProposalView;
+  busy: boolean;
+  onConfirm: (proposalId: string) => void;
+  onCancel: (proposalId: string) => void;
 }
 
 const STATUS_BADGE: Record<
@@ -818,21 +886,21 @@ const STATUS_BADGE: Record<
   consumed: { label: '✓ สั่งงานแล้ว', tone: 'success' },
   cancelled: { label: '✕ ยกเลิกแล้ว', tone: 'muted' },
   expired: { label: '⏱ หมดอายุ', tone: 'warn' },
-}
+};
 
 function ProposalCard({ proposal, busy, onConfirm, onCancel }: ProposalCardProps) {
-  const status = proposal.status ?? 'pending'
-  const isPending = status === 'pending'
-  const isResolved = !isPending
-  const badge = STATUS_BADGE[status]
+  const status = proposal.status ?? 'pending';
+  const isPending = status === 'pending';
+  const isResolved = !isPending;
+  const badge = STATUS_BADGE[status];
   const toneClass =
     badge.tone === 'success'
       ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
       : badge.tone === 'warn'
-      ? 'bg-amber-500/10 text-amber-400 border-amber-500/30'
-      : badge.tone === 'info'
-      ? 'bg-accent/10 text-accent border-accent/30'
-      : 'bg-surface-2 text-dim border-border'
+        ? 'bg-amber-500/10 text-amber-400 border-amber-500/30'
+        : badge.tone === 'info'
+          ? 'bg-accent/10 text-accent border-accent/30'
+          : 'bg-surface-2 text-dim border-border';
 
   return (
     <div
@@ -874,9 +942,7 @@ function ProposalCard({ proposal, busy, onConfirm, onCancel }: ProposalCardProps
                     </span>
                   ))}
                 </div>
-                {wave.brief && (
-                  <span className="text-[11px] text-dim">{wave.brief}</span>
-                )}
+                {wave.brief && <span className="text-[11px] text-dim">{wave.brief}</span>}
               </div>
             </div>
           ))}
@@ -916,5 +982,5 @@ function ProposalCard({ proposal, busy, onConfirm, onCancel }: ProposalCardProps
         </div>
       )}
     </div>
-  )
+  );
 }

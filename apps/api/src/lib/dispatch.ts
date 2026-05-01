@@ -1,29 +1,29 @@
-import { env } from '../env.js'
-import { companionManager } from './companionManager.js'
-import { agentSessions } from '@meshagent/shared'
-import { eq } from 'drizzle-orm'
+import { env } from '../env.js';
+import { companionManager } from './companionManager.js';
+import { agentSessions } from '@meshagent/shared';
+import { eq } from 'drizzle-orm';
 
 export async function dispatchAgent(
   role: string,
   workingDir: string,
   prompt: string,
   context: {
-    projectId?: string | null
-    taskId?: string | null
-    createdBy?: string | null
-    cliProvider?: string
-    executionMode?: 'cloud' | 'local'
-    userId?: string
-    db?: any
+    projectId?: string | null;
+    taskId?: string | null;
+    createdBy?: string | null;
+    cliProvider?: string;
+    executionMode?: 'cloud' | 'local';
+    userId?: string;
+    db?: any;
   },
   systemPrompt?: string,
   repoUrl?: string,
 ): Promise<{ id: string | null; error?: string }> {
-  const { executionMode = 'cloud', userId, db } = context
+  const { executionMode = 'cloud', userId, db } = context;
 
   if (executionMode === 'local') {
-    if (!userId) return { id: null, error: 'userId required for local execution' }
-    const sessionId = `local-${crypto.randomUUID()}`
+    if (!userId) return { id: null, error: 'userId required for local execution' };
+    const sessionId = `local-${crypto.randomUUID()}`;
 
     if (db) {
       await db.insert(agentSessions).values({
@@ -38,7 +38,7 @@ export async function dispatchAgent(
         executionMode: 'local',
         createdBy: context.createdBy ?? null,
         startedAt: new Date(),
-      })
+      });
     }
 
     try {
@@ -52,22 +52,22 @@ export async function dispatchAgent(
         projectId: context.projectId ?? undefined,
         apiUrl: process.env.COMPANION_CALLBACK_URL ?? 'http://localhost:4801',
         internalSecret: env.INTERNAL_SECRET,
-      })
-      return { id: sessionId }
+      });
+      return { id: sessionId };
     } catch (err: any) {
       if (db) {
         await db
           .update(agentSessions)
           .set({ status: 'errored', error: err.message, endedAt: new Date() })
-          .where(eq(agentSessions.id, sessionId))
+          .where(eq(agentSessions.id, sessionId));
       }
-      return { id: null, error: err.message ?? 'Companion dispatch failed' }
+      return { id: null, error: err.message ?? 'Companion dispatch failed' };
     }
   }
 
   // Cloud path — dispatch to orchestrator
-  const ctrl = new AbortController()
-  const timer = setTimeout(() => ctrl.abort(), 10000)
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 10000);
   try {
     const res = await fetch(`${env.ORCHESTRATOR_URL}/sessions`, {
       method: 'POST',
@@ -84,17 +84,17 @@ export async function dispatchAgent(
         ...(repoUrl ? { repoUrl } : {}),
       }),
       signal: ctrl.signal,
-    })
+    });
     if (!res.ok) {
-      const err = (await res.json().catch(() => ({}))) as { error?: string }
-      return { id: null, error: err.error ?? `Orchestrator returned ${res.status}` }
+      const err = (await res.json().catch(() => ({}))) as { error?: string };
+      return { id: null, error: err.error ?? `Orchestrator returned ${res.status}` };
     }
-    const data = (await res.json()) as { id?: string }
-    return { id: data.id ?? null }
+    const data = (await res.json()) as { id?: string };
+    return { id: data.id ?? null };
   } catch (e: any) {
-    return { id: null, error: e?.message ?? 'Orchestrator request failed' }
+    return { id: null, error: e?.message ?? 'Orchestrator request failed' };
   } finally {
-    clearTimeout(timer)
+    clearTimeout(timer);
   }
 }
 
@@ -129,5 +129,5 @@ gh pr create --base ${baseBranch} --title "<สรุปงานที่ทำ
 TASK_COMPLETE
 summary: <สรุปสิ่งที่ทำไปใน 1-2 ประโยค ภาษาไทยหรืออังกฤษก็ได้>
 pr_url: <URL ของ PR ที่เปิด หรือ none>
-END_TASK_COMPLETE`
+END_TASK_COMPLETE`;
 }

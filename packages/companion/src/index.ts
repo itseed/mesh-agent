@@ -1,1 +1,1 @@
-export { CompanionClient } from './client.js'
+export { CompanionClient } from './client.js';

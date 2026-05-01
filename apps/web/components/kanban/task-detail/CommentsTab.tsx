@@ -1,20 +1,20 @@
-'use client'
-import type { ReviewIssue } from './styles'
-import { ROLE_STYLE } from './styles'
-import { Markdown } from './Markdown'
-import { FixIssuesPanel } from './FixIssuesPanel'
-import { parseReviewIssues } from './utils'
+'use client';
+import type { ReviewIssue } from './styles';
+import { ROLE_STYLE } from './styles';
+import { Markdown } from './Markdown';
+import { FixIssuesPanel } from './FixIssuesPanel';
+import { parseReviewIssues } from './utils';
 
 interface CommentsTabProps {
-  comments: any[]
-  fixCommentId: string | null
-  selectedIssues: Set<number>
-  fixingIssues: boolean
-  onOpenFixPanel: (commentId: string, issues: ReviewIssue[]) => void
-  onToggleIssue: (idx: number) => void
-  onSelectAllIssues: (issues: ReviewIssue[]) => void
-  onConfirmFix: () => void
-  onCancelFix: () => void
+  comments: any[];
+  fixCommentId: string | null;
+  selectedIssues: Set<number>;
+  fixingIssues: boolean;
+  onOpenFixPanel: (commentId: string, issues: ReviewIssue[]) => void;
+  onToggleIssue: (idx: number) => void;
+  onSelectAllIssues: (issues: ReviewIssue[]) => void;
+  onConfirmFix: () => void;
+  onCancelFix: () => void;
 }
 
 const PRIORITY_BADGE: Record<string, string> = {
@@ -22,20 +22,20 @@ const PRIORITY_BADGE: Record<string, string> = {
   high: 'bg-orange-500/20 text-orange-400',
   medium: 'bg-yellow-500/20 text-yellow-400',
   low: 'bg-gray-500/20 text-gray-400',
-}
+};
 
 function LeadCommentBody({ body }: { body: string }) {
-  let parsed: any = null
+  let parsed: any = null;
   try {
-    parsed = JSON.parse(body)
+    parsed = JSON.parse(body);
   } catch {}
-  if (!parsed) return <div className="text-[13px] text-text whitespace-pre-wrap">{body}</div>
+  if (!parsed) return <div className="text-[13px] text-text whitespace-pre-wrap">{body}</div>;
   return (
     <div className="flex flex-col gap-1">
       {parsed.summary && <p className="text-[13px] text-text/80 italic mb-2">{parsed.summary}</p>}
       {Array.isArray(parsed.subtasks) &&
         parsed.subtasks.map((st: any, idx: number) => {
-          const role = ROLE_STYLE[st.agentRole ?? '']
+          const role = ROLE_STYLE[st.agentRole ?? ''];
           return (
             <div
               key={idx}
@@ -61,10 +61,10 @@ function LeadCommentBody({ body }: { body: string }) {
               )}
               {st.wave > 1 && <span className="text-[10px] text-dim shrink-0">W{st.wave}</span>}
             </div>
-          )
+          );
         })}
     </div>
-  )
+  );
 }
 
 export function CommentsTab({
@@ -99,7 +99,7 @@ export function CommentsTab({
           )}
           {c.source === 'agent' &&
             (() => {
-              const issues = parseReviewIssues(c.body)
+              const issues = parseReviewIssues(c.body);
               return (
                 <>
                   <div className="flex items-center justify-between mb-1.5">
@@ -141,17 +141,19 @@ export function CommentsTab({
                     </div>
                   )}
                 </>
-              )
+              );
             })()}
           {c.source === 'lead' && <LeadCommentBody body={c.body} />}
           {c.source === 'user' && (
             <div className="text-[13px] text-text whitespace-pre-wrap">{c.body}</div>
           )}
           {c.createdAt && (
-            <div className="text-[11px] text-dim mt-2">{new Date(c.createdAt).toLocaleString()}</div>
+            <div className="text-[11px] text-dim mt-2">
+              {new Date(c.createdAt).toLocaleString()}
+            </div>
           )}
         </div>
       ))}
     </div>
-  )
+  );
 }

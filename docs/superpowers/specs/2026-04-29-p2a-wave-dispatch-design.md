@@ -42,16 +42,16 @@ Each agent completes → POST /internal/agent-complete
 
 ```typescript
 interface LeadWave {
-  roles: { slug: string; reason?: string }[]
-  brief: string  // what this wave should accomplish
+  roles: { slug: string; reason?: string }[];
+  brief: string; // what this wave should accomplish
 }
 
 interface LeadDecision {
-  intent: 'chat' | 'clarify' | 'dispatch'
-  reply: string
-  waves?: LeadWave[]      // replaces roles[]
-  taskBrief?: { title: string; description: string }
-  questions?: string[]
+  intent: 'chat' | 'clarify' | 'dispatch';
+  reply: string;
+  waves?: LeadWave[]; // replaces roles[]
+  taskBrief?: { title: string; description: string };
+  questions?: string[];
 }
 ```
 
@@ -63,8 +63,8 @@ Lead JSON output for dispatch intent:
   "reply": "...",
   "taskBrief": { "title": "...", "description": "..." },
   "waves": [
-    { "roles": [{"slug":"backend","reason":"..."}], "brief": "Build REST endpoints" },
-    { "roles": [{"slug":"frontend"},{"slug":"mobile"}], "brief": "Integrate with API" }
+    { "roles": [{ "slug": "backend", "reason": "..." }], "brief": "Build REST endpoints" },
+    { "roles": [{ "slug": "frontend" }, { "slug": "mobile" }], "brief": "Integrate with API" }
   ]
 }
 ```
@@ -81,24 +81,24 @@ Key: `wave:state:{proposalId}` — TTL 24h
 
 ```typescript
 interface WaveState {
-  proposalId: string
-  waves: LeadWave[]
-  currentWave: number
-  taskTitle: string
-  taskDescription: string
-  projectId: string | null
-  baseBranch: string
-  branchSuffix: string
-  createdBy: string
-  imagePaths: string[]
-  pendingSessions: string[]   // sessionIds currently running in this wave
+  proposalId: string;
+  waves: LeadWave[];
+  currentWave: number;
+  taskTitle: string;
+  taskDescription: string;
+  projectId: string | null;
+  baseBranch: string;
+  branchSuffix: string;
+  createdBy: string;
+  imagePaths: string[];
+  pendingSessions: string[]; // sessionIds currently running in this wave
   completedSessions: Array<{
-    sessionId: string
-    role: string
-    success: boolean
-    summary: string
-    exitCode: number | null
-  }>
+    sessionId: string;
+    role: string;
+    success: boolean;
+    summary: string;
+    exitCode: number | null;
+  }>;
 }
 ```
 
@@ -132,13 +132,14 @@ Respond with JSON only: { "proceed": true|false, "ask": true|false, "message": "
 
 ```typescript
 interface WaveEvalResult {
-  proceed: boolean
-  ask: boolean      // true = push question to user before acting
-  message: string   // shown in chat
+  proceed: boolean;
+  ask: boolean; // true = push question to user before acting
+  message: string; // shown in chat
 }
 ```
 
 Rules:
+
 - All wave success → `proceed: true, ask: false`
 - Partial failure → Lead decides; if confident → `proceed: true` (or false + message); if unsure → `ask: true`
 - All failed → `proceed: false, ask: true`

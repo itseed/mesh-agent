@@ -1,17 +1,17 @@
-'use client'
-import { PRIORITY_COLORS, STAGE_COLORS } from './styles'
+'use client';
+import { PRIORITY_COLORS, STAGE_COLORS } from './styles';
 
 interface TaskHeaderProps {
-  localTask: any
-  executionMode: 'cloud' | 'local'
-  onChangeExecutionMode: (m: 'cloud' | 'local') => void
-  starting: boolean
-  onStart: () => void
-  confirmDelete: boolean
-  onConfirmDelete: () => void
-  onCancelDelete: () => void
-  onDelete: () => void
-  onClose: () => void
+  localTask: any;
+  executionMode: 'cloud' | 'local';
+  onChangeExecutionMode: (m: 'cloud' | 'local') => void;
+  starting: boolean;
+  onStart: () => void;
+  confirmDelete: boolean;
+  onConfirmDelete: () => void;
+  onCancelDelete: () => void;
+  onDelete: () => void;
+  onClose: () => void;
 }
 
 export function TaskHeader({
@@ -61,7 +61,9 @@ export function TaskHeader({
               type="button"
               onClick={() => onChangeExecutionMode('cloud')}
               className={`px-2.5 py-1 transition-colors ${
-                executionMode === 'cloud' ? 'bg-accent/15 text-accent' : 'text-muted hover:text-text'
+                executionMode === 'cloud'
+                  ? 'bg-accent/15 text-accent'
+                  : 'text-muted hover:text-text'
               }`}
             >
               ☁ Cloud
@@ -121,5 +123,5 @@ export function TaskHeader({
         ✕
       </button>
     </div>
-  )
+  );
 }

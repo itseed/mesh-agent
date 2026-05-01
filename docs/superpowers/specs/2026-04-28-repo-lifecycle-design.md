@@ -6,6 +6,7 @@
 ## Problem
 
 ปัจจุบัน MeshAgent ไม่มี mechanism จัดการ repo บน server:
+
 - User ต้อง clone เองและระบุ path ใน project settings
 - ไม่มีการสร้าง/ลบ worktree อัตโนมัติ → agents อาจชนกันใน directory เดียวกัน
 - ไม่มี cleanup เมื่อลบ project
@@ -13,6 +14,7 @@
 ## Goal
 
 ระบบจัดการ git repo lifecycle ทั้งหมดอัตโนมัติ:
+
 - Lazy clone ครั้งแรกที่ dispatch task
 - สร้าง worktree แยกต่อ task เพื่อ concurrent safety
 - ลบ worktree เมื่อ task เสร็จ
@@ -60,6 +62,7 @@ git -C {workingDir} branch -D task/{taskId}
 ### `POST /sessions` (Orchestrator)
 
 เพิ่ม optional fields:
+
 ```json
 {
   "role": "frontend",
@@ -77,6 +80,7 @@ git -C {workingDir} branch -D task/{taskId}
 ### `POST /internal/agent-complete` (API)
 
 เพิ่ม trigger cleanup worktree:
+
 - หลัง update task stage → call `DELETE /sessions/{sessionId}/worktree` หรือ orchestrator cleanup worktree เองใน session lifecycle
 
 ### `DELETE /projects/:id` (API)
@@ -86,16 +90,16 @@ git -C {workingDir} branch -D task/{taskId}
 ## New File: `orchestrator/src/git.ts`
 
 ```ts
-export async function ensureRepo(workingDir: string, repoUrl: string): Promise<void>
+export async function ensureRepo(workingDir: string, repoUrl: string): Promise<void>;
 // clone ถ้าไม่มี, pull ถ้ามีแล้ว
 
-export async function createWorktree(workingDir: string, taskId: string): Promise<string>
+export async function createWorktree(workingDir: string, taskId: string): Promise<string>;
 // return path ของ worktree = {workingDir}/worktrees/{taskId}
 
-export async function removeWorktree(workingDir: string, taskId: string): Promise<void>
+export async function removeWorktree(workingDir: string, taskId: string): Promise<void>;
 // git worktree remove + branch delete
 
-export async function removeProjectDir(reposBaseDir: string, projectId: string): Promise<void>
+export async function removeProjectDir(reposBaseDir: string, projectId: string): Promise<void>;
 // rm -rf {reposBaseDir}/{projectId}
 ```
 
@@ -106,19 +110,20 @@ worktree ที่ task crash โดยไม่ได้ cleanup → orphan
 **Detection:** query DB หา tasks ที่ stage = 'done' | 'failed' แต่ยังมี worktree directory อยู่
 
 **Cleanup:** orchestrator startup + periodic check ทุก 1 ชั่วโมง
+
 - `git worktree list --porcelain` เพื่อ list ทุก worktree
 - เปรียบเทียบกับ active task IDs จาก DB
 - ลบ orphan worktrees
 
 ## Disk Management
 
-| Strategy | Detail |
-|---|---|
-| Shallow clone | `git clone --depth 50` ลด initial size |
+| Strategy         | Detail                                                     |
+| ---------------- | ---------------------------------------------------------- |
+| Shallow clone    | `git clone --depth 50` ลด initial size                     |
 | Worktree sharing | share `.git/` objects → worktree ใช้ disk แค่ working tree |
-| Auto cleanup | ลบ worktree ทันทีเมื่อ task เสร็จ |
-| Project cleanup | ลบทั้ง project dir เมื่อลบ project |
-| Orphan cron | ตรวจ orphan worktrees ทุก 1 ชั่วโมง |
+| Auto cleanup     | ลบ worktree ทันทีเมื่อ task เสร็จ                          |
+| Project cleanup  | ลบทั้ง project dir เมื่อลบ project                         |
+| Orphan cron      | ตรวจ orphan worktrees ทุก 1 ชั่วโมง                        |
 
 ## Disk Usage Display (UI)
 
@@ -127,13 +132,13 @@ worktree ที่ task crash โดยไม่ได้ cleanup → orphan
 
 ## Error Handling
 
-| Scenario | Behavior |
-|---|---|
-| Clone fail (no auth, wrong URL) | session fail ทันที, error message ใน chat |
-| Pull fail (conflicts) | ใช้ existing clone ต่อ, log warning |
-| Worktree creation fail | session fail, cleanup branch |
-| Disk full | clone/worktree fail → error ชัดเจน "Disk full on server" |
-| repoUrl ไม่ได้ส่งมา | ข้าม git step, ใช้ workingDir ตรงๆ (backward compat) |
+| Scenario                        | Behavior                                                 |
+| ------------------------------- | -------------------------------------------------------- |
+| Clone fail (no auth, wrong URL) | session fail ทันที, error message ใน chat                |
+| Pull fail (conflicts)           | ใช้ existing clone ต่อ, log warning                      |
+| Worktree creation fail          | session fail, cleanup branch                             |
+| Disk full                       | clone/worktree fail → error ชัดเจน "Disk full on server" |
+| repoUrl ไม่ได้ส่งมา             | ข้าม git step, ใช้ workingDir ตรงๆ (backward compat)     |
 
 ## Out of Scope
 

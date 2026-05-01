@@ -1,47 +1,49 @@
-'use client'
-import { useState, useEffect, useCallback } from 'react'
-import { api } from '@/lib/api'
+'use client';
+import { useState, useEffect, useCallback } from 'react';
+import { api } from '@/lib/api';
 
 interface Entry {
-  name: string
-  type: 'dir' | 'file'
+  name: string;
+  type: 'dir' | 'file';
 }
 
 interface FolderBrowserProps {
-  initialPath?: string
+  initialPath?: string;
 }
 
 function buildBreadcrumbs(path: string): { label: string; path: string }[] {
-  const parts = path.split('/').filter(Boolean)
-  const crumbs = [{ label: '/', path: '/' }]
+  const parts = path.split('/').filter(Boolean);
+  const crumbs = [{ label: '/', path: '/' }];
   parts.forEach((part, i) => {
-    crumbs.push({ label: part, path: '/' + parts.slice(0, i + 1).join('/') })
-  })
-  return crumbs
+    crumbs.push({ label: part, path: '/' + parts.slice(0, i + 1).join('/') });
+  });
+  return crumbs;
 }
 
 export function FolderBrowser({ initialPath = '/' }: FolderBrowserProps) {
-  const [currentPath, setCurrentPath] = useState(initialPath)
-  const [entries, setEntries] = useState<Entry[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const [currentPath, setCurrentPath] = useState(initialPath);
+  const [entries, setEntries] = useState<Entry[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async (path: string) => {
-    setLoading(true)
-    setError(null)
+    setLoading(true);
+    setError(null);
     try {
-      const res = await api.companion.fsList(path)
-      setEntries(res.entries)
+      const res = await api.companion.fsList(path);
+      setEntries(res.entries);
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Failed to load directory')
+      setError(e instanceof Error ? e.message : 'Failed to load directory');
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }, [])
+  }, []);
 
-  useEffect(() => { load(currentPath) }, [currentPath, load])
+  useEffect(() => {
+    load(currentPath);
+  }, [currentPath, load]);
 
-  const crumbs = buildBreadcrumbs(currentPath)
+  const crumbs = buildBreadcrumbs(currentPath);
 
   return (
     <div className="flex flex-col h-[360px] bg-canvas border border-border rounded-lg overflow-hidden">
@@ -85,18 +87,21 @@ export function FolderBrowser({ initialPath = '/' }: FolderBrowserProps) {
         ) : (
           <div className="flex flex-col gap-0.5">
             {entries.map((entry) => {
-              const fullPath = currentPath === '/'
-                ? `/${entry.name}`
-                : `${currentPath}/${entry.name}`
-              const isDir = entry.type === 'dir'
+              const fullPath =
+                currentPath === '/' ? `/${entry.name}` : `${currentPath}/${entry.name}`;
+              const isDir = entry.type === 'dir';
               return (
                 <div
                   key={entry.name}
                   draggable={isDir}
-                  onDragStart={isDir ? (e) => {
-                    e.dataTransfer.setData('text/plain', fullPath)
-                    e.dataTransfer.effectAllowed = 'copy'
-                  } : undefined}
+                  onDragStart={
+                    isDir
+                      ? (e) => {
+                          e.dataTransfer.setData('text/plain', fullPath);
+                          e.dataTransfer.effectAllowed = 'copy';
+                        }
+                      : undefined
+                  }
                   onClick={isDir ? () => setCurrentPath(fullPath) : undefined}
                   className={`flex items-center gap-2 px-2 py-1.5 rounded text-[12px] transition-colors ${
                     isDir
@@ -106,11 +111,9 @@ export function FolderBrowser({ initialPath = '/' }: FolderBrowserProps) {
                 >
                   <span className="shrink-0">{isDir ? '📁' : '📄'}</span>
                   <span className="flex-1 truncate font-mono">{entry.name}</span>
-                  {isDir && (
-                    <span className="text-[9px] text-dim shrink-0">drag</span>
-                  )}
+                  {isDir && <span className="text-[9px] text-dim shrink-0">drag</span>}
                 </div>
-              )
+              );
             })}
           </div>
         )}
@@ -120,5 +123,5 @@ export function FolderBrowser({ initialPath = '/' }: FolderBrowserProps) {
         <p className="text-[10px] text-dim">Drag 📁 folders to role rows on the left</p>
       </div>
     </div>
-  )
+  );
 }

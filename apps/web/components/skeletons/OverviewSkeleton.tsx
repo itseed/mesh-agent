@@ -1,4 +1,4 @@
-import { Skeleton } from '@/components/ui/Skeleton'
+import { Skeleton } from '@/components/ui/Skeleton';
 
 function StatCardSkeleton() {
   return (
@@ -7,7 +7,7 @@ function StatCardSkeleton() {
       <Skeleton width="60%" height={12} className="mt-3" />
       <Skeleton width="40%" height={10} className="mt-2" />
     </div>
-  )
+  );
 }
 
 export function OverviewSkeleton() {
@@ -31,7 +31,9 @@ export function OverviewSkeleton() {
 
       {/* Stat row */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-6">
-        {Array.from({ length: 5 }).map((_, i) => <StatCardSkeleton key={i} />)}
+        {Array.from({ length: 5 }).map((_, i) => (
+          <StatCardSkeleton key={i} />
+        ))}
       </div>
 
       {/* AI activity card */}
@@ -128,5 +130,5 @@ export function OverviewSkeleton() {
         </div>
       </div>
     </div>
-  )
+  );
 }

@@ -12,23 +12,24 @@
 
 ## File Map
 
-| File | Action |
-|---|---|
-| `packages/orchestrator/src/routes/prompt.ts` | CREATE — 3 new route handlers |
-| `packages/orchestrator/src/server.ts` | MODIFY — register `promptRoutes` |
-| `packages/orchestrator/src/__tests__/prompt.test.ts` | CREATE — route unit tests |
-| `apps/api/src/lib/lead.ts` | MODIFY — replace `execFileAsync` with `fetch` |
-| `apps/api/src/__tests__/lead.test.ts` | CREATE — unit tests for `runLead` / `runLeadSynthesis` |
-| `apps/api/src/routes/settings.ts` | MODIFY — proxy test + token, remove cmd override |
-| `apps/api/src/__tests__/settings.test.ts` | CREATE — settings route tests |
-| `apps/web/lib/api.ts` | MODIFY — remove `saveCliCmd` / `resetCliCmd` |
-| `apps/web/app/settings/page.tsx` | MODIFY — remove cmd override UI, remove cliSource badge |
+| File                                                 | Action                                                  |
+| ---------------------------------------------------- | ------------------------------------------------------- |
+| `packages/orchestrator/src/routes/prompt.ts`         | CREATE — 3 new route handlers                           |
+| `packages/orchestrator/src/server.ts`                | MODIFY — register `promptRoutes`                        |
+| `packages/orchestrator/src/__tests__/prompt.test.ts` | CREATE — route unit tests                               |
+| `apps/api/src/lib/lead.ts`                           | MODIFY — replace `execFileAsync` with `fetch`           |
+| `apps/api/src/__tests__/lead.test.ts`                | CREATE — unit tests for `runLead` / `runLeadSynthesis`  |
+| `apps/api/src/routes/settings.ts`                    | MODIFY — proxy test + token, remove cmd override        |
+| `apps/api/src/__tests__/settings.test.ts`            | CREATE — settings route tests                           |
+| `apps/web/lib/api.ts`                                | MODIFY — remove `saveCliCmd` / `resetCliCmd`            |
+| `apps/web/app/settings/page.tsx`                     | MODIFY — remove cmd override UI, remove cliSource badge |
 
 ---
 
 ### Task 1: Orchestrator — prompt route (TDD)
 
 **Files:**
+
 - Create: `packages/orchestrator/src/routes/prompt.ts`
 - Create: `packages/orchestrator/src/__tests__/prompt.test.ts`
 - Modify: `packages/orchestrator/src/server.ts`
@@ -38,159 +39,179 @@
 Create `packages/orchestrator/src/__tests__/prompt.test.ts`:
 
 ```ts
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import Fastify from 'fastify'
-import type { FastifyInstance } from 'fastify'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import Fastify from 'fastify';
+import type { FastifyInstance } from 'fastify';
 
 vi.mock('node:child_process', () => ({
   execFile: vi.fn(),
   execFileSync: vi.fn(),
-}))
+}));
 vi.mock('node:fs', () => ({
   writeFileSync: vi.fn(),
   mkdirSync: vi.fn(),
-}))
+}));
 
-import { execFile, execFileSync } from 'node:child_process'
-import { writeFileSync, mkdirSync } from 'node:fs'
-import { promptRoutes } from '../routes/prompt.js'
+import { execFile, execFileSync } from 'node:child_process';
+import { writeFileSync, mkdirSync } from 'node:fs';
+import { promptRoutes } from '../routes/prompt.js';
 
 async function buildApp(): Promise<FastifyInstance> {
-  const app = Fastify({ logger: false })
-  await app.register(promptRoutes)
-  return app
+  const app = Fastify({ logger: false });
+  await app.register(promptRoutes);
+  return app;
 }
 
 describe('POST /prompt', () => {
-  let app: FastifyInstance
-  beforeEach(async () => { app = await buildApp() })
-  afterEach(async () => { await app.close() })
+  let app: FastifyInstance;
+  beforeEach(async () => {
+    app = await buildApp();
+  });
+  afterEach(async () => {
+    await app.close();
+  });
 
   it('returns stdout on success', async () => {
-    ;(execFile as any).mockImplementation(
+    (execFile as any).mockImplementation(
       (_cmd: string, _args: string[], _opts: any, cb: Function) => {
-        cb(null, { stdout: '{"result":"ok"}' })
-      }
-    )
+        cb(null, { stdout: '{"result":"ok"}' });
+      },
+    );
     const res = await app.inject({
       method: 'POST',
       url: '/prompt',
       payload: { prompt: 'hello', timeoutMs: 5000 },
-    })
-    expect(res.statusCode).toBe(200)
-    expect(res.json().stdout).toBe('{"result":"ok"}')
-  })
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().stdout).toBe('{"result":"ok"}');
+  });
 
   it('returns 504 when claude is killed (timeout)', async () => {
-    ;(execFile as any).mockImplementation(
+    (execFile as any).mockImplementation(
       (_cmd: string, _args: string[], _opts: any, cb: Function) => {
-        const err: any = new Error('Process killed')
-        err.killed = true
-        cb(err)
-      }
-    )
+        const err: any = new Error('Process killed');
+        err.killed = true;
+        cb(err);
+      },
+    );
     const res = await app.inject({
       method: 'POST',
       url: '/prompt',
       payload: { prompt: 'hello', timeoutMs: 5000 },
-    })
-    expect(res.statusCode).toBe(504)
-  })
+    });
+    expect(res.statusCode).toBe(504);
+  });
 
   it('returns 500 on non-timeout error', async () => {
-    ;(execFile as any).mockImplementation(
+    (execFile as any).mockImplementation(
       (_cmd: string, _args: string[], _opts: any, cb: Function) => {
-        cb(new Error('ENOENT: no such file'))
-      }
-    )
+        cb(new Error('ENOENT: no such file'));
+      },
+    );
     const res = await app.inject({
       method: 'POST',
       url: '/prompt',
       payload: { prompt: 'hello', timeoutMs: 5000 },
-    })
-    expect(res.statusCode).toBe(500)
-    expect(res.json().error).toContain('ENOENT')
-  })
+    });
+    expect(res.statusCode).toBe(500);
+    expect(res.json().error).toContain('ENOENT');
+  });
 
   it('rejects prompt exceeding max length', async () => {
     const res = await app.inject({
       method: 'POST',
       url: '/prompt',
       payload: { prompt: 'x'.repeat(65 * 1024), timeoutMs: 5000 },
-    })
-    expect(res.statusCode).toBe(400)
-  })
-})
+    });
+    expect(res.statusCode).toBe(400);
+  });
+});
 
 describe('GET /health/claude', () => {
-  let app: FastifyInstance
-  beforeEach(async () => { app = await buildApp() })
-  afterEach(async () => { await app.close() })
+  let app: FastifyInstance;
+  beforeEach(async () => {
+    app = await buildApp();
+  });
+  afterEach(async () => {
+    await app.close();
+  });
 
   it('returns ok=true with resolved cmd and version', async () => {
-    ;(execFileSync as any)
-      .mockReturnValueOnce('/usr/local/bin/claude\n')  // which
-      .mockReturnValueOnce('claude/1.2.3 linux-x64\n') // --version
-    const res = await app.inject({ method: 'GET', url: '/health/claude' })
-    expect(res.statusCode).toBe(200)
+    (execFileSync as any)
+      .mockReturnValueOnce('/usr/local/bin/claude\n') // which
+      .mockReturnValueOnce('claude/1.2.3 linux-x64\n'); // --version
+    const res = await app.inject({ method: 'GET', url: '/health/claude' });
+    expect(res.statusCode).toBe(200);
     expect(res.json()).toMatchObject({
       ok: true,
       version: 'claude/1.2.3 linux-x64',
       cmd: '/usr/local/bin/claude',
-    })
-  })
+    });
+  });
 
   it('falls back to CLAUDE_CMD when which fails', async () => {
-    ;(execFileSync as any)
-      .mockImplementationOnce(() => { throw new Error('not found') }) // which fails
-      .mockReturnValueOnce('claude/1.0.0\n')                          // --version ok
-    const res = await app.inject({ method: 'GET', url: '/health/claude' })
-    expect(res.statusCode).toBe(200)
-    const body = res.json()
-    expect(body.ok).toBe(true)
-    expect(body.cmd).toBe('claude') // env default
-  })
+    (execFileSync as any)
+      .mockImplementationOnce(() => {
+        throw new Error('not found');
+      }) // which fails
+      .mockReturnValueOnce('claude/1.0.0\n'); // --version ok
+    const res = await app.inject({ method: 'GET', url: '/health/claude' });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.ok).toBe(true);
+    expect(body.cmd).toBe('claude'); // env default
+  });
 
   it('returns ok=false when claude binary is missing', async () => {
-    ;(execFileSync as any)
-      .mockImplementationOnce(() => { throw new Error('which: no claude') }) // which
-      .mockImplementationOnce(() => { throw new Error('ENOENT') })           // --version
-    const res = await app.inject({ method: 'GET', url: '/health/claude' })
-    expect(res.statusCode).toBe(200)
-    expect(res.json().ok).toBe(false)
-    expect(res.json().error).toBeTruthy()
-  })
-})
+    (execFileSync as any)
+      .mockImplementationOnce(() => {
+        throw new Error('which: no claude');
+      }) // which
+      .mockImplementationOnce(() => {
+        throw new Error('ENOENT');
+      }); // --version
+    const res = await app.inject({ method: 'GET', url: '/health/claude' });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().ok).toBe(false);
+    expect(res.json().error).toBeTruthy();
+  });
+});
 
 describe('POST /health/claude/token', () => {
-  let app: FastifyInstance
-  beforeEach(async () => { app = await buildApp() })
-  afterEach(async () => { await app.close() })
+  let app: FastifyInstance;
+  beforeEach(async () => {
+    app = await buildApp();
+  });
+  afterEach(async () => {
+    await app.close();
+  });
 
   it('writes token to /root/.claude/token', async () => {
-    ;(mkdirSync as any).mockReturnValue(undefined)
-    ;(writeFileSync as any).mockReturnValue(undefined)
+    (mkdirSync as any).mockReturnValue(undefined);
+    (writeFileSync as any).mockReturnValue(undefined);
     const res = await app.inject({
       method: 'POST',
       url: '/health/claude/token',
       payload: { token: 'abc123' },
-    })
-    expect(res.statusCode).toBe(200)
-    expect(res.json()).toMatchObject({ ok: true, path: '/root/.claude/token' })
-    expect(writeFileSync).toHaveBeenCalledWith('/root/.claude/token', 'abc123', { mode: 0o600 })
-  })
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toMatchObject({ ok: true, path: '/root/.claude/token' });
+    expect(writeFileSync).toHaveBeenCalledWith('/root/.claude/token', 'abc123', { mode: 0o600 });
+  });
 
   it('returns 500 when write fails', async () => {
-    ;(mkdirSync as any).mockReturnValue(undefined)
-    ;(writeFileSync as any).mockImplementation(() => { throw new Error('Permission denied') })
+    (mkdirSync as any).mockReturnValue(undefined);
+    (writeFileSync as any).mockImplementation(() => {
+      throw new Error('Permission denied');
+    });
     const res = await app.inject({
       method: 'POST',
       url: '/health/claude/token',
       payload: { token: 'abc123' },
-    })
-    expect(res.statusCode).toBe(500)
-  })
-})
+    });
+    expect(res.statusCode).toBe(500);
+  });
+});
 ```
 
 - [ ] **Step 2: Run tests — verify they all fail with "Cannot find module"**
@@ -206,48 +227,51 @@ Expected: FAIL — `Cannot find module '../routes/prompt.js'`
 Create `packages/orchestrator/src/routes/prompt.ts`:
 
 ```ts
-import { FastifyInstance } from 'fastify'
-import { z } from 'zod'
-import { execFile, execFileSync } from 'node:child_process'
-import { promisify } from 'node:util'
-import { writeFileSync, mkdirSync } from 'node:fs'
-import { dirname } from 'node:path'
-import { env } from '../env.js'
+import { FastifyInstance } from 'fastify';
+import { z } from 'zod';
+import { execFile, execFileSync } from 'node:child_process';
+import { promisify } from 'node:util';
+import { writeFileSync, mkdirSync } from 'node:fs';
+import { dirname } from 'node:path';
+import { env } from '../env.js';
 
-const execFileAsync = promisify(execFile)
+const execFileAsync = promisify(execFile);
 
 const promptBodySchema = z.object({
-  prompt: z.string().min(1).max(64 * 1024),
+  prompt: z
+    .string()
+    .min(1)
+    .max(64 * 1024),
   timeoutMs: z.coerce.number().int().positive().max(120_000).default(60_000),
-})
+});
 
 const tokenBodySchema = z.object({
   token: z.string().min(1).max(4096),
-})
+});
 
 export async function promptRoutes(fastify: FastifyInstance) {
   fastify.post('/prompt', async (request, reply) => {
-    const { prompt, timeoutMs } = promptBodySchema.parse(request.body)
+    const { prompt, timeoutMs } = promptBodySchema.parse(request.body);
     try {
       const { stdout } = await execFileAsync(
         env.CLAUDE_CMD,
         ['--output-format', 'json', '-p', prompt],
         { encoding: 'utf8', timeout: timeoutMs, maxBuffer: 4 * 1024 * 1024, env: process.env },
-      )
-      return { stdout }
+      );
+      return { stdout };
     } catch (err: any) {
       if (err.killed || err.signal === 'SIGTERM' || err.code === 'ETIMEDOUT') {
-        return reply.status(504).send({ error: 'claude timed out' })
+        return reply.status(504).send({ error: 'claude timed out' });
       }
-      return reply.status(500).send({ error: err.message ?? 'claude failed' })
+      return reply.status(500).send({ error: err.message ?? 'claude failed' });
     }
-  })
+  });
 
   fastify.get('/health/claude', async () => {
-    let cmd = env.CLAUDE_CMD
+    let cmd = env.CLAUDE_CMD;
     try {
-      const resolved = execFileSync('which', [env.CLAUDE_CMD], { encoding: 'utf8' }).trim()
-      if (resolved) cmd = resolved
+      const resolved = execFileSync('which', [env.CLAUDE_CMD], { encoding: 'utf8' }).trim();
+      if (resolved) cmd = resolved;
     } catch {
       // keep env.CLAUDE_CMD as fallback
     }
@@ -256,24 +280,24 @@ export async function promptRoutes(fastify: FastifyInstance) {
         encoding: 'utf8',
         timeout: 10_000,
         env: process.env,
-      }).trim()
-      return { ok: true, version, cmd }
+      }).trim();
+      return { ok: true, version, cmd };
     } catch (err: any) {
-      return { ok: false, error: err?.message ?? 'CLI not found', cmd }
+      return { ok: false, error: err?.message ?? 'CLI not found', cmd };
     }
-  })
+  });
 
   fastify.post('/health/claude/token', async (request, reply) => {
-    const { token } = tokenBodySchema.parse(request.body)
-    const tokenPath = '/root/.claude/token'
+    const { token } = tokenBodySchema.parse(request.body);
+    const tokenPath = '/root/.claude/token';
     try {
-      mkdirSync(dirname(tokenPath), { recursive: true })
-      writeFileSync(tokenPath, token, { mode: 0o600 })
+      mkdirSync(dirname(tokenPath), { recursive: true });
+      writeFileSync(tokenPath, token, { mode: 0o600 });
     } catch (e: any) {
-      return reply.status(500).send({ error: `Failed to write token: ${e?.message}` })
+      return reply.status(500).send({ error: `Failed to write token: ${e?.message}` });
     }
-    return { ok: true, path: tokenPath }
-  })
+    return { ok: true, path: tokenPath };
+  });
 }
 ```
 
@@ -290,13 +314,13 @@ Expected: all prompt tests PASS
 In `packages/orchestrator/src/server.ts`, add:
 
 ```ts
-import { promptRoutes } from './routes/prompt.js'
+import { promptRoutes } from './routes/prompt.js';
 ```
 
 After the existing `await fastify.register(sessionRoutes, { manager, store })` line, add:
 
 ```ts
-await fastify.register(promptRoutes)
+await fastify.register(promptRoutes);
 ```
 
 - [ ] **Step 6: Verify typecheck passes**
@@ -321,6 +345,7 @@ git commit -m "feat(orchestrator): add POST /prompt, GET /health/claude, POST /h
 ### Task 2: API — update lead.ts (TDD)
 
 **Files:**
+
 - Modify: `apps/api/src/lib/lead.ts`
 - Create: `apps/api/src/__tests__/lead.test.ts`
 
@@ -329,92 +354,98 @@ git commit -m "feat(orchestrator): add POST /prompt, GET /health/claude, POST /h
 Create `apps/api/src/__tests__/lead.test.ts`:
 
 ```ts
-import './setup.js'
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import './setup.js';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-vi.stubGlobal('fetch', vi.fn())
+vi.stubGlobal('fetch', vi.fn());
 
-import { runLead, runLeadSynthesis } from '../lib/lead.js'
+import { runLead, runLeadSynthesis } from '../lib/lead.js';
 
 const validLeadJson = JSON.stringify({
   result: JSON.stringify({
     intent: 'chat',
     reply: 'Hello!',
   }),
-})
+});
 
-const validSynthesisJson = JSON.stringify({ result: 'Nice work!' })
+const validSynthesisJson = JSON.stringify({ result: 'Nice work!' });
 
 function mockFetchOk(body: string) {
-  ;(fetch as any).mockResolvedValueOnce({
+  (fetch as any).mockResolvedValueOnce({
     ok: true,
     json: async () => ({ stdout: body }),
-  })
+  });
 }
 
 function mockFetchError(status: number) {
-  ;(fetch as any).mockResolvedValueOnce({
+  (fetch as any).mockResolvedValueOnce({
     ok: false,
     status,
     json: async () => ({ error: 'upstream error' }),
-  })
+  });
 }
 
 describe('runLead', () => {
-  beforeEach(() => { vi.clearAllMocks() })
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
 
   it('calls orchestrator /prompt and returns parsed decision', async () => {
-    mockFetchOk(validLeadJson)
-    const { decision } = await runLead('hello', [])
-    expect(fetch).toHaveBeenCalledOnce()
-    const [url, opts] = (fetch as any).mock.calls[0]
-    expect(url).toContain('/prompt')
-    expect(JSON.parse(opts.body).prompt).toContain('hello')
-    expect(decision.intent).toBe('chat')
-    expect(decision.reply).toBe('Hello!')
-  })
+    mockFetchOk(validLeadJson);
+    const { decision } = await runLead('hello', []);
+    expect(fetch).toHaveBeenCalledOnce();
+    const [url, opts] = (fetch as any).mock.calls[0];
+    expect(url).toContain('/prompt');
+    expect(JSON.parse(opts.body).prompt).toContain('hello');
+    expect(decision.intent).toBe('chat');
+    expect(decision.reply).toBe('Hello!');
+  });
 
   it('throws when orchestrator returns non-ok status', async () => {
-    mockFetchError(504)
-    await expect(runLead('hello', [])).rejects.toThrow('Orchestrator error 504')
-  })
+    mockFetchError(504);
+    await expect(runLead('hello', [])).rejects.toThrow('Orchestrator error 504');
+  });
 
   it('throws when orchestrator is unreachable', async () => {
-    ;(fetch as any).mockRejectedValueOnce(new Error('ECONNREFUSED'))
-    await expect(runLead('hello', [])).rejects.toThrow()
-  })
-})
+    (fetch as any).mockRejectedValueOnce(new Error('ECONNREFUSED'));
+    await expect(runLead('hello', [])).rejects.toThrow();
+  });
+});
 
 describe('runLeadSynthesis', () => {
-  beforeEach(() => { vi.clearAllMocks() })
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
 
   it('calls orchestrator /prompt and returns plain text', async () => {
-    mockFetchOk(validSynthesisJson)
+    mockFetchOk(validSynthesisJson);
     const text = await runLeadSynthesis({
       agentRole: 'frontend',
       success: true,
       summary: 'done',
       prUrl: null,
       context: [],
-    })
-    expect(text).toBe('Nice work!')
-    expect(fetch).toHaveBeenCalledOnce()
-    const [url, opts] = (fetch as any).mock.calls[0]
-    expect(url).toContain('/prompt')
-    expect(JSON.parse(opts.body).timeoutMs).toBe(45_000)
-  })
+    });
+    expect(text).toBe('Nice work!');
+    expect(fetch).toHaveBeenCalledOnce();
+    const [url, opts] = (fetch as any).mock.calls[0];
+    expect(url).toContain('/prompt');
+    expect(JSON.parse(opts.body).timeoutMs).toBe(45_000);
+  });
 
   it('throws when orchestrator returns non-ok status', async () => {
-    mockFetchError(500)
-    await expect(runLeadSynthesis({
-      agentRole: 'backend',
-      success: false,
-      summary: '',
-      prUrl: null,
-      context: [],
-    })).rejects.toThrow('Orchestrator error 500')
-  })
-})
+    mockFetchError(500);
+    await expect(
+      runLeadSynthesis({
+        agentRole: 'backend',
+        success: false,
+        summary: '',
+        prUrl: null,
+        context: [],
+      }),
+    ).rejects.toThrow('Orchestrator error 500');
+  });
+});
 ```
 
 - [ ] **Step 2: Run tests — verify they fail**
@@ -431,15 +462,15 @@ Replace the top imports in `apps/api/src/lib/lead.ts`:
 
 ```ts
 // Remove these 3 lines:
-import { execFile } from 'node:child_process'
-import { promisify } from 'node:util'
-const execFileAsync = promisify(execFile)
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
+const execFileAsync = promisify(execFile);
 ```
 
 Add this helper after the imports (before `DEFAULT_LEAD_SYSTEM_PROMPT`):
 
 ```ts
-const ORCHESTRATOR_URL = process.env.ORCHESTRATOR_URL ?? 'http://localhost:4802'
+const ORCHESTRATOR_URL = process.env.ORCHESTRATOR_URL ?? 'http://localhost:4802';
 
 async function callOrchestrator(prompt: string, timeoutMs: number): Promise<string> {
   const res = await fetch(`${ORCHESTRATOR_URL}/prompt`, {
@@ -447,13 +478,13 @@ async function callOrchestrator(prompt: string, timeoutMs: number): Promise<stri
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ prompt, timeoutMs }),
     signal: AbortSignal.timeout(timeoutMs + 5_000),
-  })
+  });
   if (!res.ok) {
-    const body = await res.json().catch(() => ({})) as { error?: string }
-    throw new Error(`Orchestrator error ${res.status}: ${(body as any).error ?? 'unknown'}`)
+    const body = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(`Orchestrator error ${res.status}: ${(body as any).error ?? 'unknown'}`);
   }
-  const { stdout } = await res.json() as { stdout: string }
-  return stdout
+  const { stdout } = (await res.json()) as { stdout: string };
+  return stdout;
 }
 ```
 
@@ -461,38 +492,38 @@ In `runLead`, replace the entire `execFileAsync` block:
 
 ```ts
 // Remove:
-const cmd = process.env.CLAUDE_CMD ?? 'claude'
+const cmd = process.env.CLAUDE_CMD ?? 'claude';
 const { stdout } = await execFileAsync(cmd, ['--output-format', 'json', '-p', prompt], {
   encoding: 'utf8',
   timeout: 60_000,
   maxBuffer: 4 * 1024 * 1024,
   env: { ...process.env },
-})
+});
 
 // Add:
-const stdout = await callOrchestrator(prompt, 60_000)
+const stdout = await callOrchestrator(prompt, 60_000);
 ```
 
 In `runLeadSynthesis`, replace the `execFileAsync` block:
 
 ```ts
 // Remove:
-const cmd = process.env.CLAUDE_CMD ?? 'claude'
+const cmd = process.env.CLAUDE_CMD ?? 'claude';
 const { stdout } = await execFileAsync(cmd, ['--output-format', 'json', '-p', prompt], {
   encoding: 'utf8',
   timeout: 45_000,
   maxBuffer: 2 * 1024 * 1024,
   env: { ...process.env },
-})
+});
 
 // Add:
-const stdout = await callOrchestrator(prompt, 45_000)
+const stdout = await callOrchestrator(prompt, 45_000);
 ```
 
 Also remove the intermediate `let text = stdout.trim()` reassignment in `runLeadSynthesis` — it's already a `const stdout` from `callOrchestrator`. Keep the rest of the function (JSON unwrapping, strip code fences) but rename `stdout` to `text` at the point it becomes `text`:
 
 ```ts
-let text = stdout.trim()
+let text = stdout.trim();
 // rest of the function unchanged
 ```
 
@@ -524,6 +555,7 @@ git commit -m "feat(api): replace execFileAsync in lead.ts with fetch to orchest
 ### Task 3: API — update settings.ts (TDD)
 
 **Files:**
+
 - Modify: `apps/api/src/routes/settings.ts`
 - Create: `apps/api/src/__tests__/settings.test.ts`
 
@@ -532,78 +564,84 @@ git commit -m "feat(api): replace execFileAsync in lead.ts with fetch to orchest
 Create `apps/api/src/__tests__/settings.test.ts`:
 
 ```ts
-import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest'
-import './setup.js'
-import { buildServer } from '../server.js'
+import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest';
+import './setup.js';
+import { buildServer } from '../server.js';
 
-vi.stubGlobal('fetch', vi.fn())
+vi.stubGlobal('fetch', vi.fn());
 
 describe('Settings routes', () => {
-  let server: Awaited<ReturnType<typeof buildServer>>
-  let token: string
+  let server: Awaited<ReturnType<typeof buildServer>>;
+  let token: string;
 
   beforeAll(async () => {
-    server = await buildServer()
+    server = await buildServer();
     const res = await server.inject({
       method: 'POST',
       url: '/auth/login',
       payload: { email: 'admin@example.com', password: 'changeme123' },
-    })
-    token = res.json().token
-  })
+    });
+    token = res.json().token;
+  });
 
-  afterAll(async () => { await server.close() })
+  afterAll(async () => {
+    await server.close();
+  });
 
-  const auth = () => ({ authorization: `Bearer ${token}` })
+  const auth = () => ({ authorization: `Bearer ${token}` });
 
   describe('GET /settings/claude/test', () => {
     it('proxies to orchestrator /health/claude and returns response', async () => {
-      ;(fetch as any).mockResolvedValueOnce({
+      (fetch as any).mockResolvedValueOnce({
         ok: true,
         json: async () => ({ ok: true, version: 'claude/1.2.3', cmd: '/usr/local/bin/claude' }),
-      })
+      });
       const res = await server.inject({
         method: 'GET',
         url: '/settings/claude/test',
         headers: auth(),
-      })
-      expect(res.statusCode).toBe(200)
-      expect(res.json()).toMatchObject({ ok: true, version: 'claude/1.2.3', cmd: '/usr/local/bin/claude' })
-      const [url] = (fetch as any).mock.calls[0]
-      expect(url).toContain('/health/claude')
-    })
+      });
+      expect(res.statusCode).toBe(200);
+      expect(res.json()).toMatchObject({
+        ok: true,
+        version: 'claude/1.2.3',
+        cmd: '/usr/local/bin/claude',
+      });
+      const [url] = (fetch as any).mock.calls[0];
+      expect(url).toContain('/health/claude');
+    });
 
     it('returns ok=false when orchestrator is unreachable', async () => {
-      ;(fetch as any).mockRejectedValueOnce(new Error('ECONNREFUSED'))
+      (fetch as any).mockRejectedValueOnce(new Error('ECONNREFUSED'));
       const res = await server.inject({
         method: 'GET',
         url: '/settings/claude/test',
         headers: auth(),
-      })
-      expect(res.statusCode).toBe(200)
-      expect(res.json().ok).toBe(false)
-    })
-  })
+      });
+      expect(res.statusCode).toBe(200);
+      expect(res.json().ok).toBe(false);
+    });
+  });
 
   describe('POST /settings/cli/claude/token', () => {
     it('proxies token to orchestrator /health/claude/token', async () => {
-      ;(fetch as any).mockResolvedValueOnce({
+      (fetch as any).mockResolvedValueOnce({
         ok: true,
         json: async () => ({ ok: true, path: '/root/.claude/token' }),
-      })
+      });
       const res = await server.inject({
         method: 'POST',
         url: '/settings/cli/claude/token',
         headers: auth(),
         payload: { token: 'mytoken123' },
-      })
-      expect(res.statusCode).toBe(200)
-      expect(res.json()).toMatchObject({ ok: true, path: '/root/.claude/token' })
-      const [url, opts] = (fetch as any).mock.calls[0]
-      expect(url).toContain('/health/claude/token')
-      expect(JSON.parse(opts.body).token).toBe('mytoken123')
-    })
-  })
+      });
+      expect(res.statusCode).toBe(200);
+      expect(res.json()).toMatchObject({ ok: true, path: '/root/.claude/token' });
+      const [url, opts] = (fetch as any).mock.calls[0];
+      expect(url).toContain('/health/claude/token');
+      expect(JSON.parse(opts.body).token).toBe('mytoken123');
+    });
+  });
 
   describe('Removed routes', () => {
     it('POST /settings/claude/cmd returns 404', async () => {
@@ -612,34 +650,34 @@ describe('Settings routes', () => {
         url: '/settings/claude/cmd',
         headers: auth(),
         payload: { cmd: 'claude' },
-      })
-      expect(res.statusCode).toBe(404)
-    })
+      });
+      expect(res.statusCode).toBe(404);
+    });
 
     it('DELETE /settings/claude/cmd returns 404', async () => {
       const res = await server.inject({
         method: 'DELETE',
         url: '/settings/claude/cmd',
         headers: auth(),
-      })
-      expect(res.statusCode).toBe(404)
-    })
-  })
+      });
+      expect(res.statusCode).toBe(404);
+    });
+  });
 
   describe('GET /settings', () => {
     it('no longer returns cli.cmd or cli.source', async () => {
-      const res = await server.inject({ method: 'GET', url: '/settings', headers: auth() })
-      expect(res.statusCode).toBe(200)
-      expect(res.json().cli?.cmd).toBeUndefined()
-      expect(res.json().cli?.source).toBeUndefined()
-    })
+      const res = await server.inject({ method: 'GET', url: '/settings', headers: auth() });
+      expect(res.statusCode).toBe(200);
+      expect(res.json().cli?.cmd).toBeUndefined();
+      expect(res.json().cli?.source).toBeUndefined();
+    });
 
     it('returns cli.orchestratorUrl', async () => {
-      const res = await server.inject({ method: 'GET', url: '/settings', headers: auth() })
-      expect(res.json().cli?.orchestratorUrl).toBeTruthy()
-    })
-  })
-})
+      const res = await server.inject({ method: 'GET', url: '/settings', headers: auth() });
+      expect(res.json().cli?.orchestratorUrl).toBeTruthy();
+    });
+  });
+});
 ```
 
 - [ ] **Step 2: Run tests — verify they fail**
@@ -655,27 +693,28 @@ Expected: FAIL — removed routes still return 200, cli.cmd still present
 **3a. Remove import and dead state at top of `settingsRoutes`:**
 
 Remove from `apps/api/src/routes/settings.ts` line 3:
+
 ```ts
-import { execFileSync } from 'node:child_process'
+import { execFileSync } from 'node:child_process';
 ```
 
 **3b. Replace `GET /settings` handler** (lines 32–68) with:
 
 ```ts
 fastify.get('/settings', { preHandler }, async () => {
-  const token = (await readStoredToken(fastify.redis)) ?? env.GITHUB_TOKEN ?? null
-  let user: { login: string; avatarUrl?: string } | null = null
+  const token = (await readStoredToken(fastify.redis)) ?? env.GITHUB_TOKEN ?? null;
+  let user: { login: string; avatarUrl?: string } | null = null;
   if (token) {
     try {
-      const oct = new Octokit({ auth: token })
-      const { data } = await oct.users.getAuthenticated()
-      user = { login: data.login, avatarUrl: data.avatar_url }
+      const oct = new Octokit({ auth: token });
+      const { data } = await oct.users.getAuthenticated();
+      user = { login: data.login, avatarUrl: data.avatar_url };
     } catch {
-      user = null
+      user = null;
     }
   }
 
-  const reposBaseDir = (await fastify.redis.get('settings:repos:base-dir')) ?? null
+  const reposBaseDir = (await fastify.redis.get('settings:repos:base-dir')) ?? null;
 
   return {
     github: {
@@ -688,8 +727,8 @@ fastify.get('/settings', { preHandler }, async () => {
       orchestratorUrl: env.ORCHESTRATOR_URL,
     },
     reposBaseDir,
-  }
-})
+  };
+});
 ```
 
 **3c. Remove `POST /settings/claude/cmd`** (lines 70–75) entirely.
@@ -703,39 +742,39 @@ fastify.get('/settings/claude/test', { preHandler }, async (_, reply) => {
   try {
     const res = await fetch(`${env.ORCHESTRATOR_URL}/health/claude`, {
       signal: AbortSignal.timeout(15_000),
-    })
+    });
     if (!res.ok) {
-      return reply.status(502).send({ ok: false, error: 'Orchestrator error', cmd: 'unknown' })
+      return reply.status(502).send({ ok: false, error: 'Orchestrator error', cmd: 'unknown' });
     }
-    return res.json()
+    return res.json();
   } catch (err: any) {
-    return { ok: false, error: err?.message ?? 'Orchestrator unreachable', cmd: 'unknown' }
+    return { ok: false, error: err?.message ?? 'Orchestrator unreachable', cmd: 'unknown' };
   }
-})
+});
 ```
 
 **3f. Replace `POST /settings/cli/claude/token`** (lines 285–296) with:
 
 ```ts
 fastify.post('/settings/cli/claude/token', { preHandler }, async (request, reply) => {
-  const { token } = claudeTokenSchema.parse(request.body)
+  const { token } = claudeTokenSchema.parse(request.body);
   try {
     const res = await fetch(`${env.ORCHESTRATOR_URL}/health/claude/token`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ token }),
       signal: AbortSignal.timeout(10_000),
-    })
+    });
     if (!res.ok) {
-      const body = await res.json().catch(() => ({})) as { error?: string }
-      return reply.status(502).send({ error: body.error ?? 'Orchestrator error' })
+      const body = (await res.json().catch(() => ({}))) as { error?: string };
+      return reply.status(502).send({ error: body.error ?? 'Orchestrator error' });
     }
-    await logAudit(fastify, request, { action: 'settings.cli.claude.token.saved' })
-    return res.json()
+    await logAudit(fastify, request, { action: 'settings.cli.claude.token.saved' });
+    return res.json();
   } catch (e: any) {
-    return reply.status(502).send({ error: e?.message ?? 'Orchestrator unreachable' })
+    return reply.status(502).send({ error: e?.message ?? 'Orchestrator unreachable' });
   }
-})
+});
 ```
 
 Also remove `writeFileSync`, `mkdirSync`, `dirname` imports (lines 4–5) since they're no longer used.
@@ -768,6 +807,7 @@ git commit -m "feat(api): proxy claude test and token to orchestrator, remove cm
 ### Task 4: Frontend — remove cmd override UI
 
 **Files:**
+
 - Modify: `apps/web/lib/api.ts`
 - Modify: `apps/web/app/settings/page.tsx`
 
@@ -791,23 +831,25 @@ resetCliCmd: () =>
 In `apps/web/app/settings/page.tsx`, remove:
 
 **State variables** (lines 87–94, the cmd override ones):
+
 ```ts
 // Remove:
-const [cliCmd, setCliCmd] = useState('claude')
-const [cliCmdInput, setCliCmdInput] = useState('')
-const [cliSource, setCliSource] = useState('default')
-const [cliSaving, setCliSaving] = useState(false)
-const [cliInfo, setCliInfo] = useState('')
-const [cliError, setCliError] = useState('')
+const [cliCmd, setCliCmd] = useState('claude');
+const [cliCmdInput, setCliCmdInput] = useState('');
+const [cliSource, setCliSource] = useState('default');
+const [cliSaving, setCliSaving] = useState(false);
+const [cliInfo, setCliInfo] = useState('');
+const [cliError, setCliError] = useState('');
 ```
 
 Keep: `cliTesting`, `cliTestResult`.
 
 **In `refresh()`**, remove lines that reference these deleted state setters:
+
 ```ts
 // Remove:
-setCliCmd(s.cli?.cmd ?? 'claude')
-setCliSource(s.cli?.source ?? 'default')
+setCliCmd(s.cli?.cmd ?? 'claude');
+setCliSource(s.cli?.source ?? 'default');
 ```
 
 **Remove handler functions** `saveCliCmd` (lines 178–189) and `resetCliCmd` (lines 191–196).
@@ -817,76 +859,86 @@ setCliSource(s.cli?.source ?? 'default')
 Replace the entire Claude CLI tab section (lines 283–388, `{activeTab === 'cli' && ...}`) with:
 
 ```tsx
-{activeTab === 'cli' && (
-  <section className="bg-surface border border-border rounded-lg p-5">
-    <div className="mb-4">
-      <h2 className="text-[14px] font-semibold text-text">Claude CLI</h2>
-      <p className="text-[13px] text-muted mt-0.5">สถานะ claude binary ใน orchestrator container</p>
-    </div>
+{
+  activeTab === 'cli' && (
+    <section className="bg-surface border border-border rounded-lg p-5">
+      <div className="mb-4">
+        <h2 className="text-[14px] font-semibold text-text">Claude CLI</h2>
+        <p className="text-[13px] text-muted mt-0.5">
+          สถานะ claude binary ใน orchestrator container
+        </p>
+      </div>
 
-    <div className="mb-4">
-      <button
-        onClick={testCli}
-        disabled={cliTesting}
-        className="text-[13px] bg-surface-2 hover:bg-canvas border border-border text-text px-4 py-2 rounded transition-colors disabled:opacity-40"
-      >
-        {cliTesting ? '…' : '▶ ทดสอบ CLI'}
-      </button>
-      {cliTestResult && (
-        <div className={`mt-2 p-3 rounded border text-[12px] font-mono ${
-          cliTestResult.ok
-            ? 'bg-success/5 border-success/20 text-success'
-            : 'bg-danger/5 border-danger/20 text-danger'
-        }`}>
-          {cliTestResult.ok
-            ? `${cliTestResult.version}  (${cliTestResult.cmd})`
-            : cliTestResult.error}
-        </div>
-      )}
-    </div>
-
-    <p className="text-[12px] text-dim mt-2">
-      เปลี่ยน binary ได้โดยตั้ง <code className="font-mono text-muted">CLAUDE_CMD</code> ใน orchestrator environment แล้ว restart
-    </p>
-
-    {/* Repos Base Directory */}
-    <div className="pt-4 border-t border-border mt-4">
-      <h3 className="text-[13px] font-semibold text-text mb-0.5">Repos Base Directory</h3>
-      <p className="text-[12px] text-dim mb-3">
-        root directory ที่ clone repos ไว้ — ใช้ auto-fill path เมื่อสร้าง project เช่น <span className="font-mono text-muted">/home/ubuntu/repos</span>
-      </p>
-      <div className="flex gap-2">
-        <input
-          type="text"
-          value={reposBaseDir}
-          onChange={e => setReposBaseDir(e.target.value)}
-          placeholder="/home/ubuntu/repos"
-          className="flex-1 bg-canvas border border-border text-text text-[13px] rounded px-3 py-1.5 placeholder-dim font-mono"
-        />
+      <div className="mb-4">
         <button
-          type="button"
-          onClick={saveBaseDir}
-          disabled={savingBaseDir}
-          className="text-[13px] bg-accent/15 hover:bg-accent/25 border border-accent/25 text-accent px-3 py-1.5 rounded transition-all disabled:opacity-50"
+          onClick={testCli}
+          disabled={cliTesting}
+          className="text-[13px] bg-surface-2 hover:bg-canvas border border-border text-text px-4 py-2 rounded transition-colors disabled:opacity-40"
         >
-          {savingBaseDir ? '…' : 'Save'}
+          {cliTesting ? '…' : '▶ ทดสอบ CLI'}
         </button>
-        {savedBaseDir && (
-          <button
-            type="button"
-            onClick={async () => { await api.settings.resetReposBaseDir(); setSavedBaseDir(null); setReposBaseDir('') }}
-            className="text-[13px] text-muted hover:text-danger px-2 py-1.5 rounded transition-colors"
+        {cliTestResult && (
+          <div
+            className={`mt-2 p-3 rounded border text-[12px] font-mono ${
+              cliTestResult.ok
+                ? 'bg-success/5 border-success/20 text-success'
+                : 'bg-danger/5 border-danger/20 text-danger'
+            }`}
           >
-            ✕
-          </button>
+            {cliTestResult.ok
+              ? `${cliTestResult.version}  (${cliTestResult.cmd})`
+              : cliTestResult.error}
+          </div>
         )}
       </div>
-      {savedBaseDir && (
-        <p className="text-[12px] text-success mt-1.5">✓ {savedBaseDir}</p>
-      )}
-    </div>
-  </section>
-)}
+
+      <p className="text-[12px] text-dim mt-2">
+        เปลี่ยน binary ได้โดยตั้ง <code className="font-mono text-muted">CLAUDE_CMD</code> ใน
+        orchestrator environment แล้ว restart
+      </p>
+
+      {/* Repos Base Directory */}
+      <div className="pt-4 border-t border-border mt-4">
+        <h3 className="text-[13px] font-semibold text-text mb-0.5">Repos Base Directory</h3>
+        <p className="text-[12px] text-dim mb-3">
+          root directory ที่ clone repos ไว้ — ใช้ auto-fill path เมื่อสร้าง project เช่น{' '}
+          <span className="font-mono text-muted">/home/ubuntu/repos</span>
+        </p>
+        <div className="flex gap-2">
+          <input
+            type="text"
+            value={reposBaseDir}
+            onChange={(e) => setReposBaseDir(e.target.value)}
+            placeholder="/home/ubuntu/repos"
+            className="flex-1 bg-canvas border border-border text-text text-[13px] rounded px-3 py-1.5 placeholder-dim font-mono"
+          />
+          <button
+            type="button"
+            onClick={saveBaseDir}
+            disabled={savingBaseDir}
+            className="text-[13px] bg-accent/15 hover:bg-accent/25 border border-accent/25 text-accent px-3 py-1.5 rounded transition-all disabled:opacity-50"
+          >
+            {savingBaseDir ? '…' : 'Save'}
+          </button>
+          {savedBaseDir && (
+            <button
+              type="button"
+              onClick={async () => {
+                await api.settings.resetReposBaseDir();
+                setSavedBaseDir(null);
+                setReposBaseDir('');
+              }}
+              className="text-[13px] text-muted hover:text-danger px-2 py-1.5 rounded transition-colors"
+            >
+              ✕
+            </button>
+          )}
+        </div>
+        {savedBaseDir && <p className="text-[12px] text-success mt-1.5">✓ {savedBaseDir}</p>}
+      </div>
+    </section>
+  );
+}
 ```
 
 - [ ] **Step 4: Verify TypeScript compiles**
@@ -921,6 +973,7 @@ curl -s http://localhost:4802/health/claude | jq .
 ```
 
 Expected:
+
 ```json
 { "ok": true, "version": "...", "cmd": "/usr/local/bin/claude" }
 ```
@@ -934,6 +987,7 @@ Expected: green banner with claude version string
 - [ ] **Step 4: Send a chat message**
 
 Open the chat page, send a message. Verify:
+
 - Lead responds (no ENOENT error in API logs)
 - API logs show no `spawnSync` or `execFile` calls
 

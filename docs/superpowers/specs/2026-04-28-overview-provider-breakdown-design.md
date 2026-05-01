@@ -20,13 +20,14 @@ Overview page แสดง per-role breakdown แล้ว แต่ไม่ม
 **Logic:** Query `agentSessions` grouped by `cliProvider`. Sessions ที่ `cliProvider IS NULL` นับรวมเป็น `"claude"` (default CLI)
 
 **Response:**
+
 ```json
 {
   "sinceHours": 24,
   "perProvider": [
-    { "provider": "claude",  "count": 12, "successCount": 10, "avgDurationMs": 270000 },
-    { "provider": "gemini",  "count": 3,  "successCount": 3,  "avgDurationMs": 180000 },
-    { "provider": "cursor",  "count": 1,  "successCount": 0,  "avgDurationMs": 0 }
+    { "provider": "claude", "count": 12, "successCount": 10, "avgDurationMs": 270000 },
+    { "provider": "gemini", "count": 3, "successCount": 3, "avgDurationMs": 180000 },
+    { "provider": "cursor", "count": 1, "successCount": 0, "avgDurationMs": 0 }
   ]
 }
 ```
@@ -40,6 +41,7 @@ Only providers with `count > 0` are included.
 Card ใหม่วางใต้ AI Activity Card ในหน้า `apps/web/app/overview/page.tsx`
 
 Layout:
+
 ```
 ┌─────────────────────────────────────────────┐
 │  Provider Breakdown  (last 24 hours)        │
@@ -55,26 +57,26 @@ Layout:
 └─────────────────────────────────────────────┘
 ```
 
-- Progress bar width = (provider.count / total.count) * 100%
-- Success rate = (successCount / count) * 100%, rounded to nearest int
+- Progress bar width = (provider.count / total.count) \* 100%
+- Success rate = (successCount / count) \* 100%, rounded to nearest int
 - Avg duration formatted as "Xm Ys" (e.g. "4m 30s"), "0s" if zero
 - Uses same `sinceHours` value already used by overview page
 - Empty state: "No agent sessions in the last 24 hours" when perProvider is empty
 
 ## Files Changed
 
-| File | Change |
-|---|---|
-| `apps/api/src/routes/agents.ts` | Add `GET /agents/metrics/by-provider` endpoint |
-| `apps/web/lib/api.ts` | Add `agents.metricsByProvider(sinceHours)` method |
-| `apps/web/components/overview/ProviderBreakdownCard.tsx` | New card component |
-| `apps/web/app/overview/page.tsx` | Import + render ProviderBreakdownCard below AI Activity |
+| File                                                     | Change                                                  |
+| -------------------------------------------------------- | ------------------------------------------------------- |
+| `apps/api/src/routes/agents.ts`                          | Add `GET /agents/metrics/by-provider` endpoint          |
+| `apps/web/lib/api.ts`                                    | Add `agents.metricsByProvider(sinceHours)` method       |
+| `apps/web/components/overview/ProviderBreakdownCard.tsx` | New card component                                      |
+| `apps/web/app/overview/page.tsx`                         | Import + render ProviderBreakdownCard below AI Activity |
 
 ## Error Handling
 
-| Scenario | Behavior |
-|---|---|
-| API error / fetch fail | Card shows "Unable to load provider data" |
-| `cliProvider IS NULL` in DB | Counted as `"claude"` |
-| Provider with 0 sessions | Excluded from response |
-| Invalid `sinceHours` | Zod 400 — frontend always uses default 24 |
+| Scenario                    | Behavior                                  |
+| --------------------------- | ----------------------------------------- |
+| API error / fetch fail      | Card shows "Unable to load provider data" |
+| `cliProvider IS NULL` in DB | Counted as `"claude"`                     |
+| Provider with 0 sessions    | Excluded from response                    |
+| Invalid `sinceHours`        | Zod 400 — frontend always uses default 24 |

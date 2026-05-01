@@ -6,11 +6,11 @@ services:
       POSTGRES_PASSWORD: meshagent
       POSTGRES_DB: meshagent
     ports:
-      - "4803:5432"
+      - '4803:5432'
     volumes:
       - db_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U meshagent"]
+      test: ['CMD-SHELL', 'pg_isready -U meshagent']
       interval: 5s
       timeout: 5s
       retries: 5
@@ -18,11 +18,11 @@ services:
   redis:
     image: redis:7-alpine
     ports:
-      - "4804:6379"
+      - '4804:6379'
     volumes:
       - redis_data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ['CMD', 'redis-cli', 'ping']
       interval: 5s
       timeout: 5s
       retries: 5
@@ -51,7 +51,7 @@ services:
       - gemini_config:/home/nodeuser/.gemini
       - cursor_config:/home/nodeuser/.cursor
     ports:
-      - "4802:4802"
+      - '4802:4802'
     depends_on:
       redis:
         condition: service_healthy
@@ -93,7 +93,7 @@ services:
       PORT: 4801
       NODE_ENV: development
     ports:
-      - "4801:4801"
+      - '4801:4801'
     volumes:
       - ./apps/api:/app/apps/api
       - /app/apps/api/node_modules
@@ -119,7 +119,7 @@ services:
       NEXT_PUBLIC_API_URL: http://localhost:4801
       NEXT_PUBLIC_WS_URL: ws://localhost:4801
     ports:
-      - "4800:3000"
+      - '4800:3000'
     volumes:
       - ./apps/web:/app/apps/web
       - /app/apps/web/node_modules

@@ -1,37 +1,37 @@
-'use client'
-import type { ReviewIssue } from './styles'
-import { ROLE_STYLE, PRIORITY_BG, PRIORITY_TEXT, SEVERITY_STYLE } from './styles'
-import { FixIssuesPanel } from './FixIssuesPanel'
+'use client';
+import type { ReviewIssue } from './styles';
+import { ROLE_STYLE, PRIORITY_BG, PRIORITY_TEXT, SEVERITY_STYLE } from './styles';
+import { FixIssuesPanel } from './FixIssuesPanel';
 
 interface OverviewTabProps {
-  localTask: any
-  descValue: string
-  editingDesc: boolean
-  onEditDesc: () => void
-  onChangeDesc: (v: string) => void
-  onSaveDesc: () => void
-  onUpdateField: (field: string, value: string) => void
+  localTask: any;
+  descValue: string;
+  editingDesc: boolean;
+  onEditDesc: () => void;
+  onChangeDesc: (v: string) => void;
+  onSaveDesc: () => void;
+  onUpdateField: (field: string, value: string) => void;
   // AI section
-  leadComment: any
-  plan: any
-  analyzing: boolean
-  approving: boolean
-  onAnalyze: () => void
-  onApprove: () => void
+  leadComment: any;
+  plan: any;
+  analyzing: boolean;
+  approving: boolean;
+  onAnalyze: () => void;
+  onApprove: () => void;
   // Task Complete
-  doneCount: number
-  totalCount: number
-  allIssues: ReviewIssue[]
-  fixCommentId: string | null
-  fixTasksCreatedCount: number
-  selectedIssues: Set<number>
-  fixingIssues: boolean
-  onSwitchToSubtasks: () => void
-  onOpenOverviewFix: (issues: ReviewIssue[]) => void
-  onToggleIssue: (idx: number) => void
-  onSelectAllIssues: (issues: ReviewIssue[]) => void
-  onConfirmFix: () => void
-  onCancelFix: () => void
+  doneCount: number;
+  totalCount: number;
+  allIssues: ReviewIssue[];
+  fixCommentId: string | null;
+  fixTasksCreatedCount: number;
+  selectedIssues: Set<number>;
+  fixingIssues: boolean;
+  onSwitchToSubtasks: () => void;
+  onOpenOverviewFix: (issues: ReviewIssue[]) => void;
+  onToggleIssue: (idx: number) => void;
+  onSelectAllIssues: (issues: ReviewIssue[]) => void;
+  onConfirmFix: () => void;
+  onCancelFix: () => void;
 }
 
 export function OverviewTab(props: OverviewTabProps) {
@@ -62,7 +62,7 @@ export function OverviewTab(props: OverviewTabProps) {
     onSelectAllIssues,
     onConfirmFix,
     onCancelFix,
-  } = props
+  } = props;
 
   return (
     <div className="flex flex-col gap-4">
@@ -75,7 +75,7 @@ export function OverviewTab(props: OverviewTabProps) {
             onChange={(e) => onChangeDesc(e.target.value)}
             onBlur={onSaveDesc}
             onKeyDown={(e) => {
-              if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) onSaveDesc()
+              if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) onSaveDesc();
             }}
             autoFocus
             rows={4}
@@ -120,7 +120,11 @@ export function OverviewTab(props: OverviewTabProps) {
                 }`}
                 style={
                   localTask.agentRole === r
-                    ? { backgroundColor: style.bg, color: style.text, borderColor: style.text + '40' }
+                    ? {
+                        backgroundColor: style.bg,
+                        color: style.text,
+                        borderColor: style.text + '40',
+                      }
                     : {}
                 }
               >
@@ -177,7 +181,7 @@ export function OverviewTab(props: OverviewTabProps) {
             {Array.isArray(plan.subtasks) && plan.subtasks.length > 0 && (
               <ol className="flex flex-col gap-1.5 list-none">
                 {plan.subtasks.map((st: any, i: number) => {
-                  const role = ROLE_STYLE[st.agentRole ?? '']
+                  const role = ROLE_STYLE[st.agentRole ?? ''];
                   return (
                     <li key={i} className="flex items-center gap-2 text-[13px]">
                       <span className="text-dim shrink-0">{i + 1}.</span>
@@ -191,7 +195,7 @@ export function OverviewTab(props: OverviewTabProps) {
                         </span>
                       )}
                     </li>
-                  )
+                  );
                 })}
               </ol>
             )}
@@ -253,7 +257,8 @@ export function OverviewTab(props: OverviewTabProps) {
                 fixTasksCreatedCount > 0 ? (
                   <div className="flex items-center gap-2 mt-1">
                     <span className="text-[12px] text-success">
-                      ✓ {fixTasksCreatedCount} fix task{fixTasksCreatedCount !== 1 ? 's' : ''} created
+                      ✓ {fixTasksCreatedCount} fix task{fixTasksCreatedCount !== 1 ? 's' : ''}{' '}
+                      created
                     </span>
                     <button
                       onClick={onSwitchToSubtasks}
@@ -298,5 +303,5 @@ export function OverviewTab(props: OverviewTabProps) {
         </div>
       )}
     </div>
-  )
+  );
 }

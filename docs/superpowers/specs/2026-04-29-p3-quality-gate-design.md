@@ -55,15 +55,15 @@ Key: `qg:state:{taskId}` — TTL 24h
 
 ```typescript
 interface QualityGateState {
-  taskId: string
-  reviewerSessionId: string
-  prUrls: string[]                      // collected from completedSessions or single agent outputLog
-  projectId: string | null
-  projectPaths: Record<string, string>
-  baseBranch: string
-  branchSuffix: string
-  createdBy: string
-  attempt: number                       // starts at 0; max 2 before escalation
+  taskId: string;
+  reviewerSessionId: string;
+  prUrls: string[]; // collected from completedSessions or single agent outputLog
+  projectId: string | null;
+  projectPaths: Record<string, string>;
+  baseBranch: string;
+  branchSuffix: string;
+  createdBy: string;
+  attempt: number; // starts at 0; max 2 before escalation
 }
 ```
 
@@ -84,14 +84,15 @@ END_TASK_COMPLETE
 
 ```typescript
 interface ReviewerVerdict {
-  verdict: 'pass' | 'block'
-  fixRoles: { slug: string; brief: string }[]   // empty when verdict is "pass"
-  issues: { severity: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW'; description: string }[]
-  message: string                               // shown in chat
+  verdict: 'pass' | 'block';
+  fixRoles: { slug: string; brief: string }[]; // empty when verdict is "pass"
+  issues: { severity: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW'; description: string }[];
+  message: string; // shown in chat
 }
 ```
 
 Block criteria:
+
 - Any issue with `severity === "CRITICAL"` → block
 - Any test failure (non-zero exit from test command) → block
 - Only MEDIUM/LOW issues + all tests pass → pass
@@ -101,21 +102,21 @@ Block criteria:
 
 All use existing `taskActivities` table (`actorId = null`):
 
-| type | payload | when |
-|------|---------|------|
-| `quality_gate.started` | `{ attempt, prUrls }` | before reviewer is dispatched |
-| `quality_gate.passed` | `{ attempt, issueCount }` | reviewer returns pass |
-| `quality_gate.blocked` | `{ attempt, issues: [{severity, description}] }` | reviewer returns block |
-| `quality_gate.escalated` | `{ attempt, reason: "max_attempts_reached" }` | attempt ≥ 2 |
+| type                     | payload                                          | when                          |
+| ------------------------ | ------------------------------------------------ | ----------------------------- |
+| `quality_gate.started`   | `{ attempt, prUrls }`                            | before reviewer is dispatched |
+| `quality_gate.passed`    | `{ attempt, issueCount }`                        | reviewer returns pass         |
+| `quality_gate.blocked`   | `{ attempt, issues: [{severity, description}] }` | reviewer returns block        |
+| `quality_gate.escalated` | `{ attempt, reason: "max_attempts_reached" }`    | attempt ≥ 2                   |
 
 ---
 
 ## Files
 
-| File | Action | Responsibility |
-|------|--------|----------------|
-| `apps/api/src/lib/quality-gate.ts` | **Create** | `triggerQualityGate()`, Redis CRUD for QualityGateState + session index |
-| `apps/api/src/routes/internal.ts` | **Modify** | Detect reviewer session via `qg:session`, parse `verdict_json`, handle pass/block/escalate |
+| File                               | Action     | Responsibility                                                                             |
+| ---------------------------------- | ---------- | ------------------------------------------------------------------------------------------ |
+| `apps/api/src/lib/quality-gate.ts` | **Create** | `triggerQualityGate()`, Redis CRUD for QualityGateState + session index                    |
+| `apps/api/src/routes/internal.ts`  | **Modify** | Detect reviewer session via `qg:session`, parse `verdict_json`, handle pass/block/escalate |
 
 No schema changes — `taskActivities` table is reused as-is.
 
@@ -132,18 +133,19 @@ async function triggerQualityGate(
   prUrls: string[],
   projectPaths: Record<string, string>,
   opts: {
-    projectId: string | null
-    baseBranch: string
-    branchSuffix: string
-    createdBy: string
-    attempt?: number
-    taskTitle: string
-    taskDescription: string
+    projectId: string | null;
+    baseBranch: string;
+    branchSuffix: string;
+    createdBy: string;
+    attempt?: number;
+    taskTitle: string;
+    taskDescription: string;
   },
-): Promise<void>
+): Promise<void>;
 ```
 
 Steps:
+
 1. Build reviewer prompt (see below)
 2. `dispatchAgent('reviewer', reviewerWorkingDir, prompt, { projectId, taskId: null, createdBy })`
 3. Save `QualityGateState` to Redis
@@ -232,7 +234,7 @@ Replace current `wave.done` + stage change with:
 if (state.rootTaskId) {
   const prUrls = state.completedSessions
     .map((s) => s.summary.match(/https:\/\/github\.com\/[^\s]+\/pull\/\d+/)?.[0])
-    .filter(Boolean) as string[]
+    .filter(Boolean) as string[];
   await triggerQualityGate(fastify, state.rootTaskId, prUrls, projectPaths, {
     projectId: state.projectId,
     baseBranch: state.baseBranch,
@@ -240,8 +242,8 @@ if (state.rootTaskId) {
     createdBy: state.createdBy,
     taskTitle: state.taskTitle,
     taskDescription: state.taskDescription,
-  })
-  await deleteWaveState(fastify.redis, proposalId)
+  });
+  await deleteWaveState(fastify.redis, proposalId);
 } else {
   // no rootTaskId — existing behavior (push chat msg, cleanup)
 }

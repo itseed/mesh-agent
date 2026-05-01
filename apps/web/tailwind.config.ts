@@ -1,4 +1,4 @@
-import type { Config } from 'tailwindcss'
+import type { Config } from 'tailwindcss';
 
 export default {
   content: ['./app/**/*.{ts,tsx}', './components/**/*.{ts,tsx}'],
@@ -20,11 +20,18 @@ export default {
         purple: '#d2a8ff',
       },
       fontFamily: {
-        sans: ['var(--font-thai)', 'var(--font-sans)', 'Noto Sans Thai', 'Noto Sans', 'system-ui', 'sans-serif'],
+        sans: [
+          'var(--font-thai)',
+          'var(--font-sans)',
+          'Noto Sans Thai',
+          'Noto Sans',
+          'system-ui',
+          'sans-serif',
+        ],
         thai: ['var(--font-thai)', 'Noto Sans Thai', 'system-ui', 'sans-serif'],
         mono: ['var(--font-mono)', 'IBM Plex Mono', 'Courier New', 'monospace'],
       },
     },
   },
   plugins: [],
-} satisfies Config
+} satisfies Config;

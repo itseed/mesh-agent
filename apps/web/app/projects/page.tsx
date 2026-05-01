@@ -1,29 +1,33 @@
-'use client'
-import { useState, useEffect, useCallback, useMemo } from 'react'
-import { AppShell } from '@/components/layout/AppShell'
-import { AuthGuard } from '@/components/layout/AuthGuard'
-import { api } from '@/lib/api'
-import { PageLoader } from '@/components/ui/PageLoader'
-import { FolderBrowser } from '@/components/companion/FolderBrowser'
+'use client';
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import { AppShell } from '@/components/layout/AppShell';
+import { AuthGuard } from '@/components/layout/AuthGuard';
+import { api } from '@/lib/api';
+import { PageLoader } from '@/components/ui/PageLoader';
+import { FolderBrowser } from '@/components/companion/FolderBrowser';
 
 /* ── types ── */
-interface PathEntry { key: string; value: string }
+interface PathEntry {
+  key: string;
+  value: string;
+}
 
 /* ── helpers ── */
 function pathsToEntries(paths: Record<string, string> = {}): PathEntry[] {
-  const e = Object.entries(paths).map(([key, value]) => ({ key, value }))
-  return e.length > 0 ? e : [{ key: '', value: '' }]
+  const e = Object.entries(paths).map(([key, value]) => ({ key, value }));
+  return e.length > 0 ? e : [{ key: '', value: '' }];
 }
 
 function buildPathsMap(entries: PathEntry[]) {
   return Object.fromEntries(
-    entries.filter(e => e.key.trim() && e.value.trim())
-      .map(e => [e.key.trim(), e.value.trim()])
-  )
+    entries
+      .filter((e) => e.key.trim() && e.value.trim())
+      .map((e) => [e.key.trim(), e.value.trim()]),
+  );
 }
 
-
-const INPUT_CLS = 'bg-canvas border border-border text-text text-[14px] rounded px-2.5 py-1.5 placeholder-dim w-full'
+const INPUT_CLS =
+  'bg-canvas border border-border text-text text-[14px] rounded px-2.5 py-1.5 placeholder-dim w-full';
 
 /* ── PathRows (module-level component) ── */
 function PathRows({
@@ -35,35 +39,53 @@ function PathRows({
   onRowDrop,
   onRowDragLeave,
 }: {
-  rows: PathEntry[]
-  onChange: (next: PathEntry[]) => void
-  baseDir?: string | null
-  dropTargetIdx?: number | null
-  onRowDragOver?: (idx: number) => void
-  onRowDrop?: (idx: number, path: string) => void
-  onRowDragLeave?: () => void
+  rows: PathEntry[];
+  onChange: (next: PathEntry[]) => void;
+  baseDir?: string | null;
+  dropTargetIdx?: number | null;
+  onRowDragOver?: (idx: number) => void;
+  onRowDrop?: (idx: number, path: string) => void;
+  onRowDragLeave?: () => void;
 }) {
   return (
     <div>
       <div className="flex items-center justify-between mb-1">
         <span className="text-[12px] text-muted uppercase tracking-wider">Local Paths</span>
-        <button type="button"
+        <button
+          type="button"
           onClick={() => onChange([...rows, { key: '', value: '' }])}
-          className="text-[13px] text-accent hover:text-accent/80">
+          className="text-[13px] text-accent hover:text-accent/80"
+        >
           + add row
         </button>
       </div>
-      <p className="text-[11px] text-dim mb-2">paths บนเครื่องของคุณสำหรับ Local mode — Cloud mode ใช้ GitHub repo path อัตโนมัติ</p>
+      <p className="text-[11px] text-dim mb-2">
+        paths บนเครื่องของคุณสำหรับ Local mode — Cloud mode ใช้ GitHub repo path อัตโนมัติ
+      </p>
       {rows.map((p, i) => {
-        const isDropTarget = dropTargetIdx === i
+        const isDropTarget = dropTargetIdx === i;
         return (
           <div
             key={i}
             className={`flex gap-1.5 mb-1.5 rounded transition-all ${
               isDropTarget ? 'ring-2 ring-accent/50 bg-accent/5 p-1 -mx-1' : ''
             }`}
-            onDragOver={onRowDragOver ? (e) => { e.preventDefault(); onRowDragOver(i) } : undefined}
-            onDrop={onRowDrop ? (e) => { e.preventDefault(); onRowDrop(i, e.dataTransfer.getData('text/plain')) } : undefined}
+            onDragOver={
+              onRowDragOver
+                ? (e) => {
+                    e.preventDefault();
+                    onRowDragOver(i);
+                  }
+                : undefined
+            }
+            onDrop={
+              onRowDrop
+                ? (e) => {
+                    e.preventDefault();
+                    onRowDrop(i, e.dataTransfer.getData('text/plain'));
+                  }
+                : undefined
+            }
             onDragLeave={onRowDragLeave}
           >
             {isDropTarget ? (
@@ -72,9 +94,15 @@ function PathRows({
               </div>
             ) : (
               <>
-                <input type="text" placeholder="เช่น frontend" value={p.key}
-                  onChange={e => onChange(rows.map((x, idx) => idx === i ? { ...x, key: e.target.value } : x))}
-                  className={`${INPUT_CLS} flex-[0_0_35%]`} />
+                <input
+                  type="text"
+                  placeholder="เช่น frontend"
+                  value={p.key}
+                  onChange={(e) =>
+                    onChange(rows.map((x, idx) => (idx === i ? { ...x, key: e.target.value } : x)))
+                  }
+                  className={`${INPUT_CLS} flex-[0_0_35%]`}
+                />
                 {baseDir ? (
                   <div className="flex items-center flex-1 bg-canvas border border-border rounded overflow-hidden">
                     <span className="text-[13px] text-dim font-mono px-2 py-1.5 border-r border-border shrink-0 whitespace-nowrap">
@@ -83,31 +111,49 @@ function PathRows({
                     <input
                       type="text"
                       placeholder="folder-name"
-                      value={p.value.startsWith(baseDir + '/') ? p.value.slice(baseDir.length + 1) : p.value}
-                      onChange={e => {
-                        const full = e.target.value.startsWith('/') ? e.target.value : `${baseDir}/${e.target.value}`
-                        onChange(rows.map((x, idx) => idx === i ? { ...x, value: full } : x))
+                      value={
+                        p.value.startsWith(baseDir + '/')
+                          ? p.value.slice(baseDir.length + 1)
+                          : p.value
+                      }
+                      onChange={(e) => {
+                        const full = e.target.value.startsWith('/')
+                          ? e.target.value
+                          : `${baseDir}/${e.target.value}`;
+                        onChange(rows.map((x, idx) => (idx === i ? { ...x, value: full } : x)));
                       }}
                       className="flex-1 bg-transparent text-text text-[13px] px-2 py-1.5 outline-none font-mono"
                     />
                   </div>
                 ) : (
-                  <input type="text" placeholder="/Users/me/project/web" value={p.value}
-                    onChange={e => onChange(rows.map((x, idx) => idx === i ? { ...x, value: e.target.value } : x))}
-                    className={`${INPUT_CLS} flex-1`} />
+                  <input
+                    type="text"
+                    placeholder="/Users/me/project/web"
+                    value={p.value}
+                    onChange={(e) =>
+                      onChange(
+                        rows.map((x, idx) => (idx === i ? { ...x, value: e.target.value } : x)),
+                      )
+                    }
+                    className={`${INPUT_CLS} flex-1`}
+                  />
                 )}
                 {rows.length > 1 && (
-                  <button type="button"
+                  <button
+                    type="button"
                     onClick={() => onChange(rows.filter((_, idx) => idx !== i))}
-                    className="text-muted hover:text-danger text-[13px] px-1 transition-colors">✕</button>
+                    className="text-muted hover:text-danger text-[13px] px-1 transition-colors"
+                  >
+                    ✕
+                  </button>
                 )}
               </>
             )}
           </div>
-        )
+        );
       })}
     </div>
-  )
+  );
 }
 
 /* ── RepoPicker ── */
@@ -115,120 +161,168 @@ function RepoPicker({
   selected,
   onChange,
 }: {
-  selected: string[]
-  onChange: (repos: string[]) => void
+  selected: string[];
+  onChange: (repos: string[]) => void;
 }) {
-  const [available, setAvailable] = useState<any[]>([])
-  const [search, setSearch] = useState('')
-  const [loading, setLoading] = useState(true)
-  const [fallback, setFallback] = useState(false)
-  const [manual, setManual] = useState('')
+  const [available, setAvailable] = useState<any[]>([]);
+  const [search, setSearch] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [fallback, setFallback] = useState(false);
+  const [manual, setManual] = useState('');
 
   useEffect(() => {
-    api.settings.listRepos()
-      .then(list => setAvailable(list))
+    api.settings
+      .listRepos()
+      .then((list) => setAvailable(list))
       .catch(() => setFallback(true))
-      .finally(() => setLoading(false))
-  }, [])
+      .finally(() => setLoading(false));
+  }, []);
 
   function toggle(fullName: string) {
-    onChange(selected.includes(fullName)
-      ? selected.filter(r => r !== fullName)
-      : [...selected, fullName])
+    onChange(
+      selected.includes(fullName)
+        ? selected.filter((r) => r !== fullName)
+        : [...selected, fullName],
+    );
   }
 
   function addManual() {
-    const t = manual.trim()
-    if (!t || selected.includes(t)) return
-    onChange([...selected, t])
-    setManual('')
+    const t = manual.trim();
+    if (!t || selected.includes(t)) return;
+    onChange([...selected, t]);
+    setManual('');
   }
 
-  const filtered = useMemo(() =>
-    available.filter(r => r.fullName.toLowerCase().includes(search.toLowerCase())),
-    [available, search]
-  )
+  const filtered = useMemo(
+    () => available.filter((r) => r.fullName.toLowerCase().includes(search.toLowerCase())),
+    [available, search],
+  );
 
   const selectedChips = (
     <div className="flex flex-wrap gap-1.5 mt-2">
-      {selected.map(r => (
-        <span key={r} className="text-[12px] bg-accent/10 text-accent border border-accent/20 px-2 py-0.5 rounded flex items-center gap-1">
+      {selected.map((r) => (
+        <span
+          key={r}
+          className="text-[12px] bg-accent/10 text-accent border border-accent/20 px-2 py-0.5 rounded flex items-center gap-1"
+        >
           {r.includes('/') ? r.split('/')[1] : r}
-          <button type="button" onClick={() => toggle(r)} className="hover:text-danger leading-none">✕</button>
+          <button
+            type="button"
+            onClick={() => toggle(r)}
+            className="hover:text-danger leading-none"
+          >
+            ✕
+          </button>
         </span>
       ))}
     </div>
-  )
+  );
 
   if (loading) {
-    return <PageLoader />
+    return <PageLoader />;
   }
 
   if (fallback) {
     return (
       <div>
-        <p className="text-[12px] text-dim mb-2">GitHub ไม่ได้เชื่อมต่อ — กรอก owner/repo ด้วยมือ (Enter เพื่อเพิ่ม):</p>
+        <p className="text-[12px] text-dim mb-2">
+          GitHub ไม่ได้เชื่อมต่อ — กรอก owner/repo ด้วยมือ (Enter เพื่อเพิ่ม):
+        </p>
         <div className="flex gap-2 mb-2">
-          <input type="text" placeholder="owner/repo" value={manual}
-            onChange={e => setManual(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), addManual())}
-            className={`${INPUT_CLS} flex-1`} />
-          <button type="button" onClick={addManual}
-            className="text-[13px] text-accent border border-accent/30 px-3 py-1.5 rounded hover:bg-accent/10 shrink-0">Add</button>
+          <input
+            type="text"
+            placeholder="owner/repo"
+            value={manual}
+            onChange={(e) => setManual(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addManual())}
+            className={`${INPUT_CLS} flex-1`}
+          />
+          <button
+            type="button"
+            onClick={addManual}
+            className="text-[13px] text-accent border border-accent/30 px-3 py-1.5 rounded hover:bg-accent/10 shrink-0"
+          >
+            Add
+          </button>
         </div>
         {selected.length > 0 && selectedChips}
       </div>
-    )
+    );
   }
 
   return (
     <div>
-      <input type="text" placeholder="Search repos…" value={search}
-        onChange={e => setSearch(e.target.value)}
-        className={`${INPUT_CLS} mb-2`} />
+      <input
+        type="text"
+        placeholder="Search repos…"
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        className={`${INPUT_CLS} mb-2`}
+      />
       <div className="max-h-48 overflow-y-auto border border-border rounded-lg divide-y divide-border">
         {filtered.length === 0 ? (
           <p className="text-muted text-[13px] p-3">No repos found.</p>
-        ) : filtered.map(r => (
-          <button key={r.fullName} type="button" onClick={() => toggle(r.fullName)}
-            className={`w-full flex items-center gap-3 px-3 py-2 text-left transition-colors ${
-              selected.includes(r.fullName) ? 'bg-accent/5' : 'hover:bg-surface-2'
-            }`}>
-            <span className={`w-3.5 h-3.5 rounded border shrink-0 flex items-center justify-center text-[10px] font-bold ${
-              selected.includes(r.fullName) ? 'bg-accent border-accent text-canvas' : 'border-border-hi'
-            }`}>{selected.includes(r.fullName) ? '✓' : ''}</span>
-            <div className="min-w-0 flex-1">
-              <div className="text-[13px] text-text truncate">{r.fullName}</div>
-              {r.description && <div className="text-[11px] text-muted truncate">{r.description}</div>}
-            </div>
-            {r.private && <span className="text-[10px] text-dim border border-border px-1 rounded shrink-0">private</span>}
-          </button>
-        ))}
+        ) : (
+          filtered.map((r) => (
+            <button
+              key={r.fullName}
+              type="button"
+              onClick={() => toggle(r.fullName)}
+              className={`w-full flex items-center gap-3 px-3 py-2 text-left transition-colors ${
+                selected.includes(r.fullName) ? 'bg-accent/5' : 'hover:bg-surface-2'
+              }`}
+            >
+              <span
+                className={`w-3.5 h-3.5 rounded border shrink-0 flex items-center justify-center text-[10px] font-bold ${
+                  selected.includes(r.fullName)
+                    ? 'bg-accent border-accent text-canvas'
+                    : 'border-border-hi'
+                }`}
+              >
+                {selected.includes(r.fullName) ? '✓' : ''}
+              </span>
+              <div className="min-w-0 flex-1">
+                <div className="text-[13px] text-text truncate">{r.fullName}</div>
+                {r.description && (
+                  <div className="text-[11px] text-muted truncate">{r.description}</div>
+                )}
+              </div>
+              {r.private && (
+                <span className="text-[10px] text-dim border border-border px-1 rounded shrink-0">
+                  private
+                </span>
+              )}
+            </button>
+          ))
+        )}
       </div>
       {selected.length > 0 && selectedChips}
     </div>
-  )
+  );
 }
 
 /* ── GitHub tab ── */
 function GitHubTab({ project }: { project: any }) {
-  const repos: string[] = project.githubRepos ?? []
-  const [activeRepo, setActiveRepo] = useState(repos[0] ?? '')
-  const [tab, setTab] = useState<'prs' | 'commits'>('prs')
-  const [prs, setPrs] = useState<any[]>([])
-  const [commits, setCommits] = useState<any[]>([])
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
+  const repos: string[] = project.githubRepos ?? [];
+  const [activeRepo, setActiveRepo] = useState(repos[0] ?? '');
+  const [tab, setTab] = useState<'prs' | 'commits'>('prs');
+  const [prs, setPrs] = useState<any[]>([]);
+  const [commits, setCommits] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
   useEffect(() => {
-    if (!activeRepo) return
-    setLoading(true)
-    setError('')
+    if (!activeRepo) return;
+    setLoading(true);
+    setError('');
     Promise.all([api.github.prs(activeRepo), api.github.commits(activeRepo)])
-      .then(([p, c]) => { setPrs(p); setCommits(c) })
-      .catch(e => setError(e.message))
-      .finally(() => setLoading(false))
-  }, [activeRepo])
+      .then(([p, c]) => {
+        setPrs(p);
+        setCommits(c);
+      })
+      .catch((e) => setError(e.message))
+      .finally(() => setLoading(false));
+  }, [activeRepo]);
 
   if (repos.length === 0) {
     return (
@@ -237,29 +331,39 @@ function GitHubTab({ project }: { project: any }) {
         <p className="text-[14px] text-muted">No GitHub repos linked.</p>
         <p className="text-[13px] text-dim mt-1">Edit the project to add repos.</p>
       </div>
-    )
+    );
   }
 
   return (
     <div>
       {repos.length > 1 && (
         <div className="flex gap-1.5 mb-4 flex-wrap">
-          {repos.map(r => (
-            <button key={r} type="button" onClick={() => setActiveRepo(r)}
+          {repos.map((r) => (
+            <button
+              key={r}
+              type="button"
+              onClick={() => setActiveRepo(r)}
               className={`text-[12px] px-2.5 py-1 rounded border transition-all ${
                 activeRepo === r
                   ? 'border-accent/40 bg-accent/10 text-accent'
                   : 'border-border text-muted hover:border-border-hi'
-              }`}>{r}</button>
+              }`}
+            >
+              {r}
+            </button>
           ))}
         </div>
       )}
       <div className="flex mb-4 bg-surface border border-border rounded p-0.5 w-fit">
-        {(['prs', 'commits'] as const).map(t => (
-          <button key={t} type="button" onClick={() => setTab(t)}
+        {(['prs', 'commits'] as const).map((t) => (
+          <button
+            key={t}
+            type="button"
+            onClick={() => setTab(t)}
             className={`px-3 py-1 rounded text-[13px] font-medium transition-all ${
               tab === t ? 'bg-canvas text-text shadow-sm' : 'text-muted hover:text-text'
-            }`}>
+            }`}
+          >
             {t === 'prs' ? `PRs (${prs.length})` : `Commits (${commits.length})`}
           </button>
         ))}
@@ -269,81 +373,115 @@ function GitHubTab({ project }: { project: any }) {
         <PageLoader />
       ) : tab === 'prs' ? (
         <div className="flex flex-col gap-2">
-          {prs.length === 0
-            ? <p className="text-muted text-[13px]">No open PRs.</p>
-            : prs.map((pr: any) => (
-              <div key={pr.id ?? pr.number} className="bg-surface border border-border rounded-lg p-3 hover:border-border-hi transition-colors">
+          {prs.length === 0 ? (
+            <p className="text-muted text-[13px]">No open PRs.</p>
+          ) : (
+            prs.map((pr: any) => (
+              <div
+                key={pr.id ?? pr.number}
+                className="bg-surface border border-border rounded-lg p-3 hover:border-border-hi transition-colors"
+              >
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <a href={pr.url ?? pr.html_url} target="_blank" rel="noreferrer"
-                      className="text-[14px] text-accent hover:underline">
+                    <a
+                      href={pr.url ?? pr.html_url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-[14px] text-accent hover:underline"
+                    >
                       #{pr.number} {pr.title}
                     </a>
-                    <p className="text-[12px] text-muted mt-0.5">{pr.user?.login ?? pr.author} · {pr.state}</p>
+                    <p className="text-[12px] text-muted mt-0.5">
+                      {pr.user?.login ?? pr.author} · {pr.state}
+                    </p>
                   </div>
-                  <span className={`text-[11px] px-2 py-0.5 rounded-full shrink-0 font-medium ${
-                    pr.state === 'open'
-                      ? 'bg-success/15 text-success border border-success/20'
-                      : 'bg-muted/10 text-muted border border-border'
-                  }`}>{pr.state}</span>
+                  <span
+                    className={`text-[11px] px-2 py-0.5 rounded-full shrink-0 font-medium ${
+                      pr.state === 'open'
+                        ? 'bg-success/15 text-success border border-success/20'
+                        : 'bg-muted/10 text-muted border border-border'
+                    }`}
+                  >
+                    {pr.state}
+                  </span>
                 </div>
               </div>
-            ))}
+            ))
+          )}
         </div>
       ) : (
         <div className="flex flex-col gap-2">
-          {commits.length === 0
-            ? <p className="text-muted text-[13px]">No commits found.</p>
-            : commits.map((c: any, i: number) => (
-              <div key={c.sha ?? i} className="bg-surface border border-border rounded-lg p-3 hover:border-border-hi transition-colors">
-                <p className="text-[13px] text-text truncate leading-snug">{c.commit?.message ?? c.message}</p>
+          {commits.length === 0 ? (
+            <p className="text-muted text-[13px]">No commits found.</p>
+          ) : (
+            commits.map((c: any, i: number) => (
+              <div
+                key={c.sha ?? i}
+                className="bg-surface border border-border rounded-lg p-3 hover:border-border-hi transition-colors"
+              >
+                <p className="text-[13px] text-text truncate leading-snug">
+                  {c.commit?.message ?? c.message}
+                </p>
                 <p className="text-[11px] text-muted mt-1">
                   <span className="font-mono text-dim">{(c.sha ?? c.id ?? '').slice(0, 7)}</span>
-                  {' · '}{c.commit?.author?.name ?? c.author}
+                  {' · '}
+                  {c.commit?.author?.name ?? c.author}
                 </p>
               </div>
-            ))}
+            ))
+          )}
         </div>
       )}
     </div>
-  )
+  );
 }
 
 /* ── Details tab ── */
-function DetailsTab({ project, onEdit, onDelete }: {
-  project: any
-  onEdit: () => void
-  onDelete: () => void
+function DetailsTab({
+  project,
+  onEdit,
+  onDelete,
+}: {
+  project: any;
+  onEdit: () => void;
+  onDelete: () => void;
 }) {
-  const repos: string[] = project.githubRepos ?? []
-  const paths: Record<string, string> = project.paths ?? {}
-  const [diskUsage, setDiskUsage] = useState<{ bytes: number; human: string } | null>(null)
-  const [diskLoading, setDiskLoading] = useState(false)
-  const [diskError, setDiskError] = useState(false)
+  const repos: string[] = project.githubRepos ?? [];
+  const paths: Record<string, string> = project.paths ?? {};
+  const [diskUsage, setDiskUsage] = useState<{ bytes: number; human: string } | null>(null);
+  const [diskLoading, setDiskLoading] = useState(false);
+  const [diskError, setDiskError] = useState(false);
 
   useEffect(() => {
-    if (!project?.id) return
-    setDiskLoading(true)
-    setDiskError(false)
-    api.projects.getDiskUsage(project.id)
+    if (!project?.id) return;
+    setDiskLoading(true);
+    setDiskError(false);
+    api.projects
+      .getDiskUsage(project.id)
       .then(setDiskUsage)
       .catch(() => setDiskError(true))
-      .finally(() => setDiskLoading(false))
-  }, [project?.id])
+      .finally(() => setDiskLoading(false));
+  }, [project?.id]);
 
   return (
     <div className="flex flex-col gap-5">
       <div>
-        <div className="text-[11px] font-medium text-muted uppercase tracking-wider mb-2">GitHub Repos</div>
+        <div className="text-[11px] font-medium text-muted uppercase tracking-wider mb-2">
+          GitHub Repos
+        </div>
         {repos.length === 0 ? (
           <p className="text-[13px] text-dim">No repos linked. Edit project to add repos.</p>
         ) : (
           <div className="flex flex-col gap-1.5">
-            {repos.map(r => (
+            {repos.map((r) => (
               <div key={r} className="flex items-center gap-2">
                 <span className="text-accent text-[14px]">⌥</span>
-                <a href={`https://github.com/${r}`} target="_blank" rel="noreferrer"
-                  className="text-[14px] text-text hover:text-accent transition-colors font-mono">
+                <a
+                  href={`https://github.com/${r}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-[14px] text-text hover:text-accent transition-colors font-mono"
+                >
                   {r}
                 </a>
               </div>
@@ -353,13 +491,18 @@ function DetailsTab({ project, onEdit, onDelete }: {
       </div>
 
       <div>
-        <div className="text-[11px] font-medium text-muted uppercase tracking-wider mb-2">Paths</div>
+        <div className="text-[11px] font-medium text-muted uppercase tracking-wider mb-2">
+          Paths
+        </div>
         {Object.keys(paths).length === 0 ? (
           <p className="text-[13px] text-dim">No paths configured. Edit project to add paths.</p>
         ) : (
           <div className="bg-canvas rounded-lg border border-border overflow-hidden">
             {Object.entries(paths).map(([role, dir], i, arr) => (
-              <div key={role} className={`flex items-center gap-3 px-3 py-2 ${i < arr.length - 1 ? 'border-b border-border' : ''}`}>
+              <div
+                key={role}
+                className={`flex items-center gap-3 px-3 py-2 ${i < arr.length - 1 ? 'border-b border-border' : ''}`}
+              >
                 <span className="text-[13px] text-muted w-24 shrink-0">{role}</span>
                 <span className="text-[13px] font-mono text-text truncate">{dir}</span>
               </div>
@@ -369,72 +512,89 @@ function DetailsTab({ project, onEdit, onDelete }: {
       </div>
 
       <div className="flex items-center gap-2 mt-1">
-        <span className="text-[11px] font-medium text-muted uppercase tracking-wider">Base branch</span>
+        <span className="text-[11px] font-medium text-muted uppercase tracking-wider">
+          Base branch
+        </span>
         <span className="text-[12px] font-mono bg-canvas border border-border px-1.5 py-0.5 rounded text-muted">
           {project.baseBranch ?? 'main'}
         </span>
       </div>
 
       <div className="flex items-center gap-2">
-        <span className="text-[11px] font-medium text-muted uppercase tracking-wider">Disk Usage</span>
+        <span className="text-[11px] font-medium text-muted uppercase tracking-wider">
+          Disk Usage
+        </span>
         <span className="text-[12px] font-mono bg-canvas border border-border px-1.5 py-0.5 rounded text-muted">
           {diskLoading ? 'Loading…' : diskError ? '-' : (diskUsage?.human ?? '0 B')}
         </span>
       </div>
 
       <div className="flex gap-2 pt-2 border-t border-border">
-        <button onClick={onEdit}
-          className="text-[13px] border border-border text-muted px-3 py-1.5 rounded hover:text-text hover:border-border-hi transition-all">
+        <button
+          onClick={onEdit}
+          className="text-[13px] border border-border text-muted px-3 py-1.5 rounded hover:text-text hover:border-border-hi transition-all"
+        >
           Edit project
         </button>
-        <button onClick={onDelete}
-          className="text-[13px] border border-danger/30 text-danger/80 px-3 py-1.5 rounded hover:bg-danger/10 transition-all">
+        <button
+          onClick={onDelete}
+          className="text-[13px] border border-danger/30 text-danger/80 px-3 py-1.5 rounded hover:bg-danger/10 transition-all"
+        >
           Delete project
         </button>
       </div>
     </div>
-  )
+  );
 }
 
 /* ── ProjectDetail panel ── */
-function ProjectDetail({ project, onEdit, onDelete }: {
-  project: any
-  onEdit: () => void
-  onDelete: () => void
+function ProjectDetail({
+  project,
+  onEdit,
+  onDelete,
+}: {
+  project: any;
+  onEdit: () => void;
+  onDelete: () => void;
 }) {
-  const [tab, setTab] = useState<'details' | 'github' | 'context'>('details')
-  const [brief, setBrief] = useState('')
-  const [autoContext, setAutoContext] = useState('')
-  const [contextLoading, setContextLoading] = useState(false)
-  const [savingContext, setSavingContext] = useState(false)
+  const [tab, setTab] = useState<'details' | 'github' | 'context'>('details');
+  const [brief, setBrief] = useState('');
+  const [autoContext, setAutoContext] = useState('');
+  const [contextLoading, setContextLoading] = useState(false);
+  const [savingContext, setSavingContext] = useState(false);
 
   useEffect(() => {
     if (tab === 'context' && project?.id) {
-      setContextLoading(true)
-      api.projects.getContext(project.id)
+      setContextLoading(true);
+      api.projects
+        .getContext(project.id)
         .then((ctx) => {
-          setBrief(ctx.brief ?? '')
-          setAutoContext(ctx.autoContext ?? '')
+          setBrief(ctx.brief ?? '');
+          setAutoContext(ctx.autoContext ?? '');
         })
         .catch(() => {})
-        .finally(() => setContextLoading(false))
+        .finally(() => setContextLoading(false));
     }
-  }, [tab, project?.id])
+  }, [tab, project?.id]);
 
   async function handleSaveContext() {
-    if (!project?.id) return
-    setSavingContext(true)
+    if (!project?.id) return;
+    setSavingContext(true);
     try {
-      const result = await api.projects.saveContext(project.id, brief)
-      setAutoContext(result.autoContext)
+      const result = await api.projects.saveContext(project.id, brief);
+      setAutoContext(result.autoContext);
     } catch (e: any) {
-      alert(e.message ?? 'Save failed')
+      alert(e.message ?? 'Save failed');
     } finally {
-      setSavingContext(false)
+      setSavingContext(false);
     }
   }
 
-  const TAB_LABELS: Record<string, string> = { details: 'Details', github: 'GitHub', context: 'Context' }
+  const TAB_LABELS: Record<string, string> = {
+    details: 'Details',
+    github: 'GitHub',
+    context: 'Context',
+  };
 
   return (
     <div className="flex flex-col h-full">
@@ -444,11 +604,17 @@ function ProjectDetail({ project, onEdit, onDelete }: {
         </div>
       </div>
       <div className="flex px-6 pt-3 border-b border-border shrink-0">
-        {(['details', 'github', 'context'] as const).map(t => (
-          <button key={t} type="button" onClick={() => setTab(t)}
+        {(['details', 'github', 'context'] as const).map((t) => (
+          <button
+            key={t}
+            type="button"
+            onClick={() => setTab(t)}
             className={`px-4 py-2 text-[13px] font-medium border-b-2 transition-all -mb-px ${
-              tab === t ? 'border-accent text-text' : 'border-transparent text-muted hover:text-text'
-            }`}>
+              tab === t
+                ? 'border-accent text-text'
+                : 'border-transparent text-muted hover:text-text'
+            }`}
+          >
             {TAB_LABELS[t]}
           </button>
         ))}
@@ -473,16 +639,22 @@ function ProjectDetail({ project, onEdit, onDelete }: {
                     placeholder="Describe this project for agents: tech stack, conventions, key files, architecture…"
                     className="w-full bg-canvas border border-border text-text text-[13px] rounded px-3 py-2 placeholder-dim resize-none"
                   />
-                  <p className="text-[11px] text-dim">Injected into every agent prompt for this project.</p>
+                  <p className="text-[11px] text-dim">
+                    Injected into every agent prompt for this project.
+                  </p>
                 </div>
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-[12px] text-muted font-medium">Codebase Overview (auto-read)</label>
+                  <label className="text-[12px] text-muted font-medium">
+                    Codebase Overview (auto-read)
+                  </label>
                   <div className="w-full bg-canvas border border-border rounded px-3 py-2 text-[12px] text-muted min-h-[60px] whitespace-pre-wrap break-words">
                     {autoContext
                       ? autoContext.slice(0, 500) + (autoContext.length > 500 ? '\n…' : '')
                       : 'No CLAUDE.md or README.md found in project directory.'}
                   </div>
-                  <p className="text-[11px] text-dim">Auto-read from CLAUDE.md / README.md when you save.</p>
+                  <p className="text-[11px] text-dim">
+                    Auto-read from CLAUDE.md / README.md when you save.
+                  </p>
                 </div>
                 <button
                   onClick={handleSaveContext}
@@ -497,192 +669,234 @@ function ProjectDetail({ project, onEdit, onDelete }: {
         )}
       </div>
     </div>
-  )
+  );
 }
 
 /* ── Modal wrapper ── */
-function Modal({ title, onClose, children, wide }: { title: string; onClose: () => void; children: React.ReactNode; wide?: boolean }) {
+function Modal({
+  title,
+  onClose,
+  children,
+  wide,
+}: {
+  title: string;
+  onClose: () => void;
+  children: React.ReactNode;
+  wide?: boolean;
+}) {
   return (
     <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
-      <div className={`bg-surface border border-border-hi rounded-xl w-full glow-border fade-up flex flex-col max-h-[90vh] transition-all duration-200 ${wide ? 'max-w-5xl' : 'max-w-lg'}`}>
+      <div
+        className={`bg-surface border border-border-hi rounded-xl w-full glow-border fade-up flex flex-col max-h-[90vh] transition-all duration-200 ${wide ? 'max-w-5xl' : 'max-w-lg'}`}
+      >
         <div className="flex items-center justify-between px-5 pt-5 pb-0 shrink-0">
           <h2 className="text-[15px] font-semibold text-text">{title}</h2>
-          <button type="button" onClick={onClose} className="text-muted hover:text-text text-[14px] transition-colors">✕</button>
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-muted hover:text-text text-[14px] transition-colors"
+          >
+            ✕
+          </button>
         </div>
         <div className="overflow-y-auto flex-1 px-5 pt-4 pb-5">{children}</div>
       </div>
     </div>
-  )
+  );
 }
 
 /* ── Main page ── */
 export default function ProjectsPage() {
-  const [projects, setProjects] = useState<any[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
-  const [selected, setSelected] = useState<any | null>(null)
+  const [projects, setProjects] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [selected, setSelected] = useState<any | null>(null);
   // create state
-  const [showCreate, setShowCreate] = useState(false)
-  const [cName, setCName] = useState('')
-  const [cBranch, setCBranch] = useState('main')
-  const [cBranches, setCBranches] = useState<string[]>([])
-  const [loadingBranches, setLoadingBranches] = useState(false)
-  const [cRepos, setCRepos] = useState<string[]>([])
-  const [cPaths, setCPaths] = useState<PathEntry[]>([{ key: '', value: '' }])
-  const [creating, setCreating] = useState(false)
-  const [cBrowserOpen, setCBrowserOpen] = useState(false)
-  const [cDropTargetIdx, setCDropTargetIdx] = useState<number | null>(null)
+  const [showCreate, setShowCreate] = useState(false);
+  const [cName, setCName] = useState('');
+  const [cBranch, setCBranch] = useState('main');
+  const [cBranches, setCBranches] = useState<string[]>([]);
+  const [loadingBranches, setLoadingBranches] = useState(false);
+  const [cRepos, setCRepos] = useState<string[]>([]);
+  const [cPaths, setCPaths] = useState<PathEntry[]>([{ key: '', value: '' }]);
+  const [creating, setCreating] = useState(false);
+  const [cBrowserOpen, setCBrowserOpen] = useState(false);
+  const [cDropTargetIdx, setCDropTargetIdx] = useState<number | null>(null);
 
   // edit state
-  const [editProject, setEditProject] = useState<any | null>(null)
-  const [eName, setEName] = useState('')
-  const [eBranch, setEBranch] = useState('main')
-  const [eBranches, setEBranches] = useState<string[]>([])
-  const [eRepos, setERepos] = useState<string[]>([])
-  const [ePaths, setEPaths] = useState<PathEntry[]>([{ key: '', value: '' }])
-  const [saving, setSaving] = useState(false)
-  const [browserOpen, setBrowserOpen] = useState(false)
-  const [companionConnected, setCompanionConnected] = useState(false)
-  const [dropTargetIdx, setDropTargetIdx] = useState<number | null>(null)
+  const [editProject, setEditProject] = useState<any | null>(null);
+  const [eName, setEName] = useState('');
+  const [eBranch, setEBranch] = useState('main');
+  const [eBranches, setEBranches] = useState<string[]>([]);
+  const [eRepos, setERepos] = useState<string[]>([]);
+  const [ePaths, setEPaths] = useState<PathEntry[]>([{ key: '', value: '' }]);
+  const [saving, setSaving] = useState(false);
+  const [browserOpen, setBrowserOpen] = useState(false);
+  const [companionConnected, setCompanionConnected] = useState(false);
+  const [dropTargetIdx, setDropTargetIdx] = useState<number | null>(null);
 
   // delete state
-  const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
-  const [deleting, setDeleting] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
-  const [reposBaseDir, setReposBaseDir] = useState<string | null>(null)
-  const [homedir, setHomedir] = useState('/')
+  const [reposBaseDir, setReposBaseDir] = useState<string | null>(null);
+  const [homedir, setHomedir] = useState('/');
 
   const fetchProjects = useCallback(async () => {
     try {
-      const data = await api.projects.list()
-      setProjects(data)
-      setError('')
-      setSelected((prev: any) => prev ? (data.find((p: any) => p.id === prev.id) ?? prev) : null)
+      const data = await api.projects.list();
+      setProjects(data);
+      setError('');
+      setSelected((prev: any) => (prev ? (data.find((p: any) => p.id === prev.id) ?? prev) : null));
     } catch (e: any) {
-      setError(e.message)
+      setError(e.message);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }, [])
-
-  useEffect(() => { fetchProjects() }, [fetchProjects])
+  }, []);
 
   useEffect(() => {
-    api.settings.get().then(s => setReposBaseDir(s.reposBaseDir ?? null)).catch(() => {})
-  }, [])
+    fetchProjects();
+  }, [fetchProjects]);
 
   useEffect(() => {
-    if (cRepos.length === 0) { setCBranches([]); return }
-    setLoadingBranches(true)
-    api.settings.githubBranches(cRepos[0])
-      .then(bs => {
-        const names = bs.map(b => b.name)
-        setCBranches(names)
-        if (names.length > 0 && !names.includes(cBranch)) setCBranch(names[0])
+    api.settings
+      .get()
+      .then((s) => setReposBaseDir(s.reposBaseDir ?? null))
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (cRepos.length === 0) {
+      setCBranches([]);
+      return;
+    }
+    setLoadingBranches(true);
+    api.settings
+      .githubBranches(cRepos[0])
+      .then((bs) => {
+        const names = bs.map((b) => b.name);
+        setCBranches(names);
+        if (names.length > 0 && !names.includes(cBranch)) setCBranch(names[0]);
       })
       .catch(() => setCBranches([]))
-      .finally(() => setLoadingBranches(false))
-  }, [cRepos])
+      .finally(() => setLoadingBranches(false));
+  }, [cRepos]);
 
   useEffect(() => {
-    if (eRepos.length === 0) { setEBranches([]); return }
-    api.settings.githubBranches(eRepos[0])
-      .then(bs => setEBranches(bs.map(b => b.name)))
-      .catch(() => setEBranches([]))
-  }, [eRepos])
+    if (eRepos.length === 0) {
+      setEBranches([]);
+      return;
+    }
+    api.settings
+      .githubBranches(eRepos[0])
+      .then((bs) => setEBranches(bs.map((b) => b.name)))
+      .catch(() => setEBranches([]));
+  }, [eRepos]);
 
   function selectProject(project: any) {
-    setSelected(project)
-    setConfirmDelete(null)
+    setSelected(project);
+    setConfirmDelete(null);
   }
 
   async function handleCreate(e: React.FormEvent) {
-    e.preventDefault()
-    if (!cName.trim()) return
-    setCreating(true)
-    setError('')
+    e.preventDefault();
+    if (!cName.trim()) return;
+    setCreating(true);
+    setError('');
     try {
       const created = await api.projects.create({
-        name: cName.trim(), paths: buildPathsMap(cPaths), githubRepos: cRepos,
+        name: cName.trim(),
+        paths: buildPathsMap(cPaths),
+        githubRepos: cRepos,
         baseBranch: cBranch.trim() || 'main',
-      })
-      setCName(''); setCBranch('main'); setCRepos([]); setCPaths([{ key: '', value: '' }])
-      setShowCreate(false)
-      await fetchProjects()
-      if (created?.id) setSelected(created)
+      });
+      setCName('');
+      setCBranch('main');
+      setCRepos([]);
+      setCPaths([{ key: '', value: '' }]);
+      setShowCreate(false);
+      await fetchProjects();
+      if (created?.id) setSelected(created);
     } catch (e: any) {
-      setError(e.message)
+      setError(e.message);
     } finally {
-      setCreating(false)
+      setCreating(false);
     }
   }
 
   function openEdit(project: any) {
-    setEditProject(project)
-    setEName(project.name)
-    setEBranch(project.baseBranch ?? 'main')
-    setERepos(project.githubRepos ?? [])
-    setEPaths(pathsToEntries(project.paths))
-    setBrowserOpen(false)
-    setDropTargetIdx(null)
-    api.companion.status()
-      .then(s => {
-        setCompanionConnected(s.connected)
+    setEditProject(project);
+    setEName(project.name);
+    setEBranch(project.baseBranch ?? 'main');
+    setERepos(project.githubRepos ?? []);
+    setEPaths(pathsToEntries(project.paths));
+    setBrowserOpen(false);
+    setDropTargetIdx(null);
+    api.companion
+      .status()
+      .then((s) => {
+        setCompanionConnected(s.connected);
         if (s.connected) {
-          api.companion.homedir().then(r => setHomedir(r.path)).catch(() => {})
+          api.companion
+            .homedir()
+            .then((r) => setHomedir(r.path))
+            .catch(() => {});
         }
       })
-      .catch(() => setCompanionConnected(false))
+      .catch(() => setCompanionConnected(false));
   }
 
   function closeEdit() {
-    setEditProject(null)
-    setBrowserOpen(false)
-    setDropTargetIdx(null)
+    setEditProject(null);
+    setBrowserOpen(false);
+    setDropTargetIdx(null);
   }
 
   const handleRowDrop = (idx: number, droppedPath: string) => {
-    if (!droppedPath) return
-    setEPaths(prev => prev.map((e, i) => i === idx ? { ...e, value: droppedPath } : e))
-    setDropTargetIdx(null)
-  }
+    if (!droppedPath) return;
+    setEPaths((prev) => prev.map((e, i) => (i === idx ? { ...e, value: droppedPath } : e)));
+    setDropTargetIdx(null);
+  };
 
   const handleCRowDrop = (idx: number, droppedPath: string) => {
-    if (!droppedPath) return
-    setCPaths(prev => prev.map((e, i) => i === idx ? { ...e, value: droppedPath } : e))
-    setCDropTargetIdx(null)
-  }
+    if (!droppedPath) return;
+    setCPaths((prev) => prev.map((e, i) => (i === idx ? { ...e, value: droppedPath } : e)));
+    setCDropTargetIdx(null);
+  };
 
   async function handleSaveEdit(e: React.FormEvent) {
-    e.preventDefault()
-    if (!editProject || !eName.trim()) return
-    setSaving(true)
-    setError('')
+    e.preventDefault();
+    if (!editProject || !eName.trim()) return;
+    setSaving(true);
+    setError('');
     try {
       await api.projects.update(editProject.id, {
-        name: eName.trim(), paths: buildPathsMap(ePaths), githubRepos: eRepos,
+        name: eName.trim(),
+        paths: buildPathsMap(ePaths),
+        githubRepos: eRepos,
         baseBranch: eBranch.trim() || 'main',
-      })
-      closeEdit()
-      fetchProjects()
+      });
+      closeEdit();
+      fetchProjects();
     } catch (e: any) {
-      setError(e.message)
+      setError(e.message);
     } finally {
-      setSaving(false)
+      setSaving(false);
     }
   }
 
   async function handleDelete(id: string) {
-    setDeleting(true)
+    setDeleting(true);
     try {
-      await api.projects.delete(id)
-      setConfirmDelete(null)
-      if (selected?.id === id) setSelected(null)
-      fetchProjects()
+      await api.projects.delete(id);
+      setConfirmDelete(null);
+      if (selected?.id === id) setSelected(null);
+      fetchProjects();
     } catch (e: any) {
-      setError(e.message)
+      setError(e.message);
     } finally {
-      setDeleting(false)
+      setDeleting(false);
     }
   }
 
@@ -701,18 +915,22 @@ export default function ProjectsPage() {
               </div>
               <button
                 onClick={() => {
-                  setShowCreate(true)
-                  setError('')
-                  setCBrowserOpen(false)
-                  setCDropTargetIdx(null)
-                  api.companion.status()
-                    .then(s => {
-                      setCompanionConnected(s.connected)
+                  setShowCreate(true);
+                  setError('');
+                  setCBrowserOpen(false);
+                  setCDropTargetIdx(null);
+                  api.companion
+                    .status()
+                    .then((s) => {
+                      setCompanionConnected(s.connected);
                       if (s.connected) {
-                        api.companion.homedir().then(r => setHomedir(r.path)).catch(() => {})
+                        api.companion
+                          .homedir()
+                          .then((r) => setHomedir(r.path))
+                          .catch(() => {});
                       }
                     })
-                    .catch(() => setCompanionConnected(false))
+                    .catch(() => setCompanionConnected(false));
                 }}
                 className="text-[12px] bg-accent/15 hover:bg-accent/25 border border-accent/25 text-accent font-semibold px-2.5 py-1 rounded transition-all"
               >
@@ -725,27 +943,33 @@ export default function ProjectsPage() {
                 <PageLoader />
               ) : projects.length === 0 ? (
                 <p className="text-muted text-[13px] px-2 py-3">No projects yet. Create one →</p>
-              ) : projects.map(project => (
-                <button
-                  key={project.id}
-                  type="button"
-                  onClick={() => selectProject(project)}
-                  className={`w-full text-left p-3 rounded-lg mb-1 transition-all border ${
-                    selected?.id === project.id
-                      ? 'bg-accent/10 border-accent/20 text-text'
-                      : 'border-transparent hover:bg-surface text-muted hover:text-text'
-                  }`}
-                >
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-[14px] font-medium truncate flex-1">{project.name}</span>
-                  </div>
-                  <div className="text-[12px] mt-0.5 opacity-70">
-                    {project.githubRepos?.length ?? 0} repo{project.githubRepos?.length !== 1 ? 's' : ''}
-                    {' · '}
-                    {Object.keys(project.paths ?? {}).length} path{Object.keys(project.paths ?? {}).length !== 1 ? 's' : ''}
-                  </div>
-                </button>
-              ))}
+              ) : (
+                projects.map((project) => (
+                  <button
+                    key={project.id}
+                    type="button"
+                    onClick={() => selectProject(project)}
+                    className={`w-full text-left p-3 rounded-lg mb-1 transition-all border ${
+                      selected?.id === project.id
+                        ? 'bg-accent/10 border-accent/20 text-text'
+                        : 'border-transparent hover:bg-surface text-muted hover:text-text'
+                    }`}
+                  >
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[14px] font-medium truncate flex-1">
+                        {project.name}
+                      </span>
+                    </div>
+                    <div className="text-[12px] mt-0.5 opacity-70">
+                      {project.githubRepos?.length ?? 0} repo
+                      {project.githubRepos?.length !== 1 ? 's' : ''}
+                      {' · '}
+                      {Object.keys(project.paths ?? {}).length} path
+                      {Object.keys(project.paths ?? {}).length !== 1 ? 's' : ''}
+                    </div>
+                  </button>
+                ))
+              )}
             </div>
           </div>
 
@@ -754,7 +978,10 @@ export default function ProjectsPage() {
             {selected ? (
               <ProjectDetail
                 project={selected}
-                onEdit={() => { openEdit(selected); setConfirmDelete(null) }}
+                onEdit={() => {
+                  openEdit(selected);
+                  setConfirmDelete(null);
+                }}
                 onDelete={() => setConfirmDelete(selected.id)}
               />
             ) : (
@@ -774,12 +1001,19 @@ export default function ProjectsPage() {
               <p className="text-[15px] font-medium text-text mb-1">ลบ project นี้?</p>
               <p className="text-[13px] text-muted mb-5">ไม่สามารถย้อนกลับได้</p>
               <div className="flex gap-3 justify-center">
-                <button type="button" onClick={() => setConfirmDelete(null)}
-                  className="text-[14px] text-muted px-4 py-2 border border-border rounded hover:text-text transition-all">
+                <button
+                  type="button"
+                  onClick={() => setConfirmDelete(null)}
+                  className="text-[14px] text-muted px-4 py-2 border border-border rounded hover:text-text transition-all"
+                >
                   ยกเลิก
                 </button>
-                <button type="button" onClick={() => handleDelete(confirmDelete)} disabled={deleting}
-                  className="text-[14px] text-canvas bg-danger/90 hover:bg-danger px-4 py-2 rounded disabled:opacity-50 transition-colors">
+                <button
+                  type="button"
+                  onClick={() => handleDelete(confirmDelete)}
+                  disabled={deleting}
+                  className="text-[14px] text-canvas bg-danger/90 hover:bg-danger px-4 py-2 rounded disabled:opacity-50 transition-colors"
+                >
                   {deleting ? '…' : 'ลบ'}
                 </button>
               </div>
@@ -789,29 +1023,49 @@ export default function ProjectsPage() {
 
         {/* ── Create modal ── */}
         {showCreate && (
-          <Modal title="New project" onClose={() => { setShowCreate(false); setCBrowserOpen(false); setCDropTargetIdx(null) }} wide={cBrowserOpen}>
+          <Modal
+            title="New project"
+            onClose={() => {
+              setShowCreate(false);
+              setCBrowserOpen(false);
+              setCDropTargetIdx(null);
+            }}
+            wide={cBrowserOpen}
+          >
             <form onSubmit={handleCreate} className="flex flex-col gap-4">
-              <input type="text" placeholder="Project name" value={cName}
-                onChange={e => setCName(e.target.value)}
-                className={INPUT_CLS} autoFocus required />
+              <input
+                type="text"
+                placeholder="Project name"
+                value={cName}
+                onChange={(e) => setCName(e.target.value)}
+                className={INPUT_CLS}
+                autoFocus
+                required
+              />
               <div>
-                <div className="text-[12px] text-muted uppercase tracking-wider mb-1">GitHub Repos</div>
+                <div className="text-[12px] text-muted uppercase tracking-wider mb-1">
+                  GitHub Repos
+                </div>
                 <p className="text-[11px] text-dim mb-2">repos ที่ agent จะมี access (optional)</p>
                 <RepoPicker selected={cRepos} onChange={setCRepos} />
               </div>
               <div>
-                <div className="text-[12px] text-muted uppercase tracking-wider mb-1">Base Branch</div>
+                <div className="text-[12px] text-muted uppercase tracking-wider mb-1">
+                  Base Branch
+                </div>
                 <p className="text-[11px] text-dim mb-2">branch ที่ agent จะ fork และ PR เข้า</p>
                 <input
                   type="text"
                   list="c-branches-list"
                   placeholder={loadingBranches ? 'Loading…' : 'main'}
                   value={cBranch}
-                  onChange={e => setCBranch(e.target.value)}
+                  onChange={(e) => setCBranch(e.target.value)}
                   className={`${INPUT_CLS} font-mono`}
                 />
                 <datalist id="c-branches-list">
-                  {cBranches.map(b => <option key={b} value={b} />)}
+                  {cBranches.map((b) => (
+                    <option key={b} value={b} />
+                  ))}
                 </datalist>
               </div>
               {/* Paths section — becomes split when browser open */}
@@ -830,7 +1084,7 @@ export default function ProjectsPage() {
                     {companionConnected && (
                       <button
                         type="button"
-                        onClick={() => setCBrowserOpen(b => !b)}
+                        onClick={() => setCBrowserOpen((b) => !b)}
                         className="mt-2 text-[12px] text-accent hover:text-accent/80 flex items-center gap-1"
                       >
                         {cBrowserOpen ? '← Close Browser' : '📁 Open Folder Browser'}
@@ -845,10 +1099,22 @@ export default function ProjectsPage() {
                 </div>
               </div>
               <div className="flex gap-2 justify-end pt-1">
-                <button type="button" onClick={() => { setShowCreate(false); setCBrowserOpen(false); setCDropTargetIdx(null) }}
-                  className="text-muted text-[14px] px-3 py-1.5 hover:text-text transition-colors">Cancel</button>
-                <button type="submit" disabled={creating}
-                  className="bg-accent/90 hover:bg-accent text-canvas text-[14px] font-semibold px-4 py-1.5 rounded transition-colors disabled:opacity-50">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowCreate(false);
+                    setCBrowserOpen(false);
+                    setCDropTargetIdx(null);
+                  }}
+                  className="text-muted text-[14px] px-3 py-1.5 hover:text-text transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={creating}
+                  className="bg-accent/90 hover:bg-accent text-canvas text-[14px] font-semibold px-4 py-1.5 rounded transition-colors disabled:opacity-50"
+                >
                   {creating ? '…' : 'Create'}
                 </button>
               </div>
@@ -860,26 +1126,38 @@ export default function ProjectsPage() {
         {editProject && (
           <Modal title="Edit project" onClose={closeEdit} wide={browserOpen}>
             <form onSubmit={handleSaveEdit} className="flex flex-col gap-4">
-              <input type="text" placeholder="Project name" value={eName}
-                onChange={e => setEName(e.target.value)}
-                className={INPUT_CLS} autoFocus required />
+              <input
+                type="text"
+                placeholder="Project name"
+                value={eName}
+                onChange={(e) => setEName(e.target.value)}
+                className={INPUT_CLS}
+                autoFocus
+                required
+              />
               <div>
-                <div className="text-[12px] text-muted uppercase tracking-wider mb-1">GitHub Repos</div>
+                <div className="text-[12px] text-muted uppercase tracking-wider mb-1">
+                  GitHub Repos
+                </div>
                 <p className="text-[11px] text-dim mb-2">repos ที่ agent จะมี access (optional)</p>
                 <RepoPicker selected={eRepos} onChange={setERepos} />
               </div>
               <div>
-                <div className="text-[12px] text-muted uppercase tracking-wider mb-1">Base Branch</div>
+                <div className="text-[12px] text-muted uppercase tracking-wider mb-1">
+                  Base Branch
+                </div>
                 <input
                   type="text"
                   list="e-branches-list"
                   placeholder="main"
                   value={eBranch}
-                  onChange={e => setEBranch(e.target.value)}
+                  onChange={(e) => setEBranch(e.target.value)}
                   className={`${INPUT_CLS} font-mono`}
                 />
                 <datalist id="e-branches-list">
-                  {eBranches.map(b => <option key={b} value={b} />)}
+                  {eBranches.map((b) => (
+                    <option key={b} value={b} />
+                  ))}
                 </datalist>
               </div>
               {/* Paths section — becomes split when browser open */}
@@ -898,7 +1176,7 @@ export default function ProjectsPage() {
                     {companionConnected && (
                       <button
                         type="button"
-                        onClick={() => setBrowserOpen(b => !b)}
+                        onClick={() => setBrowserOpen((b) => !b)}
                         className="mt-2 text-[12px] text-accent hover:text-accent/80 flex items-center gap-1"
                       >
                         {browserOpen ? '← Close Browser' : '📁 Open Folder Browser'}
@@ -913,10 +1191,18 @@ export default function ProjectsPage() {
                 </div>
               </div>
               <div className="flex gap-2 justify-end pt-1">
-                <button type="button" onClick={closeEdit}
-                  className="text-muted text-[14px] px-3 py-1.5 hover:text-text transition-colors">Cancel</button>
-                <button type="submit" disabled={saving}
-                  className="bg-accent/90 hover:bg-accent text-canvas text-[14px] font-semibold px-4 py-1.5 rounded transition-colors disabled:opacity-50">
+                <button
+                  type="button"
+                  onClick={closeEdit}
+                  className="text-muted text-[14px] px-3 py-1.5 hover:text-text transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={saving}
+                  className="bg-accent/90 hover:bg-accent text-canvas text-[14px] font-semibold px-4 py-1.5 rounded transition-colors disabled:opacity-50"
+                >
                   {saving ? '…' : 'Save'}
                 </button>
               </div>
@@ -925,5 +1211,5 @@ export default function ProjectsPage() {
         )}
       </AppShell>
     </AuthGuard>
-  )
+  );
 }

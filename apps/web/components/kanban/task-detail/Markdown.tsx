@@ -1,19 +1,19 @@
-import type { ReactNode } from 'react'
+import type { ReactNode } from 'react';
 
 function renderInlineParts(text: string): ReactNode[] {
-  const parts: ReactNode[] = []
-  const re = /\*\*([^*\n]+)\*\*|`([^`\n]+)`/g
-  let last = 0
-  let m: RegExpExecArray | null
-  let k = 0
+  const parts: ReactNode[] = [];
+  const re = /\*\*([^*\n]+)\*\*|`([^`\n]+)`/g;
+  let last = 0;
+  let m: RegExpExecArray | null;
+  let k = 0;
   while ((m = re.exec(text)) !== null) {
-    if (m.index > last) parts.push(text.slice(last, m.index))
+    if (m.index > last) parts.push(text.slice(last, m.index));
     if (m[1]) {
       parts.push(
         <strong key={k++} className="font-semibold text-text">
           {m[1]}
         </strong>,
-      )
+      );
     } else if (m[2]) {
       parts.push(
         <code
@@ -22,21 +22,21 @@ function renderInlineParts(text: string): ReactNode[] {
         >
           {m[2]}
         </code>,
-      )
+      );
     }
-    last = m.index + m[0].length
+    last = m.index + m[0].length;
   }
-  if (last < text.length) parts.push(text.slice(last))
-  return parts
+  if (last < text.length) parts.push(text.slice(last));
+  return parts;
 }
 
 export function Markdown({ body }: { body: string }) {
-  const segments = body.split(/(```[\s\S]*?```)/g)
+  const segments = body.split(/(```[\s\S]*?```)/g);
   return (
     <>
       {segments.map((seg, i) => {
         if (seg.startsWith('```') && seg.endsWith('```')) {
-          const inner = seg.slice(3, -3).replace(/^\w*\n?/, '')
+          const inner = seg.slice(3, -3).replace(/^\w*\n?/, '');
           return (
             <pre
               key={i}
@@ -44,7 +44,7 @@ export function Markdown({ body }: { body: string }) {
             >
               {inner}
             </pre>
-          )
+          );
         }
         return (
           <span key={i}>
@@ -58,8 +58,8 @@ export function Markdown({ body }: { body: string }) {
               ),
             )}
           </span>
-        )
+        );
       })}
     </>
-  )
+  );
 }

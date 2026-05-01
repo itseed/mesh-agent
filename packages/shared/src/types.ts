@@ -1,6 +1,6 @@
-export type KanbanStage = 'backlog' | 'in_progress' | 'review' | 'done'
+export type KanbanStage = 'backlog' | 'in_progress' | 'review' | 'done';
 
-export type AgentRole = string
+export type AgentRole = string;
 
 export const BUILTIN_AGENT_ROLES = [
   'frontend',
@@ -10,65 +10,60 @@ export const BUILTIN_AGENT_ROLES = [
   'designer',
   'qa',
   'reviewer',
-] as const
+] as const;
 
-export type BuiltinAgentRole = (typeof BUILTIN_AGENT_ROLES)[number]
+export type BuiltinAgentRole = (typeof BUILTIN_AGENT_ROLES)[number];
 
-export type AgentStatus = 'idle' | 'running' | 'error'
+export type AgentStatus = 'idle' | 'running' | 'error';
 
-export type AgentSessionStatus =
-  | 'pending'
-  | 'running'
-  | 'completed'
-  | 'errored'
-  | 'killed'
+export type AgentSessionStatus = 'pending' | 'running' | 'completed' | 'errored' | 'killed';
 
-export type UserRole = 'admin' | 'member' | 'viewer'
+export type UserRole = 'admin' | 'member' | 'viewer';
 
 export interface User {
-  id: string
-  email: string
-  role: UserRole
-  isActive: boolean
-  createdAt: Date
-  lastLoginAt: Date | null
+  id: string;
+  email: string;
+  role: UserRole;
+  isActive: boolean;
+  createdAt: Date;
+  lastLoginAt: Date | null;
 }
 
 export interface Task {
-  id: string
-  title: string
-  description: string | null
-  stage: KanbanStage
-  agentRole: AgentRole | null
-  projectId: string | null
-  githubPrUrl: string | null
-  createdAt: Date
-  updatedAt: Date
+  id: string;
+  title: string;
+  description: string | null;
+  stage: KanbanStage;
+  agentRole: AgentRole | null;
+  projectId: string | null;
+  githubPrUrl: string | null;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 export interface Agent {
-  id: string
-  role: AgentRole
-  status: AgentStatus
-  currentTaskId: string | null
-  projectId: string | null
+  id: string;
+  role: AgentRole;
+  status: AgentStatus;
+  currentTaskId: string | null;
+  projectId: string | null;
 }
 
 export interface Project {
-  id: string
-  name: string
-  paths: Record<string, string>
-  githubRepos: string[]
-  isActive: boolean
-  createdAt: Date
+  id: string;
+  name: string;
+  paths: Record<string, string>;
+  githubRepos: string[];
+  isActive: boolean;
+  createdAt: Date;
 }
 
 export interface AgentRoleDefinition {
-  id: string
-  slug: string
-  name: string
-  description: string | null
-  systemPrompt: string | null
-  keywords: string[]
-  isBuiltin: boolean
+  id: string;
+  slug: string;
+  name: string;
+  description: string | null;
+  systemPrompt: string | null;
+  keywords: string[];
+  isBuiltin: boolean;
 }

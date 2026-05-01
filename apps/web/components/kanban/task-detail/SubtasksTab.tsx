@@ -1,19 +1,19 @@
-'use client'
-import type { FormEvent } from 'react'
-import { ROLE_STYLE, STAGE_COLORS } from './styles'
-import { SubtaskInlineOutput } from './SubtaskInlineOutput'
+'use client';
+import type { FormEvent } from 'react';
+import { ROLE_STYLE, STAGE_COLORS } from './styles';
+import { SubtaskInlineOutput } from './SubtaskInlineOutput';
 
 interface SubtasksTabProps {
-  subtasks: any[]
-  expandedSubtaskId: string | null
-  onToggleExpand: (id: string) => void
-  showSubtaskForm: boolean
-  onShowSubtaskForm: (show: boolean) => void
-  subtaskTitle: string
-  onSubtaskTitleChange: (v: string) => void
-  subtaskRole: string
-  onSubtaskRoleChange: (v: string) => void
-  onCreateSubtask: (e: FormEvent) => void
+  subtasks: any[];
+  expandedSubtaskId: string | null;
+  onToggleExpand: (id: string) => void;
+  showSubtaskForm: boolean;
+  onShowSubtaskForm: (show: boolean) => void;
+  subtaskTitle: string;
+  onSubtaskTitleChange: (v: string) => void;
+  subtaskRole: string;
+  onSubtaskRoleChange: (v: string) => void;
+  onCreateSubtask: (e: FormEvent) => void;
 }
 
 export function SubtasksTab({
@@ -34,9 +34,9 @@ export function SubtasksTab({
         <p className="text-muted text-[13px]">No subtasks yet.</p>
       )}
       {subtasks.map((st: any) => {
-        const role = ROLE_STYLE[st.agentRole ?? '']
-        const isRunning = st.stage === 'in_progress'
-        const isExpanded = expandedSubtaskId === st.id
+        const role = ROLE_STYLE[st.agentRole ?? ''];
+        const isRunning = st.stage === 'in_progress';
+        const isExpanded = expandedSubtaskId === st.id;
         return (
           <div
             key={st.id}
@@ -86,7 +86,7 @@ export function SubtasksTab({
 
             {isExpanded && <SubtaskInlineOutput taskId={st.id} stage={st.stage} />}
           </div>
-        )
+        );
       })}
 
       {showSubtaskForm ? (
@@ -140,5 +140,5 @@ export function SubtasksTab({
         </button>
       )}
     </div>
-  )
+  );
 }

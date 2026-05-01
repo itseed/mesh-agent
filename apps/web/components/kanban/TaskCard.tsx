@@ -1,48 +1,58 @@
 const ROLE_STYLE: Record<string, { bg: string; text: string }> = {
-  frontend: { bg: 'rgba(34,211,238,0.1)',  text: '#22d3ee' },
-  backend:  { bg: 'rgba(96,165,250,0.1)',  text: '#60a5fa' },
-  mobile:   { bg: 'rgba(192,132,252,0.1)', text: '#c084fc' },
-  devops:   { bg: 'rgba(74,222,128,0.1)',  text: '#4ade80' },
+  frontend: { bg: 'rgba(34,211,238,0.1)', text: '#22d3ee' },
+  backend: { bg: 'rgba(96,165,250,0.1)', text: '#60a5fa' },
+  mobile: { bg: 'rgba(192,132,252,0.1)', text: '#c084fc' },
+  devops: { bg: 'rgba(74,222,128,0.1)', text: '#4ade80' },
   designer: { bg: 'rgba(244,114,182,0.1)', text: '#f472b6' },
-  qa:       { bg: 'rgba(251,146,60,0.1)',  text: '#fb923c' },
+  qa: { bg: 'rgba(251,146,60,0.1)', text: '#fb923c' },
   reviewer: { bg: 'rgba(248,113,113,0.1)', text: '#f87171' },
-}
+};
 
 function relativeTime(dateStr: string | undefined | null): string | null {
-  if (!dateStr) return null
-  const diff = Date.now() - new Date(dateStr).getTime()
-  if (diff < 60_000) return 'Just now'
-  if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}m ago`
-  if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}h ago`
-  if (diff < 7 * 86_400_000) return `${Math.floor(diff / 86_400_000)}d ago`
-  return new Date(dateStr).toLocaleDateString()
+  if (!dateStr) return null;
+  const diff = Date.now() - new Date(dateStr).getTime();
+  if (diff < 60_000) return 'Just now';
+  if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}m ago`;
+  if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}h ago`;
+  if (diff < 7 * 86_400_000) return `${Math.floor(diff / 86_400_000)}d ago`;
+  return new Date(dateStr).toLocaleDateString();
 }
 
 const PRIORITY_DOT: Record<string, string> = {
   urgent: '#f87171',
-  high:   '#fb923c',
+  high: '#fb923c',
   medium: '#fbbf24',
-  low:    '#374556',
-}
+  low: '#374556',
+};
 
 interface TaskCardProps {
-  task: any
-  projects?: any[]
-  allTasks?: any[]
-  onClick?: () => void
-  onDelete?: (id: string) => void
-  onStart?: (id: string) => void
-  stageColor?: string
-  isDragging?: boolean
+  task: any;
+  projects?: any[];
+  allTasks?: any[];
+  onClick?: () => void;
+  onDelete?: (id: string) => void;
+  onStart?: (id: string) => void;
+  stageColor?: string;
+  isDragging?: boolean;
 }
 
-export function TaskCard({ task, projects, allTasks, onClick, onDelete, onStart, stageColor, isDragging }: TaskCardProps) {
-  const role = ROLE_STYLE[task.agentRole ?? '']
-  const dotColor = PRIORITY_DOT[task.priority ?? ''] ?? null
-  const project = projects?.find((p: any) => p.id === task.projectId)
-  const subtaskCount = allTasks?.filter((t: any) => t.parentTaskId === task.id).length ?? 0
-  const doneCount = allTasks?.filter((t: any) => t.parentTaskId === task.id && t.stage === 'done').length ?? 0
-  const timeAgo = relativeTime(task.createdAt)
+export function TaskCard({
+  task,
+  projects,
+  allTasks,
+  onClick,
+  onDelete,
+  onStart,
+  stageColor,
+  isDragging,
+}: TaskCardProps) {
+  const role = ROLE_STYLE[task.agentRole ?? ''];
+  const dotColor = PRIORITY_DOT[task.priority ?? ''] ?? null;
+  const project = projects?.find((p: any) => p.id === task.projectId);
+  const subtaskCount = allTasks?.filter((t: any) => t.parentTaskId === task.id).length ?? 0;
+  const doneCount =
+    allTasks?.filter((t: any) => t.parentTaskId === task.id && t.stage === 'done').length ?? 0;
+  const timeAgo = relativeTime(task.createdAt);
 
   return (
     <div
@@ -67,7 +77,10 @@ export function TaskCard({ task, projects, allTasks, onClick, onDelete, onStart,
         <div className="flex items-center gap-1 shrink-0">
           {onStart && task.stage === 'backlog' && (
             <button
-              onClick={(e) => { e.stopPropagation(); onStart(task.id) }}
+              onClick={(e) => {
+                e.stopPropagation();
+                onStart(task.id);
+              }}
               className="text-accent opacity-0 group-hover:opacity-100 transition-all text-[12px] px-1 hover:text-accent/70"
               title="Start with Lead"
             >
@@ -76,7 +89,10 @@ export function TaskCard({ task, projects, allTasks, onClick, onDelete, onStart,
           )}
           {onDelete && (
             <button
-              onClick={(e) => { e.stopPropagation(); onDelete(task.id) }}
+              onClick={(e) => {
+                e.stopPropagation();
+                onDelete(task.id);
+              }}
               className="text-dim hover:text-danger opacity-0 group-hover:opacity-100 transition-all text-[13px] shrink-0"
             >
               ✕
@@ -85,9 +101,7 @@ export function TaskCard({ task, projects, allTasks, onClick, onDelete, onStart,
         </div>
       </div>
 
-      {task.parentTaskId && (
-        <div className="text-[11px] text-dim mt-1 ml-3">Subtask</div>
-      )}
+      {task.parentTaskId && <div className="text-[11px] text-dim mt-1 ml-3">Subtask</div>}
 
       <div className="flex items-center gap-1.5 mt-2 ml-3 flex-wrap">
         {task.agentRole && role && (
@@ -122,10 +136,8 @@ export function TaskCard({ task, projects, allTasks, onClick, onDelete, onStart,
             PR ↗
           </a>
         )}
-        {timeAgo && (
-          <span className="text-[11px] text-dim ml-auto shrink-0">{timeAgo}</span>
-        )}
+        {timeAgo && <span className="text-[11px] text-dim ml-auto shrink-0">{timeAgo}</span>}
       </div>
     </div>
-  )
+  );
 }

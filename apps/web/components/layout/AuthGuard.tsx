@@ -1,17 +1,17 @@
-'use client'
-import { useEffect } from 'react'
-import { useRouter } from 'next/navigation'
-import { useAuth } from '@/lib/auth'
-import { Skeleton } from '@/components/ui/Skeleton'
+'use client';
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { useAuth } from '@/lib/auth';
+import { Skeleton } from '@/components/ui/Skeleton';
 
 export function AuthGuard({ children }: { children: React.ReactNode }) {
-  const { user, initialized } = useAuth()
-  const router = useRouter()
+  const { user, initialized } = useAuth();
+  const router = useRouter();
 
   useEffect(() => {
-    if (!initialized) return
-    if (!user) router.replace('/login')
-  }, [initialized, user, router])
+    if (!initialized) return;
+    if (!user) router.replace('/login');
+  }, [initialized, user, router]);
 
   if (!initialized || !user) {
     return (
@@ -35,8 +35,8 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
           </div>
         </div>
       </div>
-    )
+    );
   }
 
-  return <>{children}</>
+  return <>{children}</>;
 }

@@ -1,56 +1,56 @@
-'use client'
-import { useState, useEffect } from 'react'
-import { api } from '@/lib/api'
+'use client';
+import { useState, useEffect } from 'react';
+import { api } from '@/lib/api';
 
 const ROLE_COLOR: Record<string, string> = {
   frontend: '#22d3ee',
-  backend:  '#60a5fa',
-  mobile:   '#c084fc',
-  devops:   '#4ade80',
+  backend: '#60a5fa',
+  mobile: '#c084fc',
+  devops: '#4ade80',
   designer: '#f472b6',
-  qa:       '#fb923c',
+  qa: '#fb923c',
   reviewer: '#f87171',
-  lead:     '#facc15',
-}
+  lead: '#facc15',
+};
 
 const HIST_STATUS_STYLE: Record<string, { color: string; label: string }> = {
   completed: { color: '#3fb950', label: 'done' },
-  errored:   { color: '#f87171', label: 'error' },
-  killed:    { color: '#6a7a8e', label: 'stopped' },
-  running:   { color: '#f0883e', label: 'running' },
-  pending:   { color: '#fbbf24', label: 'pending' },
-}
+  errored: { color: '#f87171', label: 'error' },
+  killed: { color: '#6a7a8e', label: 'stopped' },
+  running: { color: '#f0883e', label: 'running' },
+  pending: { color: '#fbbf24', label: 'pending' },
+};
 
 const CLI_PROVIDERS = [
   { id: 'claude', name: 'Claude', enabled: true, isDefault: true },
   { id: 'gemini', name: 'Gemini', enabled: false, isDefault: false },
   { id: 'cursor', name: 'Cursor', enabled: false, isDefault: false },
-]
+];
 
 function relTime(iso: string) {
-  const d = Date.now() - new Date(iso).getTime()
-  if (d < 60000) return 'just now'
-  if (d < 3600000) return Math.floor(d / 60000) + 'm ago'
-  if (d < 86400000) return Math.floor(d / 3600000) + 'h ago'
-  return Math.floor(d / 86400000) + 'd ago'
+  const d = Date.now() - new Date(iso).getTime();
+  if (d < 60000) return 'just now';
+  if (d < 3600000) return Math.floor(d / 60000) + 'm ago';
+  if (d < 86400000) return Math.floor(d / 3600000) + 'h ago';
+  return Math.floor(d / 86400000) + 'd ago';
 }
 
 interface AgentRolePanelProps {
   role: {
-    id: string
-    slug: string
-    name: string
-    description: string | null
-    keywords: string[]
-    isBuiltin: boolean
-    systemPrompt?: string
-  }
-  session: { id: string; role: string; status: string } | null
-  history: any[]
-  projects: any[]
-  onClose: () => void
-  onDispatched: () => void
-  onViewOutput: (sessionId: string, role: string) => void
+    id: string;
+    slug: string;
+    name: string;
+    description: string | null;
+    keywords: string[];
+    isBuiltin: boolean;
+    systemPrompt?: string;
+  };
+  session: { id: string; role: string; status: string } | null;
+  history: any[];
+  projects: any[];
+  onClose: () => void;
+  onDispatched: () => void;
+  onViewOutput: (sessionId: string, role: string) => void;
 }
 
 export function AgentRolePanel({
@@ -62,33 +62,33 @@ export function AgentRolePanel({
   onDispatched,
   onViewOutput,
 }: AgentRolePanelProps) {
-  const color = ROLE_COLOR[role.slug] ?? '#6a7a8e'
-  const isRunning = !!session && (session.status === 'running' || session.status === 'pending')
-  const isPending = session?.status === 'pending'
+  const color = ROLE_COLOR[role.slug] ?? '#6a7a8e';
+  const isRunning = !!session && (session.status === 'running' || session.status === 'pending');
+  const isPending = session?.status === 'pending';
 
-  const [showPrompt, setShowPrompt] = useState(false)
-  const [dispatchProject, setDispatchProject] = useState('')
-  const [dispatchPrompt, setDispatchPrompt] = useState('')
+  const [showPrompt, setShowPrompt] = useState(false);
+  const [dispatchProject, setDispatchProject] = useState('');
+  const [dispatchPrompt, setDispatchPrompt] = useState('');
 
   useEffect(() => {
     if (projects.length > 0 && !dispatchProject) {
-      setDispatchProject(projects[0].id)
+      setDispatchProject(projects[0].id);
     }
-  }, [projects])
-  const [dispatchDir, setDispatchDir] = useState('')
-  const [dispatching, setDispatching] = useState(false)
-  const [stopping, setStopping] = useState(false)
-  const [dispatchCli, setDispatchCli] = useState(CLI_PROVIDERS.find(p => p.isDefault)?.id ?? 'claude')
-  const [dispatchError, setDispatchError] = useState('')
+  }, [projects]);
+  const [dispatchDir, setDispatchDir] = useState('');
+  const [dispatching, setDispatching] = useState(false);
+  const [stopping, setStopping] = useState(false);
+  const [dispatchCli, setDispatchCli] = useState(
+    CLI_PROVIDERS.find((p) => p.isDefault)?.id ?? 'claude',
+  );
+  const [dispatchError, setDispatchError] = useState('');
 
-  const roleHistory = history
-    .filter((s: any) => s.role === role.slug)
-    .slice(0, 5)
+  const roleHistory = history.filter((s: any) => s.role === role.slug).slice(0, 5);
 
   async function handleDispatch() {
-    if (!dispatchPrompt.trim()) return
-    setDispatching(true)
-    setDispatchError('')
+    if (!dispatchPrompt.trim()) return;
+    setDispatching(true);
+    setDispatchError('');
     try {
       await api.agents.dispatch({
         role: role.slug,
@@ -96,38 +96,35 @@ export function AgentRolePanel({
         prompt: dispatchPrompt.trim(),
         projectId: dispatchProject || undefined,
         cli: dispatchCli,
-      })
-      setDispatchPrompt('')
-      setDispatchProject('')
-      setDispatchDir('')
-      onDispatched()
+      });
+      setDispatchPrompt('');
+      setDispatchProject('');
+      setDispatchDir('');
+      onDispatched();
     } catch (e: any) {
-      setDispatchError(e.message ?? 'Dispatch failed')
+      setDispatchError(e.message ?? 'Dispatch failed');
     } finally {
-      setDispatching(false)
+      setDispatching(false);
     }
   }
 
   async function handleStop() {
-    if (!session) return
-    setStopping(true)
+    if (!session) return;
+    setStopping(true);
     try {
-      await api.agents.stop(session.id)
-      onDispatched()
+      await api.agents.stop(session.id);
+      onDispatched();
     } catch {
       /* ignore */
     } finally {
-      setStopping(false)
+      setStopping(false);
     }
   }
 
   return (
     <>
       {/* Overlay */}
-      <div
-        className="fixed inset-0 bg-black/30 z-30"
-        onClick={onClose}
-      />
+      <div className="fixed inset-0 bg-black/30 z-30" onClick={onClose} />
 
       {/* Panel */}
       <div className="fixed right-0 top-0 h-screen w-[480px] z-40 bg-surface border-l border-border-hi flex flex-col shadow-2xl fade-up">
@@ -149,12 +146,12 @@ export function AgentRolePanel({
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-success opacity-50" />
                     <span className="relative inline-flex w-1.5 h-1.5 rounded-full bg-success" />
                   </span>
-                  <span className="text-[11px] text-success font-medium">{isPending ? 'pending' : 'running'}</span>
+                  <span className="text-[11px] text-success font-medium">
+                    {isPending ? 'pending' : 'running'}
+                  </span>
                 </div>
               )}
-              {!isRunning && (
-                <span className="text-[11px] text-dim">idle</span>
-              )}
+              {!isRunning && <span className="text-[11px] text-dim">idle</span>}
             </div>
           </div>
           <button
@@ -206,11 +203,16 @@ export function AgentRolePanel({
 
           {/* Section 2: Status / Output */}
           <div className="px-5 py-4 border-b border-border">
-            <div className="text-[11px] font-medium text-muted uppercase tracking-wider mb-3">Status</div>
+            <div className="text-[11px] font-medium text-muted uppercase tracking-wider mb-3">
+              Status
+            </div>
             {isRunning && session ? (
               <div className="flex items-center gap-3">
                 <button
-                  onClick={() => { onViewOutput(session.id, session.role); onClose() }}
+                  onClick={() => {
+                    onViewOutput(session.id, session.role);
+                    onClose();
+                  }}
                   className="flex items-center gap-1.5 bg-accent/10 hover:bg-accent/20 border border-accent/25 text-accent text-[13px] font-medium px-3 py-1.5 rounded transition-all"
                 >
                   <span className="relative flex w-1.5 h-1.5">
@@ -234,13 +236,19 @@ export function AgentRolePanel({
 
           {/* Section 3: Dispatch form */}
           <div className="px-5 py-4 border-b border-border">
-            <div className="text-[11px] font-medium text-muted uppercase tracking-wider mb-3">Dispatch</div>
+            <div className="text-[11px] font-medium text-muted uppercase tracking-wider mb-3">
+              Dispatch
+            </div>
             {isRunning && (
-              <p className="text-[12px] text-warning mb-3">A session is already running. Stop it first or dispatch after it finishes.</p>
+              <p className="text-[12px] text-warning mb-3">
+                A session is already running. Stop it first or dispatch after it finishes.
+              </p>
             )}
             <div className="flex flex-col gap-2.5">
               <div>
-                <label className="block text-[11px] text-muted uppercase tracking-wider mb-1">CLI</label>
+                <label className="block text-[11px] text-muted uppercase tracking-wider mb-1">
+                  CLI
+                </label>
                 <select
                   value={dispatchCli}
                   onChange={(e) => setDispatchCli(e.target.value)}
@@ -254,7 +262,9 @@ export function AgentRolePanel({
                       disabled={!p.enabled}
                       style={!p.enabled ? { color: '#4a5568' } : undefined}
                     >
-                      {p.name}{!p.enabled ? ' (disabled)' : ''}{p.isDefault ? ' ✓' : ''}
+                      {p.name}
+                      {!p.enabled ? ' (disabled)' : ''}
+                      {p.isDefault ? ' ✓' : ''}
                     </option>
                   ))}
                 </select>
@@ -267,7 +277,9 @@ export function AgentRolePanel({
               >
                 <option value="">— ไม่ระบุ —</option>
                 {projects.map((p) => (
-                  <option key={p.id} value={p.id}>{p.name}</option>
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
                 ))}
               </select>
               <input
@@ -286,9 +298,7 @@ export function AgentRolePanel({
                 rows={4}
                 className="w-full bg-canvas border border-border text-text text-[13px] rounded px-3 py-2 placeholder-dim resize-none disabled:opacity-40"
               />
-              {dispatchError && (
-                <p className="text-[12px] text-danger">✕ {dispatchError}</p>
-              )}
+              {dispatchError && <p className="text-[12px] text-danger">✕ {dispatchError}</p>}
               <button
                 onClick={handleDispatch}
                 disabled={isRunning || dispatching || !dispatchPrompt.trim()}
@@ -302,30 +312,40 @@ export function AgentRolePanel({
           {/* Section 4: Recent sessions */}
           {roleHistory.length > 0 && (
             <div className="px-5 py-4">
-              <div className="text-[11px] font-medium text-muted uppercase tracking-wider mb-3">Recent Sessions</div>
+              <div className="text-[11px] font-medium text-muted uppercase tracking-wider mb-3">
+                Recent Sessions
+              </div>
               <div className="flex flex-col gap-1.5">
                 {roleHistory.map((s: any) => {
-                  const st = HIST_STATUS_STYLE[s.status] ?? { color: '#6a7a8e', label: s.status }
+                  const st = HIST_STATUS_STYLE[s.status] ?? { color: '#6a7a8e', label: s.status };
                   return (
                     <div
                       key={s.id}
                       className="flex items-start gap-2.5 px-3 py-2.5 bg-canvas border border-border rounded-lg"
                     >
-                      <span className="w-1.5 h-1.5 rounded-full shrink-0 mt-1.5" style={{ backgroundColor: st.color }} />
+                      <span
+                        className="w-1.5 h-1.5 rounded-full shrink-0 mt-1.5"
+                        style={{ backgroundColor: st.color }}
+                      />
                       <div className="flex-1 min-w-0">
                         <p className="text-[12px] text-text truncate">
-                          {s.prompt?.slice(0, 70)}{s.prompt?.length > 70 ? '…' : ''}
+                          {s.prompt?.slice(0, 70)}
+                          {s.prompt?.length > 70 ? '…' : ''}
                         </p>
                         <div className="flex items-center gap-2 mt-0.5">
-                          <span className="text-[11px] font-medium" style={{ color: st.color }}>{st.label}</span>
+                          <span className="text-[11px] font-medium" style={{ color: st.color }}>
+                            {st.label}
+                          </span>
                           {s.durationMs && (
-                            <span className="text-[11px] text-dim">{(s.durationMs / 1000).toFixed(1)}s</span>
+                            <span className="text-[11px] text-dim">
+                              {(s.durationMs / 1000).toFixed(1)}s
+                            </span>
                           )}
                           <span className="text-[11px] text-dim">{relTime(s.createdAt)}</span>
                         </div>
                       </div>
                     </div>
-                  )
+                  );
                 })}
               </div>
             </div>
@@ -333,5 +353,5 @@ export function AgentRolePanel({
         </div>
       </div>
     </>
-  )
+  );
 }

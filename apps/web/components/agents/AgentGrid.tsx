@@ -1,36 +1,40 @@
-'use client'
-import { useState } from 'react'
-import { AgentOutputPanel } from './AgentOutputPanel'
-import { AgentRolePanel } from './AgentRolePanel'
+'use client';
+import { useState } from 'react';
+import { AgentOutputPanel } from './AgentOutputPanel';
+import { AgentRolePanel } from './AgentRolePanel';
 
 const ROLE_COLOR: Record<string, string> = {
   frontend: '#22d3ee',
-  backend:  '#60a5fa',
-  mobile:   '#c084fc',
-  devops:   '#4ade80',
+  backend: '#60a5fa',
+  mobile: '#c084fc',
+  devops: '#4ade80',
   designer: '#f472b6',
-  qa:       '#fb923c',
+  qa: '#fb923c',
   reviewer: '#f87171',
-  lead:     '#facc15',
-}
+  lead: '#facc15',
+};
 
 interface AgentGridProps {
-  agents: { id: string; role: string; status: string }[]
-  roles: any[]
-  history: any[]
-  projects: any[]
-  onRefresh: () => void
-  onViewOutput: (sessionId: string, role: string) => void
+  agents: { id: string; role: string; status: string }[];
+  roles: any[];
+  history: any[];
+  projects: any[];
+  onRefresh: () => void;
+  onViewOutput: (sessionId: string, role: string) => void;
 }
 
-function RoleCard({ role, session, onClick }: {
-  role: any
-  session: { id: string; role: string; status: string } | null
-  onClick: () => void
+function RoleCard({
+  role,
+  session,
+  onClick,
+}: {
+  role: any;
+  session: { id: string; role: string; status: string } | null;
+  onClick: () => void;
 }) {
-  const color = ROLE_COLOR[role.slug] ?? '#6a7a8e'
-  const isRunning = !!session
-  const isPending = session?.status === 'pending'
+  const color = ROLE_COLOR[role.slug] ?? '#6a7a8e';
+  const isRunning = !!session;
+  const isPending = session?.status === 'pending';
 
   return (
     <div
@@ -62,7 +66,9 @@ function RoleCard({ role, session, onClick }: {
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-success opacity-50" />
               <span className="relative inline-flex w-2 h-2 rounded-full bg-success" />
             </span>
-            <span className="text-[11px] text-success font-medium">{isPending ? 'Pending' : 'Running'}</span>
+            <span className="text-[11px] text-success font-medium">
+              {isPending ? 'Pending' : 'Running'}
+            </span>
           </div>
         ) : (
           <span className="text-[11px] text-muted">Idle</span>
@@ -76,7 +82,10 @@ function RoleCard({ role, session, onClick }: {
       {role.keywords?.length > 0 && (
         <div className="flex flex-wrap gap-1">
           {role.keywords.slice(0, 4).map((k: string) => (
-            <span key={k} className="text-[11px] bg-surface-2 text-dim border border-border px-1.5 py-0.5 rounded">
+            <span
+              key={k}
+              className="text-[11px] bg-surface-2 text-dim border border-border px-1.5 py-0.5 rounded"
+            >
               {k}
             </span>
           ))}
@@ -86,12 +95,19 @@ function RoleCard({ role, session, onClick }: {
         </div>
       )}
     </div>
-  )
+  );
 }
 
-export function AgentGrid({ agents, roles, history, projects, onRefresh, onViewOutput }: AgentGridProps) {
-  const [selected, setSelected] = useState<{ id: string; role: string } | null>(null)
-  const [selectedRole, setSelectedRole] = useState<any | null>(null)
+export function AgentGrid({
+  agents,
+  roles,
+  history,
+  projects,
+  onRefresh,
+  onViewOutput,
+}: AgentGridProps) {
+  const [selected, setSelected] = useState<{ id: string; role: string } | null>(null);
+  const [selectedRole, setSelectedRole] = useState<any | null>(null);
 
   if (roles.length === 0) {
     return (
@@ -100,7 +116,7 @@ export function AgentGrid({ agents, roles, history, projects, onRefresh, onViewO
         <p className="text-muted text-[14px]">No agent roles configured.</p>
         <p className="text-dim text-[13px] mt-1">Add skills in Settings to see your roster.</p>
       </div>
-    )
+    );
   }
 
   return (
@@ -108,8 +124,8 @@ export function AgentGrid({ agents, roles, history, projects, onRefresh, onViewO
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
         {roles.map((role) => {
           const session = agents.find(
-            (a) => a.role === role.slug && (a.status === 'running' || a.status === 'pending')
-          )
+            (a) => a.role === role.slug && (a.status === 'running' || a.status === 'pending'),
+          );
           return (
             <RoleCard
               key={role.slug}
@@ -117,7 +133,7 @@ export function AgentGrid({ agents, roles, history, projects, onRefresh, onViewO
               session={session ?? null}
               onClick={() => setSelectedRole(role)}
             />
-          )
+          );
         })}
       </div>
       {selected && (
@@ -130,19 +146,25 @@ export function AgentGrid({ agents, roles, history, projects, onRefresh, onViewO
       {selectedRole && (
         <AgentRolePanel
           role={selectedRole}
-          session={agents.find(
-            (a) => a.role === selectedRole.slug && (a.status === 'running' || a.status === 'pending')
-          ) ?? null}
+          session={
+            agents.find(
+              (a) =>
+                a.role === selectedRole.slug && (a.status === 'running' || a.status === 'pending'),
+            ) ?? null
+          }
           history={history}
           projects={projects}
           onClose={() => setSelectedRole(null)}
-          onDispatched={() => { setSelectedRole(null); onRefresh() }}
+          onDispatched={() => {
+            setSelectedRole(null);
+            onRefresh();
+          }}
           onViewOutput={(sid, r) => {
-            setSelectedRole(null)
-            onViewOutput(sid, r)
+            setSelectedRole(null);
+            onViewOutput(sid, r);
           }}
         />
       )}
     </>
-  )
+  );
 }

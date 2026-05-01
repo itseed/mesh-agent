@@ -1,62 +1,69 @@
-'use client'
-import { useState, useEffect, useCallback, useRef } from 'react'
-import { AppShell } from '@/components/layout/AppShell'
-import { KanbanBoard } from '@/components/kanban/KanbanBoard'
-import { AuthGuard } from '@/components/layout/AuthGuard'
-import { api } from '@/lib/api'
-import { useTaskEvents } from '@/lib/ws'
-import { PageLoader } from '@/components/ui/PageLoader'
+'use client';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { AppShell } from '@/components/layout/AppShell';
+import { KanbanBoard } from '@/components/kanban/KanbanBoard';
+import { AuthGuard } from '@/components/layout/AuthGuard';
+import { api } from '@/lib/api';
+import { useTaskEvents } from '@/lib/ws';
+import { PageLoader } from '@/components/ui/PageLoader';
 
 export default function KanbanPage() {
-  const [tasks, setTasks] = useState<any[]>([])
-  const [projects, setProjects] = useState<any[]>([])
-  const [activeProjectId, setActiveProjectId] = useState<string | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
-  const [showModal, setShowModal] = useState(false)
+  const [tasks, setTasks] = useState<any[]>([]);
+  const [projects, setProjects] = useState<any[]>([]);
+  const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [showModal, setShowModal] = useState(false);
 
   // Create task form state
-  const [newTitle, setNewTitle] = useState('')
-  const [newDesc, setNewDesc] = useState('')
-  const [newProject, setNewProject] = useState('')
-  const [newPriority, setNewPriority] = useState('medium')
-  const [creating, setCreating] = useState(false)
-  const [newExecutionMode, setNewExecutionMode] = useState<'cloud' | 'local'>('cloud')
-  const [pendingFiles, setPendingFiles] = useState<File[]>([])
-  const [dragOver, setDragOver] = useState(false)
-  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [newTitle, setNewTitle] = useState('');
+  const [newDesc, setNewDesc] = useState('');
+  const [newProject, setNewProject] = useState('');
+  const [newPriority, setNewPriority] = useState('medium');
+  const [creating, setCreating] = useState(false);
+  const [newExecutionMode, setNewExecutionMode] = useState<'cloud' | 'local'>('cloud');
+  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+  const [dragOver, setDragOver] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const fetchTasks = useCallback(async (projectId?: string | null) => {
     try {
-      const params = projectId ? { projectId } : undefined
-      const data = await api.tasks.list(params)
-      setTasks(data)
-      setError('')
+      const params = projectId ? { projectId } : undefined;
+      const data = await api.tasks.list(params);
+      setTasks(data);
+      setError('');
     } catch (e: any) {
-      setError(e.message)
+      setError(e.message);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }, [])
+  }, []);
 
   useEffect(() => {
-    api.projects.list().then(setProjects).catch(() => {})
-  }, [])
+    api.projects
+      .list()
+      .then(setProjects)
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
-    fetchTasks(activeProjectId)
-  }, [fetchTasks, activeProjectId])
+    fetchTasks(activeProjectId);
+  }, [fetchTasks, activeProjectId]);
 
   const refresh = useCallback(() => {
-    fetchTasks(activeProjectId)
-  }, [fetchTasks, activeProjectId])
+    fetchTasks(activeProjectId);
+  }, [fetchTasks, activeProjectId]);
 
-  useTaskEvents(useCallback(() => { fetchTasks(activeProjectId) }, [fetchTasks, activeProjectId]))
+  useTaskEvents(
+    useCallback(() => {
+      fetchTasks(activeProjectId);
+    }, [fetchTasks, activeProjectId]),
+  );
 
   async function createTask(e: React.FormEvent) {
-    e.preventDefault()
-    if (!newTitle.trim()) return
-    setCreating(true)
+    e.preventDefault();
+    if (!newTitle.trim()) return;
+    setCreating(true);
     try {
       const task = await api.tasks.create({
         title: newTitle.trim(),
@@ -64,35 +71,35 @@ export default function KanbanPage() {
         projectId: newProject || activeProjectId || undefined,
         priority: newPriority,
         executionMode: newExecutionMode,
-      })
+      });
       for (const file of pendingFiles) {
         try {
           const { uploadUrl } = await api.tasks.createAttachment(task.id, {
             fileName: file.name,
             fileSize: file.size,
             mimeType: file.type || 'application/octet-stream',
-          })
-          await fetch(uploadUrl, { method: 'PUT', body: file })
+          });
+          await fetch(uploadUrl, { method: 'PUT', body: file });
         } catch {
           // best-effort: don't block task creation on upload failure
         }
       }
-      setNewTitle('')
-      setNewDesc('')
-      setNewProject('')
-      setNewPriority('medium')
-      setNewExecutionMode('cloud')
-      setPendingFiles([])
-      setShowModal(false)
-      refresh()
+      setNewTitle('');
+      setNewDesc('');
+      setNewProject('');
+      setNewPriority('medium');
+      setNewExecutionMode('cloud');
+      setPendingFiles([]);
+      setShowModal(false);
+      refresh();
     } catch (e: any) {
-      setError(e.message)
+      setError(e.message);
     } finally {
-      setCreating(false)
+      setCreating(false);
     }
   }
 
-  const rootCount = tasks.filter((t) => !t.parentTaskId).length
+  const rootCount = tasks.filter((t) => !t.parentTaskId).length;
 
   return (
     <AuthGuard>
@@ -146,7 +153,9 @@ export default function KanbanPage() {
           ) : tasks.filter((t) => !t.parentTaskId).length === 0 ? (
             <div className="text-center py-12">
               <p className="text-[14px] text-muted mb-1">ยังไม่มี task</p>
-              <p className="text-[13px] text-dim">กดปุ่ม + New task เพื่อเริ่ม หรือพิมพ์ใน Lead chat ว่า &quot;สร้าง task ใหม่&quot;</p>
+              <p className="text-[13px] text-dim">
+                กดปุ่ม + New task เพื่อเริ่ม หรือพิมพ์ใน Lead chat ว่า &quot;สร้าง task ใหม่&quot;
+              </p>
             </div>
           ) : (
             <KanbanBoard initialTasks={tasks} projects={projects} onRefresh={refresh} />
@@ -178,13 +187,16 @@ export default function KanbanPage() {
 
                 {/* File drop zone */}
                 <div
-                  onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    setDragOver(true);
+                  }}
                   onDragLeave={() => setDragOver(false)}
                   onDrop={(e) => {
-                    e.preventDefault()
-                    setDragOver(false)
-                    const files = Array.from(e.dataTransfer.files)
-                    if (files.length) setPendingFiles((prev) => [...prev, ...files])
+                    e.preventDefault();
+                    setDragOver(false);
+                    const files = Array.from(e.dataTransfer.files);
+                    if (files.length) setPendingFiles((prev) => [...prev, ...files]);
                   }}
                   onClick={() => fileInputRef.current?.click()}
                   className={`w-full border border-dashed rounded px-3 py-3 text-center cursor-pointer transition-colors text-[12px] ${
@@ -200,9 +212,9 @@ export default function KanbanPage() {
                     multiple
                     className="hidden"
                     onChange={(e) => {
-                      const files = Array.from(e.target.files ?? [])
-                      if (files.length) setPendingFiles((prev) => [...prev, ...files])
-                      e.target.value = ''
+                      const files = Array.from(e.target.files ?? []);
+                      if (files.length) setPendingFiles((prev) => [...prev, ...files]);
+                      e.target.value = '';
                     }}
                   />
                 </div>
@@ -210,11 +222,16 @@ export default function KanbanPage() {
                 {pendingFiles.length > 0 && (
                   <ul className="flex flex-col gap-1">
                     {pendingFiles.map((f, i) => (
-                      <li key={i} className="flex items-center justify-between text-[12px] text-muted bg-canvas border border-border rounded px-2 py-1">
+                      <li
+                        key={i}
+                        className="flex items-center justify-between text-[12px] text-muted bg-canvas border border-border rounded px-2 py-1"
+                      >
                         <span className="truncate max-w-[200px]">{f.name}</span>
                         <button
                           type="button"
-                          onClick={() => setPendingFiles((prev) => prev.filter((_, idx) => idx !== i))}
+                          onClick={() =>
+                            setPendingFiles((prev) => prev.filter((_, idx) => idx !== i))
+                          }
                           className="text-dim hover:text-danger ml-2 shrink-0"
                         >
                           ✕
@@ -231,7 +248,9 @@ export default function KanbanPage() {
                 >
                   <option value="">No project</option>
                   {projects.map((p) => (
-                    <option key={p.id} value={p.id}>{p.name}</option>
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                    </option>
                   ))}
                 </select>
                 <select
@@ -240,7 +259,9 @@ export default function KanbanPage() {
                   className="w-full bg-canvas border border-border text-text text-[13px] rounded px-3 py-2"
                 >
                   {['low', 'medium', 'high', 'urgent'].map((p) => (
-                    <option key={p} value={p}>{p}</option>
+                    <option key={p} value={p}>
+                      {p}
+                    </option>
                   ))}
                 </select>
                 <div className="flex items-center gap-1.5">
@@ -252,7 +273,9 @@ export default function KanbanPage() {
                         type="button"
                         onClick={() => setNewExecutionMode(mode)}
                         className={`px-2.5 py-1 rounded text-[11px] font-medium transition-colors ${
-                          newExecutionMode === mode ? 'bg-accent/20 text-accent' : 'text-dim hover:text-muted'
+                          newExecutionMode === mode
+                            ? 'bg-accent/20 text-accent'
+                            : 'text-dim hover:text-muted'
                         }`}
                       >
                         {mode === 'cloud' ? '☁ Cloud' : '💻 Local'}
@@ -263,7 +286,10 @@ export default function KanbanPage() {
                 <div className="flex gap-2 justify-end mt-1">
                   <button
                     type="button"
-                    onClick={() => { setShowModal(false); setPendingFiles([]) }}
+                    onClick={() => {
+                      setShowModal(false);
+                      setPendingFiles([]);
+                    }}
                     className="text-muted text-[14px] px-3 py-1.5 hover:text-text transition-colors"
                   >
                     Cancel
@@ -273,7 +299,11 @@ export default function KanbanPage() {
                     disabled={creating}
                     className="bg-accent/90 hover:bg-accent text-canvas text-[14px] font-semibold px-4 py-1.5 rounded transition-colors disabled:opacity-50"
                   >
-                    {creating ? '…' : pendingFiles.length > 0 ? `Create + ${pendingFiles.length} file${pendingFiles.length > 1 ? 's' : ''}` : 'Create'}
+                    {creating
+                      ? '…'
+                      : pendingFiles.length > 0
+                        ? `Create + ${pendingFiles.length} file${pendingFiles.length > 1 ? 's' : ''}`
+                        : 'Create'}
                   </button>
                 </div>
               </form>
@@ -282,5 +312,5 @@ export default function KanbanPage() {
         )}
       </AppShell>
     </AuthGuard>
-  )
+  );
 }

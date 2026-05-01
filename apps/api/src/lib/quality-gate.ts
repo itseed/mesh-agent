@@ -1,70 +1,78 @@
 // apps/api/src/lib/quality-gate.ts
-import type { FastifyInstance } from 'fastify'
-import type { Redis } from 'ioredis'
-import { taskActivities } from '@meshagent/shared'
-import { dispatchAgent } from './dispatch.js'
-import { findRoleBySlug } from './roles.js'
-import { buildContextBlock } from './context-builder.js'
+import type { FastifyInstance } from 'fastify';
+import type { Redis } from 'ioredis';
+import { taskActivities } from '@meshagent/shared';
+import { dispatchAgent } from './dispatch.js';
+import { findRoleBySlug } from './roles.js';
+import { buildContextBlock } from './context-builder.js';
 
-const QG_TTL = 86400 // 24 h
+const QG_TTL = 86400; // 24 h
 
 export interface QualityGateState {
-  taskId: string
-  reviewerSessionId: string
-  prUrls: string[]
-  projectId: string | null
-  projectPaths: Record<string, string>
-  baseBranch: string
-  branchSuffix: string
-  createdBy: string
-  attempt: number             // starts at 0; escalate when attempt >= 2
-  taskTitle: string
-  taskDescription: string
+  taskId: string;
+  reviewerSessionId: string;
+  prUrls: string[];
+  projectId: string | null;
+  projectPaths: Record<string, string>;
+  baseBranch: string;
+  branchSuffix: string;
+  createdBy: string;
+  attempt: number; // starts at 0; escalate when attempt >= 2
+  taskTitle: string;
+  taskDescription: string;
 }
 
 export interface ReviewerVerdict {
-  verdict: 'pass' | 'block'
-  fixRoles: { slug: string; brief: string }[]
-  issues: { severity: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW'; description: string }[]
-  message: string
+  verdict: 'pass' | 'block';
+  fixRoles: { slug: string; brief: string }[];
+  issues: { severity: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW'; description: string }[];
+  message: string;
 }
 
-const qgStateKey = (taskId: string) => `qg:state:${taskId}`
-const qgSessionKey = (sessionId: string) => `qg:session:${sessionId}`
+const qgStateKey = (taskId: string) => `qg:state:${taskId}`;
+const qgSessionKey = (sessionId: string) => `qg:session:${sessionId}`;
 
 export async function saveQgState(redis: Redis, state: QualityGateState): Promise<void> {
-  await redis.set(qgStateKey(state.taskId), JSON.stringify(state), 'EX', QG_TTL)
+  await redis.set(qgStateKey(state.taskId), JSON.stringify(state), 'EX', QG_TTL);
 }
 
 export async function getQgState(redis: Redis, taskId: string): Promise<QualityGateState | null> {
-  const raw = await redis.get(qgStateKey(taskId))
-  if (!raw) return null
-  try { return JSON.parse(raw) as QualityGateState } catch { return null }
+  const raw = await redis.get(qgStateKey(taskId));
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw) as QualityGateState;
+  } catch {
+    return null;
+  }
 }
 
 export async function deleteQgState(redis: Redis, taskId: string): Promise<void> {
-  await redis.del(qgStateKey(taskId))
+  await redis.del(qgStateKey(taskId));
 }
 
-export async function indexQgSession(redis: Redis, sessionId: string, taskId: string): Promise<void> {
-  await redis.set(qgSessionKey(sessionId), taskId, 'EX', QG_TTL)
+export async function indexQgSession(
+  redis: Redis,
+  sessionId: string,
+  taskId: string,
+): Promise<void> {
+  await redis.set(qgSessionKey(sessionId), taskId, 'EX', QG_TTL);
 }
 
 export async function lookupQgSession(redis: Redis, sessionId: string): Promise<string | null> {
-  return redis.get(qgSessionKey(sessionId))
+  return redis.get(qgSessionKey(sessionId));
 }
 
 export async function removeQgSessionIndex(redis: Redis, sessionId: string): Promise<void> {
-  await redis.del(qgSessionKey(sessionId))
+  await redis.del(qgSessionKey(sessionId));
 }
 
 function buildReviewerPrompt(opts: {
-  taskTitle: string
-  taskDescription: string
-  prUrls: string[]
-  baseBranch: string
+  taskTitle: string;
+  taskDescription: string;
+  prUrls: string[];
+  baseBranch: string;
 }): string {
-  const prLines = opts.prUrls.map((u) => `- ${u}`).join('\n')
+  const prLines = opts.prUrls.map((u) => `- ${u}`).join('\n');
   return [
     'You are a code reviewer. Your job is to check a completed task before it is marked done.',
     '',
@@ -96,18 +104,18 @@ function buildReviewerPrompt(opts: {
     'summary: <1-2 sentence summary of what you found>',
     'verdict_json: {"verdict":"pass","fixRoles":[],"issues":[],"message":"<shown in chat to user>"}',
     'END_TASK_COMPLETE',
-  ].join('\n')
+  ].join('\n');
 }
 
 export function parseVerdictJson(outputLog: string): ReviewerVerdict | null {
-  const block = outputLog.match(/TASK_COMPLETE[\s\S]*?END_TASK_COMPLETE/)
-  if (!block) return null
-  const match = block[0].match(/verdict_json:\s*(\{[\s\S]*?\})(?:\n|$)/)
-  if (!match) return null
+  const block = outputLog.match(/TASK_COMPLETE[\s\S]*?END_TASK_COMPLETE/);
+  if (!block) return null;
+  const match = block[0].match(/verdict_json:\s*(\{[\s\S]*?\})(?:\n|$)/);
+  if (!match) return null;
   try {
-    return JSON.parse(match[1]) as ReviewerVerdict
+    return JSON.parse(match[1]) as ReviewerVerdict;
   } catch {
-    return null
+    return null;
   }
 }
 
@@ -117,40 +125,43 @@ export async function triggerQualityGate(
   prUrls: string[],
   projectPaths: Record<string, string>,
   opts: {
-    projectId: string | null
-    baseBranch: string
-    branchSuffix: string
-    createdBy: string
-    taskTitle: string
-    taskDescription: string
+    projectId: string | null;
+    baseBranch: string;
+    branchSuffix: string;
+    createdBy: string;
+    taskTitle: string;
+    taskDescription: string;
   },
 ): Promise<void> {
   // Read existing QG state to preserve attempt counter across retry loops
-  const existing = await getQgState(fastify.redis, taskId)
-  const attempt = existing?.attempt ?? 0
+  const existing = await getQgState(fastify.redis, taskId);
+  const attempt = existing?.attempt ?? 0;
 
-  const reviewerWorkingDir = Object.values(projectPaths)[0] ?? '/tmp'
-  const ctxBlock = await buildContextBlock(opts.projectId, fastify)
+  const reviewerWorkingDir = Object.values(projectPaths)[0] ?? '/tmp';
+  const ctxBlock = await buildContextBlock(opts.projectId, fastify);
   const reviewerPrompt = buildReviewerPrompt({
     taskTitle: opts.taskTitle,
     taskDescription: opts.taskDescription,
     prUrls,
     baseBranch: opts.baseBranch,
-  })
-  const prompt = ctxBlock ? `${ctxBlock}\n\n${reviewerPrompt}` : reviewerPrompt
+  });
+  const prompt = ctxBlock ? `${ctxBlock}\n\n${reviewerPrompt}` : reviewerPrompt;
 
-  const role = await findRoleBySlug(fastify, 'reviewer')
+  const role = await findRoleBySlug(fastify, 'reviewer');
   const result = await dispatchAgent(
     'reviewer',
     reviewerWorkingDir,
     prompt,
     { projectId: opts.projectId, taskId: null, createdBy: opts.createdBy },
     role?.systemPrompt ?? undefined,
-  )
+  );
 
   if (!result.id) {
-    fastify.log.warn({ taskId, error: result.error }, 'Quality gate reviewer dispatch failed — skipping')
-    return
+    fastify.log.warn(
+      { taskId, error: result.error },
+      'Quality gate reviewer dispatch failed — skipping',
+    );
+    return;
   }
 
   const state: QualityGateState = {
@@ -165,9 +176,9 @@ export async function triggerQualityGate(
     attempt,
     taskTitle: opts.taskTitle,
     taskDescription: opts.taskDescription,
-  }
-  await saveQgState(fastify.redis, state)
-  await indexQgSession(fastify.redis, result.id, taskId)
+  };
+  await saveQgState(fastify.redis, state);
+  await indexQgSession(fastify.redis, result.id, taskId);
 
   try {
     await fastify.db.insert(taskActivities).values({
@@ -175,8 +186,8 @@ export async function triggerQualityGate(
       actorId: null,
       type: 'quality_gate.started',
       payload: { attempt, prUrls },
-    })
+    });
   } catch (err) {
-    fastify.log.warn({ err, taskId }, 'Failed to log quality_gate.started activity')
+    fastify.log.warn({ err, taskId }, 'Failed to log quality_gate.started activity');
   }
 }

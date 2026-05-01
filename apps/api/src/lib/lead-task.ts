@@ -1,11 +1,11 @@
 // apps/api/src/lib/lead-task.ts
-import type { LeadWave } from './wave-store.js'
+import type { LeadWave } from './wave-store.js';
 
-const ORCHESTRATOR_URL = process.env.ORCHESTRATOR_URL ?? 'http://localhost:4802'
+const ORCHESTRATOR_URL = process.env.ORCHESTRATOR_URL ?? 'http://localhost:4802';
 
 export interface LeadTaskResult {
-  waves: LeadWave[]
-  taskBrief: { title: string; description: string }
+  waves: LeadWave[];
+  taskBrief: { title: string; description: string };
 }
 
 async function callOrchestrator(prompt: string): Promise<string> {
@@ -14,13 +14,13 @@ async function callOrchestrator(prompt: string): Promise<string> {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ prompt, timeoutMs: 60_000 }),
     signal: AbortSignal.timeout(65_000),
-  })
+  });
   if (!res.ok) {
-    const body = await res.json().catch(() => ({})) as { error?: string }
-    throw new Error(`Orchestrator error ${res.status}: ${body.error ?? 'unknown'}`)
+    const body = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(`Orchestrator error ${res.status}: ${body.error ?? 'unknown'}`);
   }
-  const { stdout } = await res.json() as { stdout: string }
-  return stdout
+  const { stdout } = (await res.json()) as { stdout: string };
+  return stdout;
 }
 
 function buildPrompt(
@@ -30,9 +30,9 @@ function buildPrompt(
 ): string {
   const pathLines = Object.entries(projectPaths)
     .map(([role, dir]) => `  ${role}: ${dir}`)
-    .join('\n')
+    .join('\n');
 
-  const fileLines = localFilePaths.map((p) => `- ${p}`).join('\n')
+  const fileLines = localFilePaths.map((p) => `- ${p}`).join('\n');
 
   return [
     'You are the Lead of a software development team. A task is ready to be worked on.',
@@ -67,50 +67,60 @@ function buildPrompt(
     '}',
     '',
     'Reply in Thai if the task title is Thai, otherwise English.',
-  ].join('\n')
+  ].join('\n');
 }
 
-const ALLOWED_ROLES = new Set(['frontend', 'backend', 'mobile', 'devops', 'designer', 'qa', 'reviewer'])
+const ALLOWED_ROLES = new Set([
+  'frontend',
+  'backend',
+  'mobile',
+  'devops',
+  'designer',
+  'qa',
+  'reviewer',
+]);
 
 function parseResult(stdout: string): LeadTaskResult {
-  let text = stdout.trim()
+  let text = stdout.trim();
   try {
-    const w = JSON.parse(text)
-    if (typeof w.result === 'string') text = w.result.trim()
-    else if (typeof w.stdout === 'string') text = w.stdout.trim()
-  } catch { /* not wrapped */ }
-
-  const match = text.match(/\{[\s\S]*\}/)
-  if (!match) throw new Error(`Lead task returned no JSON. Raw: ${text.slice(0, 300)}`)
-
-  const parsed = JSON.parse(match[0]) as Record<string, unknown>
-
-  const wavesRaw = Array.isArray(parsed.waves) ? parsed.waves : []
-  const waves: LeadWave[] = []
-  for (const w of wavesRaw) {
-    if (!w || typeof w !== 'object') continue
-    const wObj = w as Record<string, unknown>
-    const rolesRaw = Array.isArray(wObj.roles) ? wObj.roles : []
-    const roles: LeadWave['roles'] = []
-    for (const r of rolesRaw) {
-      if (!r || typeof r !== 'object') continue
-      const slug = String((r as Record<string, unknown>).slug ?? '').toLowerCase()
-      if (!ALLOWED_ROLES.has(slug)) continue
-      const reason = (r as Record<string, unknown>).reason
-      roles.push({ slug, reason: typeof reason === 'string' ? reason : undefined })
-    }
-    if (roles.length === 0) continue
-    const brief = typeof wObj.brief === 'string' ? wObj.brief.trim() : ''
-    waves.push({ roles, brief })
+    const w = JSON.parse(text);
+    if (typeof w.result === 'string') text = w.result.trim();
+    else if (typeof w.stdout === 'string') text = w.stdout.trim();
+  } catch {
+    /* not wrapped */
   }
-  if (waves.length === 0) throw new Error('Lead task returned no valid waves')
 
-  const briefRaw = parsed.taskBrief as Record<string, unknown> | undefined
-  const title = typeof briefRaw?.title === 'string' ? briefRaw.title.trim().slice(0, 80) : ''
-  const description = typeof briefRaw?.description === 'string' ? briefRaw.description.trim() : ''
-  if (!title || !description) throw new Error('Lead task returned invalid taskBrief')
+  const match = text.match(/\{[\s\S]*\}/);
+  if (!match) throw new Error(`Lead task returned no JSON. Raw: ${text.slice(0, 300)}`);
 
-  return { waves, taskBrief: { title, description } }
+  const parsed = JSON.parse(match[0]) as Record<string, unknown>;
+
+  const wavesRaw = Array.isArray(parsed.waves) ? parsed.waves : [];
+  const waves: LeadWave[] = [];
+  for (const w of wavesRaw) {
+    if (!w || typeof w !== 'object') continue;
+    const wObj = w as Record<string, unknown>;
+    const rolesRaw = Array.isArray(wObj.roles) ? wObj.roles : [];
+    const roles: LeadWave['roles'] = [];
+    for (const r of rolesRaw) {
+      if (!r || typeof r !== 'object') continue;
+      const slug = String((r as Record<string, unknown>).slug ?? '').toLowerCase();
+      if (!ALLOWED_ROLES.has(slug)) continue;
+      const reason = (r as Record<string, unknown>).reason;
+      roles.push({ slug, reason: typeof reason === 'string' ? reason : undefined });
+    }
+    if (roles.length === 0) continue;
+    const brief = typeof wObj.brief === 'string' ? wObj.brief.trim() : '';
+    waves.push({ roles, brief });
+  }
+  if (waves.length === 0) throw new Error('Lead task returned no valid waves');
+
+  const briefRaw = parsed.taskBrief as Record<string, unknown> | undefined;
+  const title = typeof briefRaw?.title === 'string' ? briefRaw.title.trim().slice(0, 80) : '';
+  const description = typeof briefRaw?.description === 'string' ? briefRaw.description.trim() : '';
+  if (!title || !description) throw new Error('Lead task returned invalid taskBrief');
+
+  return { waves, taskBrief: { title, description } };
 }
 
 export async function runLeadTask(
@@ -118,6 +128,6 @@ export async function runLeadTask(
   localFilePaths: string[],
   projectPaths: Record<string, string>,
 ): Promise<LeadTaskResult> {
-  const stdout = await callOrchestrator(buildPrompt(task, localFilePaths, projectPaths))
-  return parseResult(stdout)
+  const stdout = await callOrchestrator(buildPrompt(task, localFilePaths, projectPaths));
+  return parseResult(stdout);
 }

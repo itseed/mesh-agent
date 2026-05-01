@@ -1,25 +1,58 @@
-import { Droppable, Draggable } from '@hello-pangea/dnd'
-import { TaskCard } from './TaskCard'
+import { Droppable, Draggable } from '@hello-pangea/dnd';
+import { TaskCard } from './TaskCard';
 
 const STAGE_META: Record<string, { label: string; color: string; bg: string; border: string }> = {
-  backlog:     { label: 'Backlog',     color: '#6a7a8e', bg: 'rgba(106,122,142,0.08)', border: 'rgba(106,122,142,0.2)' },
-  in_progress: { label: 'In Progress', color: '#f0883e', bg: 'rgba(240,136,62,0.08)',  border: 'rgba(240,136,62,0.25)' },
-  review:      { label: 'Review',      color: '#d2a8ff', bg: 'rgba(210,168,255,0.08)', border: 'rgba(210,168,255,0.25)' },
-  done:        { label: 'Done',        color: '#3fb950', bg: 'rgba(63,185,80,0.08)',   border: 'rgba(63,185,80,0.25)' },
-}
+  backlog: {
+    label: 'Backlog',
+    color: '#6a7a8e',
+    bg: 'rgba(106,122,142,0.08)',
+    border: 'rgba(106,122,142,0.2)',
+  },
+  in_progress: {
+    label: 'In Progress',
+    color: '#f0883e',
+    bg: 'rgba(240,136,62,0.08)',
+    border: 'rgba(240,136,62,0.25)',
+  },
+  review: {
+    label: 'Review',
+    color: '#d2a8ff',
+    bg: 'rgba(210,168,255,0.08)',
+    border: 'rgba(210,168,255,0.25)',
+  },
+  done: {
+    label: 'Done',
+    color: '#3fb950',
+    bg: 'rgba(63,185,80,0.08)',
+    border: 'rgba(63,185,80,0.25)',
+  },
+};
 
 interface KanbanColumnProps {
-  stage: string
-  tasks: any[]
-  projects: any[]
-  allTasks: any[]
-  onDelete?: (id: string) => void
-  onStart?: (id: string) => void
-  onSelect?: (task: any) => void
+  stage: string;
+  tasks: any[];
+  projects: any[];
+  allTasks: any[];
+  onDelete?: (id: string) => void;
+  onStart?: (id: string) => void;
+  onSelect?: (task: any) => void;
 }
 
-export function KanbanColumn({ stage, tasks, projects, allTasks, onDelete, onStart, onSelect }: KanbanColumnProps) {
-  const meta = STAGE_META[stage] ?? { label: stage, color: '#6a7a8e', bg: 'transparent', border: 'transparent' }
+export function KanbanColumn({
+  stage,
+  tasks,
+  projects,
+  allTasks,
+  onDelete,
+  onStart,
+  onSelect,
+}: KanbanColumnProps) {
+  const meta = STAGE_META[stage] ?? {
+    label: stage,
+    color: '#6a7a8e',
+    bg: 'transparent',
+    border: 'transparent',
+  };
 
   return (
     <div className="flex flex-col min-w-[230px] flex-1">
@@ -29,7 +62,10 @@ export function KanbanColumn({ stage, tasks, projects, allTasks, onDelete, onSta
       >
         <div className="flex items-center gap-2">
           <span className="w-2 h-2 rounded-full" style={{ backgroundColor: meta.color }} />
-          <span className="text-[13px] font-semibold uppercase tracking-widest" style={{ color: meta.color }}>
+          <span
+            className="text-[13px] font-semibold uppercase tracking-widest"
+            style={{ color: meta.color }}
+          >
             {meta.label}
           </span>
         </div>
@@ -77,5 +113,5 @@ export function KanbanColumn({ stage, tasks, projects, allTasks, onDelete, onSta
         )}
       </Droppable>
     </div>
-  )
+  );
 }

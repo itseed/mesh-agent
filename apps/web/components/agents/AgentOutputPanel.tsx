@@ -1,101 +1,110 @@
-'use client'
-import { useState, useRef, useEffect } from 'react'
-import { useAgentOutput } from '@/lib/ws'
-import { api, ApiError } from '@/lib/api'
+'use client';
+import { useState, useRef, useEffect } from 'react';
+import { useAgentOutput } from '@/lib/ws';
+import { api, ApiError } from '@/lib/api';
 
 const ROLE_COLOR: Record<string, string> = {
   frontend: '#22d3ee',
-  backend:  '#60a5fa',
-  mobile:   '#c084fc',
-  devops:   '#4ade80',
+  backend: '#60a5fa',
+  mobile: '#c084fc',
+  devops: '#4ade80',
   designer: '#f472b6',
-  qa:       '#fb923c',
+  qa: '#fb923c',
   reviewer: '#f87171',
-}
+};
 
 function lineColor(line: string): string {
-  const l = line.toLowerCase()
-  if (/error|fail|fatal|exception|✕|✗/.test(l)) return '#f87171'
-  if (/warn|warning/.test(l)) return '#fb923c'
-  if (/success|done|complete|✓|✔|passed/.test(l)) return '#3fb950'
-  if (/^\s*>|^\s*\$|^running|^building/.test(l)) return '#60a5fa'
-  return ''
+  const l = line.toLowerCase();
+  if (/error|fail|fatal|exception|✕|✗/.test(l)) return '#f87171';
+  if (/warn|warning/.test(l)) return '#fb923c';
+  if (/success|done|complete|✓|✔|passed/.test(l)) return '#3fb950';
+  if (/^\s*>|^\s*\$|^running|^building/.test(l)) return '#60a5fa';
+  return '';
 }
 
 function useLocalAgentOutput(sessionId: string, enabled: boolean) {
-  const [lines, setLines] = useState<string[]>([])
-  const [status, setStatus] = useState('')
-  const [companionError, setCompanionError] = useState(false)
+  const [lines, setLines] = useState<string[]>([]);
+  const [status, setStatus] = useState('');
+  const [companionError, setCompanionError] = useState(false);
 
   useEffect(() => {
-    if (!enabled) return
-    let active = true
-    let timer: ReturnType<typeof setTimeout>
+    if (!enabled) return;
+    let active = true;
+    let timer: ReturnType<typeof setTimeout>;
 
     async function poll() {
-      if (!active) return
+      if (!active) return;
       try {
-        const res = await api.companion.agentStdout(sessionId)
-        if (!active) return
-        setLines(res.output ? res.output.split('\n') : [])
-        setCompanionError(false)
+        const res = await api.companion.agentStdout(sessionId);
+        if (!active) return;
+        setLines(res.output ? res.output.split('\n') : []);
+        setCompanionError(false);
         if (!res.running) {
-          setStatus('completed')
-          return
+          setStatus('completed');
+          return;
         }
-        setStatus('running')
-        timer = setTimeout(poll, 3000)
+        setStatus('running');
+        timer = setTimeout(poll, 3000);
       } catch (e: unknown) {
-        if (!active) return
+        if (!active) return;
         if (e instanceof ApiError && e.status === 503) {
-          setCompanionError(true)
-          return
+          setCompanionError(true);
+          return;
         }
-        timer = setTimeout(poll, 3000)
+        timer = setTimeout(poll, 3000);
       }
     }
 
-    poll()
+    poll();
     return () => {
-      active = false
-      clearTimeout(timer)
-    }
-  }, [sessionId, enabled])
+      active = false;
+      clearTimeout(timer);
+    };
+  }, [sessionId, enabled]);
 
-  return { lines, status, companionError }
+  return { lines, status, companionError };
 }
 
 interface AgentOutputPanelProps {
-  sessionId: string
-  role: string
-  executionMode?: 'cloud' | 'local'
-  onClose: () => void
+  sessionId: string;
+  role: string;
+  executionMode?: 'cloud' | 'local';
+  onClose: () => void;
 }
 
-export function AgentOutputPanel({ sessionId, role, executionMode = 'cloud', onClose }: AgentOutputPanelProps) {
-  const isLocal = executionMode === 'local'
+export function AgentOutputPanel({
+  sessionId,
+  role,
+  executionMode = 'cloud',
+  onClose,
+}: AgentOutputPanelProps) {
+  const isLocal = executionMode === 'local';
 
-  const { lines: wsLines, status: wsStatus } = useAgentOutput(isLocal ? null : sessionId)
-  const { lines: pollLines, status: pollStatus, companionError } = useLocalAgentOutput(sessionId, isLocal)
+  const { lines: wsLines, status: wsStatus } = useAgentOutput(isLocal ? null : sessionId);
+  const {
+    lines: pollLines,
+    status: pollStatus,
+    companionError,
+  } = useLocalAgentOutput(sessionId, isLocal);
 
-  const lines = isLocal ? pollLines : wsLines
-  const status = isLocal ? pollStatus : wsStatus
+  const lines = isLocal ? pollLines : wsLines;
+  const status = isLocal ? pollStatus : wsStatus;
 
-  const roleColor = ROLE_COLOR[role] ?? '#6a7a8e'
-  const bottomRef = useRef<HTMLDivElement>(null)
-  const [copied, setCopied] = useState(false)
-  const [killing, setKilling] = useState(false)
+  const roleColor = ROLE_COLOR[role] ?? '#6a7a8e';
+  const bottomRef = useRef<HTMLDivElement>(null);
+  const [copied, setCopied] = useState(false);
+  const [killing, setKilling] = useState(false);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [lines])
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [lines]);
 
   async function handleKill() {
-    setKilling(true)
+    setKilling(true);
     try {
-      await api.companion.agentKill(sessionId)
+      await api.companion.agentKill(sessionId);
     } catch {}
-    setKilling(false)
+    setKilling(false);
   }
 
   return (
@@ -116,8 +125,12 @@ export function AgentOutputPanel({ sessionId, role, executionMode = 'cloud', onC
               <span className="w-2.5 h-2.5 rounded-full bg-warning/60" />
               <span className="w-2.5 h-2.5 rounded-full bg-success/60" />
             </div>
-            <span className="text-[14px] font-medium" style={{ color: roleColor }}>{role}</span>
-            <span className="text-[13px] text-dim">— {isLocal ? 'Local output' : 'Live output'}</span>
+            <span className="text-[14px] font-medium" style={{ color: roleColor }}>
+              {role}
+            </span>
+            <span className="text-[13px] text-dim">
+              — {isLocal ? 'Local output' : 'Live output'}
+            </span>
             {isLocal && (
               <span className="text-[10px] font-medium bg-success/15 text-success border border-success/25 px-1.5 py-0.5 rounded-full">
                 local
@@ -138,7 +151,9 @@ export function AgentOutputPanel({ sessionId, role, executionMode = 'cloud', onC
             <div className="flex flex-col items-center justify-center h-full gap-2 text-center">
               <span className="text-dim text-[20px]">⚡</span>
               <p className="text-[13px] text-muted">Companion not connected — output unavailable</p>
-              <p className="text-[12px] text-dim">Open Settings → Companion to connect your local machine</p>
+              <p className="text-[12px] text-dim">
+                Open Settings → Companion to connect your local machine
+              </p>
             </div>
           ) : lines.length === 0 ? (
             <span className="text-dim">
@@ -146,7 +161,7 @@ export function AgentOutputPanel({ sessionId, role, executionMode = 'cloud', onC
             </span>
           ) : (
             lines.map((line: string, i: number) => {
-              const color = lineColor(line)
+              const color = lineColor(line);
               return (
                 <div
                   key={i}
@@ -155,7 +170,7 @@ export function AgentOutputPanel({ sessionId, role, executionMode = 'cloud', onC
                 >
                   {line || ' '}
                 </div>
-              )
+              );
             })
           )}
           <div ref={bottomRef} />
@@ -169,7 +184,15 @@ export function AgentOutputPanel({ sessionId, role, executionMode = 'cloud', onC
                 <span className="relative inline-flex w-1.5 h-1.5 rounded-full bg-success" />
               </span>
             )}
-            <span>{lines.length} lines{status && <> · <span className="text-muted">{status}</span></>}</span>
+            <span>
+              {lines.length} lines
+              {status && (
+                <>
+                  {' '}
+                  · <span className="text-muted">{status}</span>
+                </>
+              )}
+            </span>
           </div>
           <div className="flex items-center gap-3">
             {isLocal && status === 'running' && !companionError && (
@@ -183,9 +206,9 @@ export function AgentOutputPanel({ sessionId, role, executionMode = 'cloud', onC
             )}
             <button
               onClick={() => {
-                navigator.clipboard.writeText(lines.join('\n'))
-                setCopied(true)
-                setTimeout(() => setCopied(false), 1500)
+                navigator.clipboard.writeText(lines.join('\n'));
+                setCopied(true);
+                setTimeout(() => setCopied(false), 1500);
               }}
               className="text-[12px] text-dim hover:text-muted transition-colors"
             >
@@ -196,5 +219,5 @@ export function AgentOutputPanel({ sessionId, role, executionMode = 'cloud', onC
         </div>
       </div>
     </div>
-  )
+  );
 }
