@@ -7,7 +7,7 @@ import { test, expect } from '@playwright/test';
 // Skipped by default (no seeded data in CI yet). Run locally with
 //   E2E_BASE_URL=http://localhost:3000 pnpm e2e drawer.spec.ts
 // after `docker compose up` and seeding via `pnpm --filter api seed`.
-test.describe.skip('TaskDetailPanel drawer', () => {
+test.describe('TaskDetailPanel drawer', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/login');
     await page.getByPlaceholder('Email').fill(process.env.E2E_USER ?? 'admin@example.com');

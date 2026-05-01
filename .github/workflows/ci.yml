@@ -102,3 +102,103 @@ jobs:
 
       - name: Test
         run: pnpm test
+
+  e2e:
+    name: E2E Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: test
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: meshagent
+          POSTGRES_PASSWORD: meshagent
+          POSTGRES_DB: meshagent
+        ports:
+          - 4803:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 4804:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql://meshagent:meshagent@localhost:4803/meshagent
+      REDIS_URL: redis://localhost:4804
+      AUTH_EMAIL: admin@example.com
+      AUTH_PASSWORD: changeme123
+      JWT_SECRET: test-secret-that-is-at-least-32-characters-long
+      TOKEN_ENCRYPTION_KEY: test-token-encryption-key-32-chars-min
+      NEXT_PUBLIC_API_URL: http://localhost:4801
+      NEXT_PUBLIC_WS_URL: ws://localhost:4801
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright browsers
+        run: pnpm --filter web e2e:install
+
+      - name: Run database migrations
+        run: pnpm --filter @meshagent/shared db:migrate
+
+      - name: Build services
+        run: |
+          pnpm --filter api build
+          pnpm --filter @meshagent/orchestrator build
+          pnpm --filter web build
+
+      - name: Start API
+        run: PORT=4801 ORCHESTRATOR_URL=http://localhost:4802 pnpm --filter api start >> /tmp/api.log 2>&1 &
+
+      - name: Start Orchestrator
+        run: ORCHESTRATOR_PORT=4802 pnpm --filter @meshagent/orchestrator start >> /tmp/orch.log 2>&1 &
+
+      - name: Start Web
+        run: pnpm --filter web start >> /tmp/web.log 2>&1 &
+
+      - name: Wait for services ready
+        run: |
+          echo "Waiting for API..."
+          timeout 60 bash -c 'until curl -sf http://localhost:4801/health; do sleep 2; done'
+          echo "Waiting for Orchestrator..."
+          timeout 60 bash -c 'until curl -sf http://localhost:4802/health; do sleep 2; done'
+          echo "Waiting for Web..."
+          timeout 60 bash -c 'until curl -sf http://localhost:3000; do sleep 2; done'
+
+      - name: Seed E2E data
+        run: pnpm --filter api seed:e2e
+
+      - name: Run E2E tests
+        run: E2E_NO_SERVER=1 pnpm --filter web e2e
+
+      - name: Upload Playwright report
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: apps/web/playwright-report/
+          retention-days: 7
