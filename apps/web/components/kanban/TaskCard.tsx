@@ -46,6 +46,7 @@ export function TaskCard({ task, projects, allTasks, onClick, onDelete, onStart,
 
   return (
     <div
+      data-task-id={task.id}
       onClick={onClick}
       className="bg-surface border border-border rounded-lg p-3 text-[14px] group hover:border-border-hi transition-all cursor-pointer"
       style={{
