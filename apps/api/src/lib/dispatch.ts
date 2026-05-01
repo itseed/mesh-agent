@@ -2,6 +2,7 @@ import { env } from '../env.js';
 import { companionManager } from './companionManager.js';
 import { agentSessions } from '@meshagent/shared';
 import { eq } from 'drizzle-orm';
+import type { drizzle } from 'drizzle-orm/postgres-js';
 
 export async function dispatchAgent(
   role: string,
@@ -14,7 +15,7 @@ export async function dispatchAgent(
     cliProvider?: string;
     executionMode?: 'cloud' | 'local';
     userId?: string;
-    db?: any;
+    db?: ReturnType<typeof drizzle>;
   },
   systemPrompt?: string,
   repoUrl?: string,
@@ -54,14 +55,15 @@ export async function dispatchAgent(
         internalSecret: env.INTERNAL_SECRET,
       });
       return { id: sessionId };
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
       if (db) {
         await db
           .update(agentSessions)
-          .set({ status: 'errored', error: err.message, endedAt: new Date() })
+          .set({ status: 'errored', error: msg, endedAt: new Date() })
           .where(eq(agentSessions.id, sessionId));
       }
-      return { id: null, error: err.message ?? 'Companion dispatch failed' };
+      return { id: null, error: msg || 'Companion dispatch failed' };
     }
   }
 
@@ -91,8 +93,8 @@ export async function dispatchAgent(
     }
     const data = (await res.json()) as { id?: string };
     return { id: data.id ?? null };
-  } catch (e: any) {
-    return { id: null, error: e?.message ?? 'Orchestrator request failed' };
+  } catch (e: unknown) {
+    return { id: null, error: e instanceof Error ? e.message : 'Orchestrator request failed' };
   } finally {
     clearTimeout(timer);
   }

@@ -63,10 +63,10 @@ class CompanionManager {
       this.pendingRequests.set(id, { resolve: resolve as (r: unknown) => void, reject, timer });
       try {
         conn.ws.socket.send(msg);
-      } catch (err: any) {
+      } catch (err: unknown) {
         clearTimeout(timer);
         this.pendingRequests.delete(id);
-        reject(new Error(`Failed to send RPC request: ${err.message}`));
+        reject(new Error(`Failed to send RPC request: ${err instanceof Error ? err.message : String(err)}`));
       }
     });
   }
