@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { DragDropContext, DropResult } from '@hello-pangea/dnd';
 import { KanbanColumn } from './KanbanColumn';
 import { TaskDetailPanel } from './TaskDetailPanel';
@@ -16,12 +16,14 @@ interface KanbanBoardProps {
 export function KanbanBoard({ initialTasks, projects, onRefresh }: KanbanBoardProps) {
   const [tasks, setTasks] = useState(initialTasks);
   const [selectedTask, setSelectedTask] = useState<any | null>(null);
+  const selectedTaskRef = useRef(selectedTask);
+  selectedTaskRef.current = selectedTask;
 
   useEffect(() => {
     setTasks(initialTasks);
-    // Keep selectedTask in sync if it's open
-    if (selectedTask) {
-      const updated = initialTasks.find((t) => t.id === selectedTask.id);
+    // Keep selectedTask in sync if it's open — use ref to avoid effect loop
+    if (selectedTaskRef.current) {
+      const updated = initialTasks.find((t) => t.id === selectedTaskRef.current!.id);
       if (updated) setSelectedTask(updated);
     }
   }, [initialTasks]);

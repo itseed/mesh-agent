@@ -74,7 +74,7 @@ export function AgentRolePanel({
     if (projects.length > 0 && !dispatchProject) {
       setDispatchProject(projects[0].id);
     }
-  }, [projects]);
+  }, [projects, dispatchProject]);
   const [dispatchDir, setDispatchDir] = useState('');
   const [dispatching, setDispatching] = useState(false);
   const [stopping, setStopping] = useState(false);

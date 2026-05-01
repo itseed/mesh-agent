@@ -1,6 +1,7 @@
 'use client';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 import { useAuth } from '@/lib/auth';
 
 export default function LoginPage() {
@@ -33,14 +34,14 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen flex items-center justify-center relative overflow-hidden">
       {/* Background mesh icon (decorative) */}
-      <img
+      <Image
         src="/icon.svg"
         alt=""
         aria-hidden
+        width={480}
+        height={480}
         className="absolute pointer-events-none select-none"
         style={{
-          width: 480,
-          height: 480,
           opacity: 0.025,
           top: '50%',
           left: '50%',
@@ -51,7 +52,7 @@ export default function LoginPage() {
       <div className="relative z-10 w-full max-w-[340px] px-4 fade-up">
         {/* Logo */}
         <div className="flex flex-col items-center mb-8">
-          <img src="/icon.svg" alt="MeshAgent" className="w-16 h-16 mb-3" />
+          <Image src="/icon.svg" alt="MeshAgent" width={64} height={64} className="w-16 h-16 mb-3" />
           <div className="text-[17px] font-semibold text-text tracking-tight">MeshAgent</div>
           <div className="text-[13px] text-muted mt-1">AI Dev Team Orchestration</div>
         </div>

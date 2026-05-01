@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { usePathname } from 'next/navigation';
+import Image from 'next/image';
 import { api, ApiError } from '@/lib/api';
 import { useChatStream } from '@/lib/ws';
 
@@ -563,10 +564,13 @@ export function CommandBar() {
                       <span className="truncate">{a.name}</span>
                     </div>
                   ) : (
-                    <img
+                    <Image
                       src={a.preview}
                       alt={a.name}
+                      width={56}
+                      height={56}
                       className="w-14 h-14 object-cover rounded border border-border"
+                      unoptimized
                     />
                   )}
                   <button

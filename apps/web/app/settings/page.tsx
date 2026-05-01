@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect, useCallback, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
+import Image from 'next/image';
 import { AppShell } from '@/components/layout/AppShell';
 import { AuthGuard } from '@/components/layout/AuthGuard';
 import { api } from '@/lib/api';
@@ -328,7 +329,7 @@ function SettingsPageInner() {
                 {status?.connected && status.user && (
                   <div className="flex items-center gap-2 bg-success/10 border border-success/25 px-3 py-1.5 rounded-full">
                     {status.user.avatarUrl && (
-                      <img src={status.user.avatarUrl} alt="" className="w-5 h-5 rounded-full" />
+                      <Image src={status.user.avatarUrl} alt="" width={20} height={20} className="w-5 h-5 rounded-full" unoptimized />
                     )}
                     <span className="text-[13px] text-success font-medium">
                       {status.user.login}

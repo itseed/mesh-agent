@@ -1,6 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import Image from 'next/image';
 
 const NAV_ITEMS = [
   { href: '/overview', label: 'Overview' },
@@ -14,7 +15,7 @@ export function TopNav() {
   const pathname = usePathname();
   return (
     <nav className="bg-surface border-b border-border px-4 flex items-center gap-6 h-12 sticky top-0 z-50">
-      <img src="/logo.svg" alt="MeshAgent" height={28} style={{ display: 'block' }} />
+      <Image src="/logo.svg" alt="MeshAgent" width={28} height={28} style={{ display: 'block' }} />
       {NAV_ITEMS.map((item) => (
         <Link
           key={item.href}

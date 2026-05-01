@@ -781,7 +781,7 @@ export default function ProjectsPage() {
       })
       .catch(() => setCBranches([]))
       .finally(() => setLoadingBranches(false));
-  }, [cRepos]);
+  }, [cRepos, cBranch]);
 
   useEffect(() => {
     if (eRepos.length === 0) {

@@ -1,8 +1,8 @@
 {
   "extends": ["next/core-web-vitals"],
   "rules": {
-    "@next/next/no-img-element": "warn",
-    "react-hooks/exhaustive-deps": "warn",
+    "@next/next/no-img-element": "error",
+    "react-hooks/exhaustive-deps": "error",
     "react/no-unescaped-entities": "off"
   },
   "ignorePatterns": ["node_modules", ".next", "out", "dist", "test/**"]

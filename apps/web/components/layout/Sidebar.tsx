@@ -1,6 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import Image from 'next/image';
 import { useAuth } from '@/lib/auth';
 
 const NAV = [
@@ -91,7 +92,7 @@ export function Sidebar() {
         className="h-13 flex items-center px-3.5 border-b border-border shrink-0"
         style={{ height: 52 }}
       >
-        <img src="/icon.svg" alt="" className="w-7 h-7 shrink-0" />
+        <Image src="/icon.svg" alt="" width={28} height={28} className="w-7 h-7 shrink-0" />
         <div className="ml-2.5 hidden lg:block overflow-hidden">
           <div className="text-[15px] font-semibold text-text leading-none tracking-tight">
             MeshAgent
