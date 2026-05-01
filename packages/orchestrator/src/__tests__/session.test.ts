@@ -28,7 +28,7 @@ const baseOpts = {
   workingDir: '/tmp',
   prompt: 'hello',
   claudeCmd: 'echo',
-};
+} as const;
 
 describe('AgentSession', () => {
   it('has pending status on creation', () => {

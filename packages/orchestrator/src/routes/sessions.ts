@@ -1,5 +1,6 @@
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
+import type { AgentRole } from '@meshagent/shared';
 import type { SessionManager } from '../manager.js';
 import type { SessionStore } from '../store.js';
 import { ensureRepo, createWorktree } from '../git.js';
@@ -55,7 +56,7 @@ export async function sessionRoutes(
     let session;
     try {
       session = await manager.createSession({
-        role: body.role,
+        role: body.role as AgentRole,
         workingDir: actualWorkingDir,
         prompt: body.prompt,
         projectId: body.projectId ?? null,

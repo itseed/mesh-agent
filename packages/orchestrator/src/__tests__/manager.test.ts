@@ -77,9 +77,9 @@ describe('SessionManager', () => {
       maxConcurrent: 1,
       idleTimeoutMs: 0,
     });
-    const s = await m.createSession({ role: 'a', workingDir: '/tmp', prompt: '5' });
+    const s = await m.createSession({ role: 'frontend', workingDir: '/tmp', prompt: '5' });
     s.start();
-    await expect(m.createSession({ role: 'b', workingDir: '/tmp', prompt: '5' })).rejects.toThrow(
+    await expect(m.createSession({ role: 'backend', workingDir: '/tmp', prompt: '5' })).rejects.toThrow(
       /Concurrency limit/,
     );
     s.stop();
