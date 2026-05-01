@@ -8,7 +8,8 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "seed:e2e": "tsx src/seed-e2e.ts"
   },
   "dependencies": {
     "@fastify/cookie": "^9.3.1",
