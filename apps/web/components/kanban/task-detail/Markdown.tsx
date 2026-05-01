@@ -36,7 +36,7 @@ export function Markdown({ body }: { body: string }) {
     <>
       {segments.map((seg, i) => {
         if (seg.startsWith('```') && seg.endsWith('```')) {
-          const inner = seg.slice(3, -3).replace(/^\w*\n?/, '');
+          const inner = seg.slice(3, -3).replace(/^[^\n]*\n?/, '');
           return (
             <pre
               key={i}

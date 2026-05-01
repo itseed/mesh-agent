@@ -1,4 +1,5 @@
 'use client';
+import type { TaskComment } from '@meshagent/shared';
 import type { ReviewIssue } from './styles';
 import { ROLE_STYLE } from './styles';
 import { Markdown } from './Markdown';
@@ -6,7 +7,7 @@ import { FixIssuesPanel } from './FixIssuesPanel';
 import { parseReviewIssues } from './utils';
 
 interface CommentsTabProps {
-  comments: any[];
+  comments: TaskComment[];
   fixCommentId: string | null;
   selectedIssues: Set<number>;
   fixingIssues: boolean;
@@ -81,7 +82,7 @@ export function CommentsTab({
   return (
     <div className="flex flex-col gap-3">
       {comments.length === 0 && <p className="text-muted text-[13px]">No comments yet.</p>}
-      {comments.map((c: any, i: number) => (
+      {comments.map((c, i) => (
         <div
           key={c.id ?? i}
           className={
@@ -104,14 +105,6 @@ export function CommentsTab({
                 <>
                   <div className="flex items-center justify-between mb-1.5">
                     <div className="text-[11px] text-accent font-medium">🤖 Agent Summary</div>
-                    {issues.length > 0 && fixCommentId !== c.id && (
-                      <button
-                        onClick={() => onOpenFixPanel(c.id, issues)}
-                        className="text-[11px] px-2 py-0.5 rounded border border-orange-400/30 text-orange-300 hover:bg-orange-400/10 transition-colors"
-                      >
-                        🔧 Fix Issues ({issues.length})
-                      </button>
-                    )}
                   </div>
                   <div className="text-[13px] text-text">
                     <Markdown body={c.body} />

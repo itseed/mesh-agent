@@ -1,21 +1,15 @@
-const ROLE_STYLE: Record<string, { bg: string; text: string }> = {
-  frontend: { bg: 'rgba(34,211,238,0.1)', text: '#22d3ee' },
-  backend: { bg: 'rgba(96,165,250,0.1)', text: '#60a5fa' },
-  mobile: { bg: 'rgba(192,132,252,0.1)', text: '#c084fc' },
-  devops: { bg: 'rgba(74,222,128,0.1)', text: '#4ade80' },
-  designer: { bg: 'rgba(244,114,182,0.1)', text: '#f472b6' },
-  qa: { bg: 'rgba(251,146,60,0.1)', text: '#fb923c' },
-  reviewer: { bg: 'rgba(248,113,113,0.1)', text: '#f87171' },
-};
+import { ROLE_STYLE } from './task-detail/styles';
+import type { Task } from '@meshagent/shared';
 
-function relativeTime(dateStr: string | undefined | null): string | null {
+function relativeTime(dateStr: Date | string | undefined | null): string | null {
   if (!dateStr) return null;
-  const diff = Date.now() - new Date(dateStr).getTime();
+  const date = dateStr instanceof Date ? dateStr : new Date(dateStr);
+  const diff = Date.now() - date.getTime();
   if (diff < 60_000) return 'Just now';
   if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}m ago`;
   if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}h ago`;
   if (diff < 7 * 86_400_000) return `${Math.floor(diff / 86_400_000)}d ago`;
-  return new Date(dateStr).toLocaleDateString();
+  return date.toLocaleDateString();
 }
 
 const PRIORITY_DOT: Record<string, string> = {
@@ -26,9 +20,9 @@ const PRIORITY_DOT: Record<string, string> = {
 };
 
 interface TaskCardProps {
-  task: any;
-  projects?: any[];
-  allTasks?: any[];
+  task: Task;
+  projects?: Array<{ id: string; name: string }>;
+  allTasks?: Task[];
   onClick?: () => void;
   onDelete?: (id: string) => void;
   onStart?: (id: string) => void;
@@ -48,10 +42,10 @@ export function TaskCard({
 }: TaskCardProps) {
   const role = ROLE_STYLE[task.agentRole ?? ''];
   const dotColor = PRIORITY_DOT[task.priority ?? ''] ?? null;
-  const project = projects?.find((p: any) => p.id === task.projectId);
-  const subtaskCount = allTasks?.filter((t: any) => t.parentTaskId === task.id).length ?? 0;
+  const project = projects?.find((p) => p.id === task.projectId);
+  const subtaskCount = allTasks?.filter((t) => t.parentTaskId === task.id).length ?? 0;
   const doneCount =
-    allTasks?.filter((t: any) => t.parentTaskId === task.id && t.stage === 'done').length ?? 0;
+    allTasks?.filter((t) => t.parentTaskId === task.id && t.stage === 'done').length ?? 0;
   const timeAgo = relativeTime(task.createdAt);
 
   return (

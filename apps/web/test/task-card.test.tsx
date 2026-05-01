@@ -1,13 +1,22 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
+import type { Task } from '@meshagent/shared';
 import { TaskCard } from '@/components/kanban/TaskCard';
 
-const baseTask = {
+const baseTask: Task = {
   id: 't1',
   title: 'Fix login bug',
+  description: null,
   priority: 'high',
+  status: 'open',
   agentRole: 'frontend',
   stage: 'in_progress',
+  wave: 1,
+  projectId: null,
+  parentTaskId: null,
+  githubPrUrl: null,
+  createdAt: new Date(),
+  updatedAt: new Date(),
 };
 
 describe('TaskCard', () => {
@@ -49,9 +58,9 @@ describe('TaskCard', () => {
   });
 
   it('shows subtask count chip when subtasks exist', () => {
-    const allTasks = [
-      { id: 's1', parentTaskId: 't1', stage: 'done' },
-      { id: 's2', parentTaskId: 't1', stage: 'in_progress' },
+    const allTasks: Task[] = [
+      { ...baseTask, id: 's1', parentTaskId: 't1', stage: 'done' },
+      { ...baseTask, id: 's2', parentTaskId: 't1', stage: 'in_progress' },
     ];
     render(<TaskCard task={baseTask} allTasks={allTasks} />);
     expect(screen.getByText('1/2')).toBeInTheDocument();

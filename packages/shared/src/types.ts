@@ -29,16 +29,34 @@ export interface User {
   lastLoginAt: Date | null;
 }
 
+export type TaskStatus = 'open' | 'in_progress' | 'blocked' | 'done' | 'cancelled';
+export type TaskPriority = 'low' | 'medium' | 'high' | 'urgent';
+export type CommentSource = 'user' | 'lead' | 'agent';
+
 export interface Task {
   id: string;
   title: string;
   description: string | null;
   stage: KanbanStage;
+  status: TaskStatus;
+  priority: TaskPriority;
   agentRole: AgentRole | null;
+  wave: number;
   projectId: string | null;
+  parentTaskId: string | null;
   githubPrUrl: string | null;
   createdAt: Date;
   updatedAt: Date;
+}
+
+export interface TaskComment {
+  id: string;
+  taskId: string;
+  authorId: string | null;
+  source: CommentSource;
+  body: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface Agent {

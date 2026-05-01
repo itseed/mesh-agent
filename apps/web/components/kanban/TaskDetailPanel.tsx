@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
+import type { Task, TaskComment } from '@meshagent/shared';
 import { api } from '@/lib/api';
 import type { ReviewIssue } from './task-detail/styles';
 import { parseReviewIssues } from './task-detail/utils';
@@ -12,8 +13,8 @@ import { ActivityTab } from './task-detail/ActivityTab';
 import { AttachmentsTab } from './task-detail/AttachmentsTab';
 
 interface TaskDetailPanelProps {
-  task: any;
-  allTasks: any[];
+  task: Task;
+  allTasks: Task[];
   onClose: () => void;
   onUpdate: () => void;
   onDelete: (id: string) => void;
@@ -38,7 +39,7 @@ export function TaskDetailPanel({
   onDelete,
 }: TaskDetailPanelProps) {
   const [tab, setTab] = useState<Tab>('overview');
-  const [comments, setComments] = useState<any[]>([]);
+  const [comments, setComments] = useState<TaskComment[]>([]);
   const [activities, setActivities] = useState<any[]>([]);
   const [commentText, setCommentText] = useState('');
   const [sending, setSending] = useState(false);
@@ -105,10 +106,10 @@ export function TaskDetailPanel({
     }
   }, [tab, task.id]);
 
-  const subtasks = allTasks.filter((t: any) => t.parentTaskId === task.id);
+  const subtasks = allTasks.filter((t) => t.parentTaskId === task.id);
 
   useEffect(() => {
-    const running = subtasks.find((s: any) => s.stage === 'in_progress');
+    const running = subtasks.find((s) => s.stage === 'in_progress');
     if (running) {
       setTab('subtasks');
       setExpandedSubtaskId(running.id);
@@ -121,7 +122,7 @@ export function TaskDetailPanel({
     if (descValue === localTask.description) return;
     try {
       await api.tasks.update(task.id, { description: descValue });
-      setLocalTask((prev: any) => ({ ...prev, description: descValue }));
+      setLocalTask((prev) => ({ ...prev, description: descValue }));
       onUpdate();
     } catch {}
   }
@@ -129,7 +130,7 @@ export function TaskDetailPanel({
   async function updateField(field: string, value: string) {
     try {
       await api.tasks.update(task.id, { [field]: value });
-      setLocalTask((prev: any) => ({ ...prev, [field]: value }));
+      setLocalTask((prev) => ({ ...prev, [field]: value }));
       onUpdate();
     } catch {}
   }
@@ -263,7 +264,7 @@ export function TaskDetailPanel({
     }
   }
 
-  const leadComment = comments.find((c: any) => c.source === 'lead');
+  const leadComment = comments.find((c) => c.source === 'lead');
   let plan: any = null;
   if (leadComment) {
     try {
@@ -275,7 +276,7 @@ export function TaskDetailPanel({
     setStarting(true);
     try {
       await api.tasks.start(task.id, { executionMode });
-      setLocalTask((t: any) => ({ ...t, stage: 'in_progress' }));
+      setLocalTask((t) => ({ ...t, stage: 'in_progress' as const }));
       const fresh = await api.tasks.activities(task.id);
       setActivities(fresh);
     } catch (e: any) {
@@ -288,11 +289,11 @@ export function TaskDetailPanel({
   // Aggregate review issues from agent comments for the Task Complete CTA
   const allIssues: ReviewIssue[] = [];
   comments
-    .filter((c: any) => c.source === 'agent')
-    .forEach((c: any) => {
+    .filter((c) => c.source === 'agent')
+    .forEach((c) => {
       parseReviewIssues(c.body).forEach((issue) => allIssues.push(issue));
     });
-  const doneCount = subtasks.filter((s: any) => s.stage === 'done').length;
+  const doneCount = subtasks.filter((s) => s.stage === 'done').length;
   const totalCount = subtasks.length;
 
   if (typeof document === 'undefined') return null;
