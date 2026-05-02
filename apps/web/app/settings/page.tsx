@@ -621,7 +621,7 @@ function SettingsPageInner() {
                   Install &amp; connect
                 </div>
                 <pre className="bg-surface-2 border border-border rounded-lg p-3 text-[11px] text-success font-mono whitespace-pre overflow-x-auto">
-                  {`npm install -g @meshagent/companion
+                  {`npm install -g https://github.com/itseed/mesh-agent/releases/latest/download/meshagent-companion.tgz
 mesh-companion connect ${process.env.NEXT_PUBLIC_API_URL ?? 'https://your-api.com'} --token <your-token>`}
                 </pre>
               </div>

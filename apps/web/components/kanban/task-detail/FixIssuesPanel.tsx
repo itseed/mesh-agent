@@ -9,6 +9,7 @@ interface FixIssuesPanelProps {
   onToggle: (idx: number) => void;
   onSelectAll: () => void;
   onConfirm: () => void;
+  onConfirmAndStart?: () => void;
   onCancel: () => void;
   busy?: boolean;
   showSelectAll?: boolean;
@@ -21,6 +22,7 @@ export function FixIssuesPanel({
   onToggle,
   onSelectAll,
   onConfirm,
+  onConfirmAndStart,
   onCancel,
   busy,
   showSelectAll = true,
@@ -58,7 +60,7 @@ export function FixIssuesPanel({
           </label>
         ))}
       </div>
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 flex-wrap">
         <button
           onClick={onConfirm}
           disabled={selected.size === 0 || busy}
@@ -66,6 +68,15 @@ export function FixIssuesPanel({
         >
           {busy ? '…' : `✓ Create ${selected.size} Fix Task${selected.size !== 1 ? 's' : ''}`}
         </button>
+        {onConfirmAndStart && (
+          <button
+            onClick={onConfirmAndStart}
+            disabled={selected.size === 0 || busy}
+            className="bg-green-400/15 hover:bg-green-400/25 border border-green-400/25 text-green-300 text-[13px] px-3 py-1.5 rounded transition-all disabled:opacity-40"
+          >
+            {busy ? '…' : `🚀 Create & Auto-start`}
+          </button>
+        )}
         <button onClick={onCancel} className="text-muted text-[13px] hover:text-text">
           Cancel
         </button>

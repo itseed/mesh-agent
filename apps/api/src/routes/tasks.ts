@@ -12,6 +12,7 @@ import {
 } from '@meshagent/shared';
 import { logAudit } from '../lib/audit.js';
 import { analyzeTask, type AnalyzePlan } from '../lib/analyze.js';
+import { readStoredToken } from '../lib/github-client.js';
 import path from 'node:path';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { dispatchAgent, buildGitInstructions } from '../lib/dispatch.js';
@@ -87,6 +88,10 @@ const createCommentSchema = z.object({
     .min(1)
     .max(64 * 1024),
 });
+
+async function getReposBaseDir(redis: { get: (key: string) => Promise<string | null> }): Promise<string> {
+  return (await redis.get('settings:repos:base-dir')) ?? env.REPOS_BASE_DIR;
+}
 
 export async function taskRoutes(fastify: FastifyInstance) {
   const preHandler = [fastify.authenticate];
@@ -180,7 +185,7 @@ export async function taskRoutes(fastify: FastifyInstance) {
         }),
       )
       .min(1)
-      .max(20),
+      .max(100),
   });
 
   fastify.post('/tasks/:id/fix-issues', { preHandler }, async (request, reply) => {
@@ -414,7 +419,7 @@ export async function taskRoutes(fastify: FastifyInstance) {
       });
 
       reply.status(201);
-      return { comment, plan };
+      return { comment, plan, nextStep: 'approve' };
     } catch (err: any) {
       await fastify.db
         .update(tasks)
@@ -559,7 +564,6 @@ export async function taskRoutes(fastify: FastifyInstance) {
     if (allBacklogSubtasks.length > 0) {
       const executionMode = startBody.executionMode ?? 'cloud';
       const branchSuffix = Date.now().toString(36);
-      const gitInstructions = buildGitInstructions(baseBranch, branchSuffix);
       const projectCtxBlock = await buildContextBlock(task.projectId ?? null, fastify);
 
       let projectData: any = null;
@@ -572,12 +576,16 @@ export async function taskRoutes(fastify: FastifyInstance) {
         projectData = proj;
       }
 
+      const gitInstructions = buildGitInstructions(baseBranch, branchSuffix, executionMode === 'cloud' && !!projectData?.githubRepos?.length);
+
       // Group by wave, dispatch only the smallest wave number
       const waveNumbers = [...new Set(allBacklogSubtasks.map((s: any) => s.wave ?? 1))].sort(
         (a: number, b: number) => a - b,
       );
       const currentWaveNum = waveNumbers[0];
       const wave1Subtasks = allBacklogSubtasks.filter((s: any) => (s.wave ?? 1) === currentWaveNum);
+
+      const githubToken = await readStoredToken(fastify.redis) ?? env.GITHUB_TOKEN ?? null;
 
       // Save dispatch context to Redis for next-wave dispatch from internal.ts
       const waveCtx = {
@@ -587,7 +595,9 @@ export async function taskRoutes(fastify: FastifyInstance) {
         projectId: task.projectId ?? null,
         repoUrl:
           executionMode === 'cloud' && projectData?.githubRepos?.length
-            ? `https://github.com/${projectData.githubRepos[0]}.git`
+            ? (githubToken
+                ? `https://${githubToken}@github.com/${projectData.githubRepos[0]}.git`
+                : `https://github.com/${projectData.githubRepos[0]}.git`)
             : null,
         projectPaths,
         parentTaskTitle: task.title,
@@ -607,8 +617,10 @@ export async function taskRoutes(fastify: FastifyInstance) {
         if (executionMode === 'cloud' && projectData?.githubRepos?.length) {
           const repoSlug = projectData.githubRepos[0] as string;
           const repoName = repoSlug.split('/')[1];
-          repoUrl = `https://github.com/${repoSlug}.git`;
-          agentWorkingDir = path.join(env.REPOS_BASE_DIR, task.projectId!, repoName);
+          repoUrl = githubToken
+            ? `https://${githubToken}@github.com/${repoSlug}.git`
+            : `https://github.com/${repoSlug}.git`;
+          agentWorkingDir = path.join(await getReposBaseDir(fastify.redis), task.projectId!, repoName);
         } else {
           agentWorkingDir = projectPaths[role] ?? Object.values(projectPaths)[0] ?? '/tmp';
         }

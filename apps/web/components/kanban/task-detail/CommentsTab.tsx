@@ -15,6 +15,7 @@ interface CommentsTabProps {
   onToggleIssue: (idx: number) => void;
   onSelectAllIssues: (issues: ReviewIssue[]) => void;
   onConfirmFix: () => void;
+  onConfirmFixAndStart: () => void;
   onCancelFix: () => void;
 }
 
@@ -77,6 +78,7 @@ export function CommentsTab({
   onToggleIssue,
   onSelectAllIssues,
   onConfirmFix,
+  onConfirmFixAndStart,
   onCancelFix,
 }: CommentsTabProps) {
   return (
@@ -127,6 +129,7 @@ export function CommentsTab({
                         onToggle={onToggleIssue}
                         onSelectAll={() => onSelectAllIssues(issues)}
                         onConfirm={onConfirmFix}
+                        onConfirmAndStart={onConfirmFixAndStart}
                         onCancel={onCancelFix}
                         busy={fixingIssues}
                         showSelectAll={issues.length > 1}

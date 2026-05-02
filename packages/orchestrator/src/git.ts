@@ -12,19 +12,16 @@ export async function ensureRepo(workingDir: string, repoUrl: string): Promise<v
   } else {
     try {
       await execFileAsync('git', ['-C', workingDir, 'pull', '--ff-only'], {});
-    } catch {
-      // existing clone stays; caller logs warning if needed
+    } catch (err) {
+      console.warn('git pull failed, using existing clone:', err instanceof Error ? err.message : err);
     }
   }
 }
 
 export async function createWorktree(workingDir: string, taskId: string): Promise<string> {
   const worktreePath = path.join(workingDir, 'worktrees', taskId);
-  await execFileAsync(
-    'git',
-    ['-C', workingDir, 'worktree', 'add', worktreePath, '-b', `task/${taskId}`],
-    {},
-  );
+  if (existsSync(worktreePath)) return worktreePath;
+  await execFileAsync('git', ['-C', workingDir, 'worktree', 'add', '--detach', worktreePath], {});
   return worktreePath;
 }
 
@@ -36,9 +33,6 @@ export async function removeWorktree(workingDir: string, taskId: string): Promis
       ['-C', workingDir, 'worktree', 'remove', worktreePath, '--force'],
       {},
     );
-  } catch {}
-  try {
-    await execFileAsync('git', ['-C', workingDir, 'branch', '-D', `task/${taskId}`], {});
   } catch {}
 }
 

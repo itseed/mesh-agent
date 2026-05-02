@@ -73,7 +73,7 @@ export async function dispatchAgent(
   try {
     const res = await fetch(`${env.ORCHESTRATOR_URL}/sessions`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'x-internal-secret': env.INTERNAL_SECRET },
       body: JSON.stringify({
         role,
         workingDir,
@@ -100,19 +100,18 @@ export async function dispatchAgent(
   }
 }
 
-export function buildGitInstructions(baseBranch: string, branchSuffix: string): string {
+export function buildGitInstructions(baseBranch: string, branchSuffix: string, inWorktree = false): string {
+  const beforeWork = inWorktree
+    ? `\`\`\`bash\ngit checkout -b task/\${ROLE}-${branchSuffix}\n\`\`\``
+    : `\`\`\`bash\ngit fetch origin\ngit checkout ${baseBranch}\ngit pull origin ${baseBranch}\ngit checkout -b task/\${ROLE}-${branchSuffix}\n\`\`\``;
+
   return `
 
 ## Git Workflow (REQUIRED — ทำทุกครั้ง)
 Base branch: \`${baseBranch}\`
 
 **ก่อนเริ่มงาน:**
-\`\`\`bash
-git fetch origin
-git checkout ${baseBranch}
-git pull origin ${baseBranch}
-git checkout -b task/\${ROLE}-${branchSuffix}
-\`\`\`
+${beforeWork}
 (แทน \${ROLE} ด้วย role ของตัวเอง เช่น frontend, backend)
 
 **ระหว่างทำงาน:** commit บ่อยๆ

@@ -81,6 +81,7 @@ function buildMetaApp(mgr: ReturnType<typeof mockManager>): FastifyInstance {
   const app = Fastify({ logger: false });
   app.get('/health', async () => ({
     status: 'ok' as const,
+    timestamp: new Date().toISOString(),
     activeSessions: mgr.activeCount,
     maxConcurrent: 4,
   }));
@@ -100,14 +101,29 @@ function buildMetaApp(mgr: ReturnType<typeof mockManager>): FastifyInstance {
 // GET /health
 // ═══════════════════════════════════════════════════════════════════════════
 describe('GET /health', () => {
-  it('returns status ok with numeric counters', async () => {
+  it('returns status ok with timestamp and numeric counters', async () => {
     const app = buildMetaApp(mockManager({ activeCount: 2 }));
     const res = await app.inject({ method: 'GET', url: '/health' });
     expect(res.statusCode).toBe(200);
     const body = res.json();
-    expect(body).toEqual({ status: 'ok', activeSessions: 2, maxConcurrent: 4 });
+    expect(body).toMatchObject({ status: 'ok', activeSessions: 2, maxConcurrent: 4 });
+    expect(typeof body.timestamp).toBe('string');
+    expect(() => new Date(body.timestamp)).not.toThrow();
+    expect(new Date(body.timestamp).toISOString()).toBe(body.timestamp);
     expect(typeof body.activeSessions).toBe('number');
     expect(typeof body.maxConcurrent).toBe('number');
+    await app.close();
+  });
+
+  it('timestamp is an ISO 8601 string', async () => {
+    const app = buildMetaApp(mockManager());
+    const before = Date.now();
+    const res = await app.inject({ method: 'GET', url: '/health' });
+    const after = Date.now();
+    const body = res.json();
+    const ts = new Date(body.timestamp).getTime();
+    expect(ts).toBeGreaterThanOrEqual(before);
+    expect(ts).toBeLessThanOrEqual(after);
     await app.close();
   });
 

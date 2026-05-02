@@ -57,6 +57,7 @@ export async function buildServer() {
 
   fastify.get('/health', async () => ({
     status: 'ok',
+    timestamp: new Date().toISOString(),
     activeSessions: manager.activeCount,
     maxConcurrent: env.MAX_CONCURRENT_SESSIONS,
   }));

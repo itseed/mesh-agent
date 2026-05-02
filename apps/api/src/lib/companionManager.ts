@@ -19,6 +19,26 @@ class CompanionManager {
   >();
 
   register(tokenId: string, userId: string, ws: SocketStream): void {
+    let pongReceived = true;
+
+    ws.socket.on('pong', () => { pongReceived = true; });
+
+    const pingInterval = setInterval(() => {
+      if (ws.socket.readyState !== 1) {
+        clearInterval(pingInterval);
+        this.unregister(tokenId);
+        return;
+      }
+      if (!pongReceived) {
+        clearInterval(pingInterval);
+        ws.socket.terminate();
+        this.unregister(tokenId);
+        return;
+      }
+      pongReceived = false;
+      ws.socket.ping();
+    }, 30_000);
+    ws.socket.on('close', () => clearInterval(pingInterval));
     this.connections.set(tokenId, { tokenId, userId, ws, connectedAt: new Date() });
   }
 
@@ -33,18 +53,21 @@ class CompanionManager {
     }
   }
 
-  isConnected(userId: string): boolean {
-    for (const conn of this.connections.values()) {
-      if (conn.userId === userId) return true;
-    }
-    return false;
-  }
-
   getConnection(userId: string): CompanionConnection | undefined {
-    for (const conn of this.connections.values()) {
-      if (conn.userId === userId) return conn;
+    for (const [tokenId, conn] of this.connections.entries()) {
+      if (conn.userId === userId) {
+        if (conn.ws.socket.readyState !== 1) {
+          this.unregister(tokenId);
+          continue;
+        }
+        return conn;
+      }
     }
     return undefined;
+  }
+
+  isConnected(userId: string): boolean {
+    return !!this.getConnection(userId);
   }
 
   async call<T>(userId: string, method: string, params: unknown, timeoutMs = 10_000): Promise<T> {

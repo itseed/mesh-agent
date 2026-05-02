@@ -142,8 +142,10 @@ export const api = {
     stop: (id: string) => request<void>(`/agents/${id}`, { method: 'DELETE' }),
     session: (id: string) => request<any>(`/agents/sessions/${id}`),
     sessionByTask: (taskId: string) => request<any>(`/agents/sessions/by-task/${taskId}`),
-    sessionOutput: (id: string) =>
-      request<{ output: string; running: boolean }>(`/agents/sessions/${id}/output`),
+    sessionOutput: (id: string, from?: number) =>
+      request<{ output: string; running: boolean; total?: number }>(
+        `/agents/sessions/${id}/output${from != null ? `?from=${from}` : ''}`,
+      ),
     listRoles: () =>
       request<
         Array<{

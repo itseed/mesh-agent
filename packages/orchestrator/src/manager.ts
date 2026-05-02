@@ -204,12 +204,13 @@ export class SessionManager {
     return this.sessions.get(id);
   }
 
-  getSessionOutput(id: string): { output: string; running: boolean } {
+  getSessionOutput(id: string, fromLine = 0): { output: string; running: boolean; total: number } {
     const session = this.sessions.get(id);
     const lines = this.outputBuffer.get(id) ?? [];
     return {
-      output: lines.join('\n'),
+      output: lines.slice(fromLine).join('\n'),
       running: !!session && session.status === 'running',
+      total: lines.length,
     };
   }
 

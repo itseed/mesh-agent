@@ -22,6 +22,39 @@ function lineColor(line: string): string {
   return '';
 }
 
+function isJsonNoise(line: string): boolean {
+  const t = line.trim();
+  return t.startsWith('{') && t.length > 200;
+}
+
+function OutputLine({ line }: { line: string }) {
+  if (!line.trim()) return null;
+  if (isJsonNoise(line)) return null;
+
+  const toolMatch = line.match(/\[tool: ([^\]]+)\]/);
+  if (toolMatch) {
+    const before = line.slice(0, line.indexOf('[tool:'));
+    const after = line.slice(line.indexOf(']') + 1);
+    const color = lineColor(line);
+    return (
+      <div className="py-0.5" style={color ? { color } : {}}>
+        {before && <span>{before}</span>}
+        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-medium bg-orange-500/10 text-orange-400 border border-orange-500/20">
+          ⚙ {toolMatch[1]}
+        </span>
+        {after && <span>{after}</span>}
+      </div>
+    );
+  }
+
+  const color = lineColor(line);
+  return (
+    <div className="py-0.5 whitespace-pre-wrap break-all" style={color ? { color } : {}}>
+      {line}
+    </div>
+  );
+}
+
 function useLocalAgentOutput(sessionId: string, enabled: boolean) {
   const [lines, setLines] = useState<string[]>([]);
   const [status, setStatus] = useState('');
@@ -160,18 +193,7 @@ export function AgentOutputPanel({
               Waiting for output<span className="cursor-blink">▋</span>
             </span>
           ) : (
-            lines.map((line: string, i: number) => {
-              const color = lineColor(line);
-              return (
-                <div
-                  key={i}
-                  className="py-0.5 whitespace-pre-wrap break-all"
-                  style={color ? { color } : {}}
-                >
-                  {line || ' '}
-                </div>
-              );
-            })
+            lines.map((line: string, i: number) => <OutputLine key={i} line={line} />)
           )}
           <div ref={bottomRef} />
         </div>

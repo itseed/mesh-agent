@@ -83,6 +83,7 @@ export async function buildServer() {
     }
   });
 
+
   await fastify.register(websocket);
   await fastify.register(dbPlugin);
   await fastify.register(redisPlugin);

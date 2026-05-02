@@ -27,11 +27,13 @@ interface OverviewTabProps {
   fixTasksCreatedCount: number;
   selectedIssues: Set<number>;
   fixingIssues: boolean;
+  fixError?: string | null;
   onSwitchToSubtasks: () => void;
   onOpenOverviewFix: (issues: ReviewIssue[]) => void;
   onToggleIssue: (idx: number) => void;
   onSelectAllIssues: (issues: ReviewIssue[]) => void;
   onConfirmFix: () => void;
+  onConfirmFixAndStart: () => void;
   onCancelFix: () => void;
 }
 
@@ -57,11 +59,13 @@ export function OverviewTab(props: OverviewTabProps) {
     fixTasksCreatedCount,
     selectedIssues,
     fixingIssues,
+    fixError,
     onSwitchToSubtasks,
     onOpenOverviewFix,
     onToggleIssue,
     onSelectAllIssues,
     onConfirmFix,
+    onConfirmFixAndStart,
     onCancelFix,
   } = props;
 
@@ -277,15 +281,21 @@ export function OverviewTab(props: OverviewTabProps) {
                   </button>
                 )
               ) : (
-                <FixIssuesPanel
-                  issues={allIssues}
-                  selected={selectedIssues}
-                  onToggle={onToggleIssue}
-                  onSelectAll={() => onSelectAllIssues(allIssues)}
-                  onConfirm={onConfirmFix}
-                  onCancel={onCancelFix}
-                  busy={fixingIssues}
-                />
+                <>
+                  <FixIssuesPanel
+                    issues={allIssues}
+                    selected={selectedIssues}
+                    onToggle={onToggleIssue}
+                    onSelectAll={() => onSelectAllIssues(allIssues)}
+                    onConfirm={onConfirmFix}
+                    onConfirmAndStart={onConfirmFixAndStart}
+                    onCancel={onCancelFix}
+                    busy={fixingIssues}
+                  />
+                  {fixError && (
+                    <p className="mt-2 text-[12px] text-red-400">{fixError}</p>
+                  )}
+                </>
               )}
             </div>
           ) : totalCount > 0 ? (

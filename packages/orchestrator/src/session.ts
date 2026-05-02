@@ -13,7 +13,7 @@ export function buildCliArgs(
 ): { cmd: string; args: string[] } {
   switch (provider) {
     case 'claude': {
-      const args: string[] = ['--dangerously-skip-permissions', '--print'];
+      const args: string[] = ['--dangerously-skip-permissions', '--print', '--verbose', '--output-format', 'stream-json'];
       if (systemPrompt) args.push('--system-prompt', systemPrompt);
       args.push(prompt);
       return { cmd: 'claude', args };
@@ -145,7 +145,7 @@ export class AgentSession extends EventEmitter {
         ({ cmd, args } = buildCliArgs(this.cliProvider, this.prompt, this.systemPrompt, this.id));
       } else {
         cmd = this.claudeCmd;
-        args = ['--dangerously-skip-permissions', '--print'];
+        args = ['--dangerously-skip-permissions', '--print', '--verbose', '--output-format', 'stream-json'];
         if (this.systemPrompt) args.push('--system-prompt', this.systemPrompt);
         args.push(this.prompt);
       }
@@ -158,7 +158,27 @@ export class AgentSession extends EventEmitter {
       const handleChunk = (chunk: Buffer) => {
         this.outputBytes += chunk.length;
         const lines = chunk.toString().split('\n').filter(Boolean);
-        for (const line of lines) this.emit('output', line);
+        for (const line of lines) {
+          let display: string | null = null;
+          try {
+            const obj = JSON.parse(line);
+            if (obj.type === 'assistant') {
+              const parts: string[] = [];
+              for (const block of obj.message?.content ?? []) {
+                if (block.type === 'text' && block.text) parts.push(block.text);
+                else if (block.type === 'tool_use' && block.name) parts.push(`[tool: ${block.name}]`);
+              }
+              display = parts.length > 0 ? parts.join(' ') : null;
+            } else if (obj.type === 'result') {
+              display = obj.result ?? null;
+            }
+            // type=user, tool_result, system, rate_limit_event etc → display = null (hidden)
+          } catch {
+            // plain text (not JSON) → show as-is
+            display = line.trim() || null;
+          }
+          if (display) this.emit('output', display);
+        }
       };
 
       this.process.stdout?.on('data', handleChunk);

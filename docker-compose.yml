@@ -41,12 +41,14 @@ services:
       REPOS_BASE_DIR: /repos
       CLEANUP_REPOS_DAYS: '${CLEANUP_REPOS_DAYS:-30}'
       API_URL: http://api:4801
+      INTERNAL_SECRET: ${INTERNAL_SECRET:-dev-internal-secret}
     volumes:
       - ./packages/orchestrator:/app/packages/orchestrator
       - /app/packages/orchestrator/node_modules
       - ./packages/shared:/app/packages/shared
       - /app/packages/shared/node_modules
       - ~/.claude:/home/nodeuser/.claude
+      - ~/.pixel-agents:/home/nodeuser/.pixel-agents
       - repos_data:/repos
       - gemini_config:/home/nodeuser/.gemini
       - cursor_config:/home/nodeuser/.cursor

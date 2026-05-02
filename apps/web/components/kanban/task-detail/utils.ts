@@ -37,13 +37,19 @@ export function parseReviewIssues(commentBody: string): ReviewIssue[] {
 export function filterNoise(output: string): string {
   return output
     .split('\n')
-    .filter(
-      (line) =>
-        !line.startsWith('[warn] workingDir') &&
-        !line.includes('SessionEnd hook') &&
-        !line.includes('Cannot find module') &&
-        !line.includes('requireStack'),
-    )
+    .filter((line) => {
+      const t = line.trim();
+      if (!t) return false;
+      if (t.startsWith('[warn] workingDir')) return false;
+      if (
+        t.includes('SessionEnd hook') ||
+        t.includes('Cannot find module') ||
+        t.includes('requireStack')
+      )
+        return false;
+      if (t.startsWith('{') && t.length > 200) return false;
+      return true;
+    })
     .join('\n')
     .trim();
 }

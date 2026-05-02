@@ -4,6 +4,7 @@ import type { AgentRole } from '@meshagent/shared';
 import type { SessionManager } from '../manager.js';
 import type { SessionStore } from '../store.js';
 import { ensureRepo, createWorktree } from '../git.js';
+import { env } from '../env.js';
 
 const createSessionSchema = z.object({
   role: z.string().min(1).max(64),
@@ -31,6 +32,11 @@ export async function sessionRoutes(
   const { manager, store } = opts;
 
   fastify.post('/sessions', async (request, reply) => {
+    const secret = request.headers['x-internal-secret'];
+    if (!secret || secret !== env.INTERNAL_SECRET) {
+      return reply.status(401).send({ error: 'Unauthorized' });
+    }
+
     const parsed = createSessionSchema.safeParse(request.body);
     if (!parsed.success)
       return reply
@@ -121,21 +127,28 @@ export async function sessionRoutes(
 
   fastify.get('/sessions/:id/output', async (request, reply) => {
     const { id } = request.params as { id: string };
+    const { from } = request.query as { from?: string };
+    const fromLine = from ? Math.max(0, parseInt(from, 10) || 0) : 0;
     const live = manager.getSession(id);
 
     // Live running/pending sessions: serve from in-memory buffer
     if (live && (live.status === 'running' || live.status === 'pending')) {
-      return manager.getSessionOutput(id);
+      return manager.getSessionOutput(id, fromLine);
     }
 
     // Completed in-memory session or session not in memory: check DB
     const persisted = await store.findById(id);
     if (!persisted) {
       // No DB record — if session is still in memory (no DB configured), serve buffer
-      if (live) return { output: manager.getSessionOutput(id).output, running: false };
+      if (live) return { ...manager.getSessionOutput(id, fromLine), running: false };
       return reply.status(404).send({ error: 'Session not found' });
     }
 
-    return { output: persisted.outputLog ?? '', running: false };
+    const allLines = (persisted.outputLog ?? '').split('\n');
+    return {
+      output: allLines.slice(fromLine).join('\n'),
+      running: false,
+      total: allLines.length,
+    };
   });
 }

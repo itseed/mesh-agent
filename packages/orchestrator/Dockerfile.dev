@@ -12,5 +12,6 @@ COPY package.json pnpm-workspace.yaml ./
 COPY packages/shared/package.json ./packages/shared/
 COPY packages/orchestrator/package.json ./packages/orchestrator/
 RUN pnpm install && chown -R nodeuser /app
+RUN mkdir -p /repos && chown nodeuser:nodeuser /repos
 USER nodeuser
 CMD ["pnpm", "--filter", "@meshagent/orchestrator", "dev"]

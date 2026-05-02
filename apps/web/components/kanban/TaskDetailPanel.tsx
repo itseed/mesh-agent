@@ -46,7 +46,6 @@ export function TaskDetailPanel({
   const [analyzing, setAnalyzing] = useState(false);
   const [approving, setApproving] = useState(false);
   const [editingDesc, setEditingDesc] = useState(false);
-  const [fixTasksCreatedCount, setFixTasksCreatedCount] = useState(0);
   const [localTask, setLocalTask] = useState(task);
   const [descValue, setDescValue] = useState(task.description ?? '');
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -61,6 +60,7 @@ export function TaskDetailPanel({
   const [reviewIssues, setReviewIssues] = useState<ReviewIssue[]>([]);
   const [selectedIssues, setSelectedIssues] = useState<Set<number>>(new Set());
   const [fixingIssues, setFixingIssues] = useState(false);
+  const [fixError, setFixError] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
   const [executionMode, setExecutionMode] = useState<'cloud' | 'local'>('cloud');
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -248,17 +248,39 @@ export function TaskDetailPanel({
 
   async function confirmFix() {
     if (selectedIssues.size === 0) return;
+    setFixError(null);
     setFixingIssues(true);
     try {
       const selected = reviewIssues.filter((_, i) => selectedIssues.has(i));
-      await api.tasks.fixIssues(task.id, selected);
-      const createdCount = selectedIssues.size;
+      const { created } = await api.tasks.fixIssues(task.id, selected);
+      void created;
       setFixCommentId(null);
       setSelectedIssues(new Set());
-      setFixTasksCreatedCount(createdCount);
       setTab('subtasks');
       onUpdate();
     } catch {
+      setFixError('ไม่สามารถสร้าง fix tasks ได้ กรุณาลองใหม่');
+    } finally {
+      setFixingIssues(false);
+    }
+  }
+
+  async function confirmFixAndStart() {
+    if (selectedIssues.size === 0) return;
+    setFixError(null);
+    setFixingIssues(true);
+    try {
+      const selected = reviewIssues.filter((_, i) => selectedIssues.has(i));
+      const { created } = await api.tasks.fixIssues(task.id, selected);
+      setFixCommentId(null);
+      setSelectedIssues(new Set());
+      await Promise.allSettled(
+        created.map((t: any) => api.tasks.start(t.id, { executionMode })),
+      );
+      setTab('subtasks');
+      onUpdate();
+    } catch {
+      setFixError('ไม่สามารถสร้าง fix tasks ได้ กรุณาลองใหม่');
     } finally {
       setFixingIssues(false);
     }
@@ -295,6 +317,9 @@ export function TaskDetailPanel({
     });
   const doneCount = subtasks.filter((s) => s.stage === 'done').length;
   const totalCount = subtasks.length;
+  const fixTasksCreatedCount = allIssues.length > 0
+    ? allTasks.filter((t) => allIssues.some((issue) => t.title === `[Fix] ${issue.title}`)).length
+    : 0;
 
   if (typeof document === 'undefined') return null;
 
@@ -360,11 +385,13 @@ export function TaskDetailPanel({
               fixTasksCreatedCount={fixTasksCreatedCount}
               selectedIssues={selectedIssues}
               fixingIssues={fixingIssues}
+              fixError={fixError}
               onSwitchToSubtasks={() => setTab('subtasks')}
               onOpenOverviewFix={openOverviewFix}
               onToggleIssue={toggleIssue}
               onSelectAllIssues={selectAllIssues}
               onConfirmFix={confirmFix}
+              onConfirmFixAndStart={confirmFixAndStart}
               onCancelFix={cancelFix}
             />
           )}
@@ -379,6 +406,7 @@ export function TaskDetailPanel({
               onToggleIssue={toggleIssue}
               onSelectAllIssues={selectAllIssues}
               onConfirmFix={confirmFix}
+              onConfirmFixAndStart={confirmFixAndStart}
               onCancelFix={cancelFix}
             />
           )}

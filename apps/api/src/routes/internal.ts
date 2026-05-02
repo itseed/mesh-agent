@@ -596,7 +596,7 @@ export async function internalRoutes(fastify: FastifyInstance) {
                   userId?: string;
                   cliProvider?: string | null;
                 };
-                const gitInstructions = buildGitInstructions(ctx.baseBranch, ctx.branchSuffix);
+                const gitInstructions = buildGitInstructions(ctx.baseBranch, ctx.branchSuffix, !!ctx.repoUrl);
 
                 for (const subtask of nextWaveSubtasks) {
                   const role = subtask.agentRole ?? 'reviewer';
@@ -604,7 +604,8 @@ export async function internalRoutes(fastify: FastifyInstance) {
                   let repoUrl: string | undefined;
                   if (ctx.repoUrl) {
                     const repoName = ctx.repoUrl.split('/').pop()?.replace('.git', '') ?? 'repo';
-                    agentWorkingDir = `${env.REPOS_BASE_DIR}/${ctx.projectId}/${repoName}`;
+                    const reposBaseDir = (await fastify.redis.get('settings:repos:base-dir')) ?? env.REPOS_BASE_DIR;
+                    agentWorkingDir = `${reposBaseDir}/${ctx.projectId}/${repoName}`;
                     repoUrl = ctx.repoUrl;
                   } else {
                     agentWorkingDir =
