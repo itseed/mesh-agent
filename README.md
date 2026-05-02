@@ -99,6 +99,8 @@ graph TB
 | **Companion**              | mesh-companion CLI เชื่อม local machine กับ platform ผ่าน WebSocket tunnel — ติดตั้งครั้งเดียว connect ได้ทุกที่ |
 | **Local Execution**        | Cloud/Local toggle ใน chat — Local mode: agent รันบนเครื่องของคุณ แก้ไฟล์ local โดยตรง ไม่ต้อง commit/push       |
 | **Folder Browser**         | Browse filesystem ผ่าน companion เพื่อ set local project paths แบบ drag & drop                                   |
+| **Responsive Design**      | UI รองรับทุกขนาดหน้าจอ — mobile (375px), tablet, desktop ครบทุก 8 หน้า (login, overview, projects, kanban, agents, settings, task detail, agent panel) |
+| **Clean Agent Output**     | agent output parsing แบบ stream-json — แสดง text + tool calls เป็น badge สวยงาม กรอง JSON noise ออกอัตโนมัติ    |
 
 ---
 
@@ -633,7 +635,7 @@ sequenceDiagram
 |     | Feature                    | รายละเอียด                                                                 |
 | --- | -------------------------- | -------------------------------------------------------------------------- |
 | 🔔  | **Notifications**          | LINE / Slack / email แจ้งเตือนเมื่อ agent เสร็จหรือต้องการ input           |
-| ⚡  | **Local stdout streaming** | WebSocket push แทน polling ทุก 3 วินาที — output ไหลต่อเนื่องแบบ real-time |
+| ⚡  | **Local stdout streaming** | Incremental output polling (from=N) ใช้งานได้แล้ว ช่วยลด bandwidth ลง ~90% — full WebSocket push ยังอยู่ใน roadmap |
 | 📋  | **Task templates**         | บันทึก task ที่ใช้บ่อยเป็น template กด 1 ครั้งสั่งได้เลย                   |
 
 ---
