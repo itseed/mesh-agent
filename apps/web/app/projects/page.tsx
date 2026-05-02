@@ -903,9 +903,9 @@ export default function ProjectsPage() {
   return (
     <AuthGuard>
       <AppShell>
-        <div className="flex h-screen overflow-hidden">
+        <div className="flex flex-col md:flex-row h-screen overflow-hidden">
           {/* ── Left panel ── */}
-          <div className="w-72 shrink-0 border-r border-border flex flex-col bg-canvas/30">
+          <div className="w-full md:w-72 shrink-0 border-b md:border-b-0 md:border-r border-border flex flex-col bg-canvas/30 max-h-[35vh] md:max-h-none overflow-y-auto md:overflow-visible">
             <div className="p-4 border-b border-border flex items-center justify-between shrink-0">
               <div>
                 <h1 className="text-[15px] font-semibold text-text">Projects</h1>

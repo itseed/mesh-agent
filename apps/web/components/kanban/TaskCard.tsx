@@ -75,7 +75,7 @@ export function TaskCard({
                 e.stopPropagation();
                 onStart(task.id);
               }}
-              className="text-accent opacity-0 group-hover:opacity-100 transition-all text-[12px] px-1 hover:text-accent/70"
+              className="text-accent opacity-60 lg:opacity-0 group-hover:opacity-100 transition-all text-[12px] px-1 hover:text-accent/70"
               title="Start with Lead"
             >
               ▶
@@ -87,7 +87,7 @@ export function TaskCard({
                 e.stopPropagation();
                 onDelete(task.id);
               }}
-              className="text-dim hover:text-danger opacity-0 group-hover:opacity-100 transition-all text-[13px] shrink-0"
+              className="text-dim hover:text-danger opacity-60 lg:opacity-0 group-hover:opacity-100 transition-all text-[13px] shrink-0"
             >
               ✕
             </button>

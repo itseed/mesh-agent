@@ -127,7 +127,7 @@ export function AgentRolePanel({
       <div className="fixed inset-0 bg-black/30 z-30" onClick={onClose} />
 
       {/* Panel */}
-      <div className="fixed right-0 top-0 h-screen w-[480px] z-40 bg-surface border-l border-border-hi flex flex-col shadow-2xl fade-up">
+      <div className="fixed right-0 top-0 h-screen w-full sm:w-[480px] z-40 bg-surface border-l border-border-hi flex flex-col shadow-2xl fade-up">
         {/* Header */}
         <div className="flex items-center gap-3 px-5 py-4 border-b border-border shrink-0">
           <span

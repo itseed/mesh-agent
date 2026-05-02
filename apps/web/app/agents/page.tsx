@@ -89,7 +89,7 @@ export default function AgentsPage() {
           return (
             <div
               key={s.id}
-              className="flex items-center gap-3 px-3 py-2.5 bg-surface border border-border rounded-lg hover:border-border-hi transition-colors cursor-pointer"
+              className="flex flex-wrap items-center gap-2 px-3 py-2.5 bg-surface border border-border rounded-lg hover:border-border-hi transition-colors cursor-pointer"
               onClick={() =>
                 setSessionDetail({ id: s.id, role: s.role, executionMode: s.executionMode })
               }
@@ -106,7 +106,7 @@ export default function AgentsPage() {
                   local
                 </span>
               )}
-              <span className="text-[13px] text-text truncate flex-1">
+              <span className="text-[13px] text-text line-clamp-2 sm:line-clamp-1 w-full sm:flex-1 sm:w-auto order-last sm:order-none">
                 {s.prompt?.slice(0, 80)}
                 {s.prompt?.length > 80 ? '…' : ''}
               </span>

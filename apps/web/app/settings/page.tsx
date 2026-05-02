@@ -293,7 +293,7 @@ function SettingsPageInner() {
           )}
 
           {/* Tab bar */}
-          <div className="flex gap-0 mb-6 border-b border-border">
+          <div className="flex gap-0 mb-6 border-b border-border overflow-x-auto scrollbar-none">
             {(
               [
                 ['providers', 'CLI'],
@@ -620,7 +620,7 @@ function SettingsPageInner() {
                 <div className="text-[13px] font-semibold text-text mb-3">
                   Install &amp; connect
                 </div>
-                <pre className="bg-surface-2 border border-border rounded-lg p-3 text-[11px] text-success font-mono whitespace-pre overflow-x-auto">
+                <pre className="bg-surface-2 border border-border rounded-lg p-3 text-[11px] text-success font-mono whitespace-pre-wrap break-all">
                   {`npm install -g https://github.com/itseed/mesh-agent/releases/latest/download/meshagent-companion.tgz
 mesh-companion connect ${process.env.NEXT_PUBLIC_API_URL ?? 'https://your-api.com'} --token <your-token>`}
                 </pre>

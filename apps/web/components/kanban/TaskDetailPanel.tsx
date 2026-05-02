@@ -327,7 +327,7 @@ export function TaskDetailPanel({
     <>
       <div className="fixed inset-0 bg-black/30 z-30" onClick={onClose} />
 
-      <div className="fixed right-0 top-0 h-screen w-[480px] bg-surface border-l border-border-hi z-40 flex flex-col transition-transform duration-200">
+      <div className="fixed right-0 top-0 h-screen w-full sm:w-[480px] bg-surface border-l border-border-hi z-40 flex flex-col transition-transform duration-200">
         <TaskHeader
           localTask={localTask}
           executionMode={executionMode}
@@ -345,7 +345,7 @@ export function TaskDetailPanel({
         />
 
         {/* Tabs */}
-        <div className="flex border-b border-border shrink-0">
+        <div className="flex border-b border-border shrink-0 overflow-x-auto scrollbar-none">
           {TABS.map((t) => (
             <button
               key={t}

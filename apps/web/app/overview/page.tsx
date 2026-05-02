@@ -97,7 +97,7 @@ function DonutChart({ segments }: { segments: { label: string; count: number; co
   return (
     <div className="flex items-center gap-6">
       <div className="shrink-0">
-        <svg width="120" height="120" viewBox="0 0 120 120">
+        <svg viewBox="0 0 120 120" className="w-full h-auto max-w-[120px]">
           {total === 0 ? (
             <circle
               cx={cx}
@@ -407,7 +407,7 @@ export default function OverviewPage() {
                         </p>
                       ) : (
                         <>
-                          <div className="grid grid-cols-4 gap-3 mb-5">
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
                             {[
                               {
                                 label: 'Sessions',

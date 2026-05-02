@@ -59,19 +59,22 @@ export function KanbanBoard({ initialTasks, projects, onRefresh }: KanbanBoardPr
   return (
     <>
       <DragDropContext onDragEnd={onDragEnd}>
-        <div className="flex gap-4 overflow-x-auto pb-4">
-          {STAGES.map((stage) => (
-            <KanbanColumn
-              key={stage}
-              stage={stage}
-              tasks={byStage(stage)}
-              projects={projects}
-              allTasks={tasks}
-              onDelete={handleDelete}
-              onStart={handleStart}
-              onSelect={setSelectedTask}
-            />
-          ))}
+        <div className="relative">
+          <div className="flex gap-4 overflow-x-auto pb-4">
+            {STAGES.map((stage) => (
+              <KanbanColumn
+                key={stage}
+                stage={stage}
+                tasks={byStage(stage)}
+                projects={projects}
+                allTasks={tasks}
+                onDelete={handleDelete}
+                onStart={handleStart}
+                onSelect={setSelectedTask}
+              />
+            ))}
+          </div>
+          <div className="pointer-events-none absolute right-0 top-0 bottom-4 w-12 bg-gradient-to-l from-canvas to-transparent" />
         </div>
       </DragDropContext>
 
