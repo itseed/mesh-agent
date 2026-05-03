@@ -1,5 +1,6 @@
 'use client';
 import { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useAgentOutput } from '@/lib/ws';
 import { api, ApiError } from '@/lib/api';
 
@@ -132,6 +133,14 @@ export function AgentOutputPanel({
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [lines]);
 
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [onClose]);
+
   async function handleKill() {
     setKilling(true);
     try {
@@ -140,18 +149,15 @@ export function AgentOutputPanel({
     setKilling(false);
   }
 
-  return (
-    <div
-      className="fixed inset-0 z-40 flex items-end sm:items-center justify-center p-4 backdrop-blur-sm"
-      style={{ backgroundColor: 'rgba(0,0,0,0.75)' }}
-      onClick={onClose}
-    >
-      <div
-        className="bg-surface border border-border-hi rounded-xl w-full max-w-2xl max-h-[75vh] flex flex-col overflow-hidden glow-border fade-up"
-        onClick={(e) => e.stopPropagation()}
-      >
+  if (typeof document === 'undefined') return null;
+
+  return createPortal(
+    <>
+      <div className="fixed inset-0 bg-black/30 z-30" onClick={onClose} />
+
+      <div className="fixed right-0 top-0 h-screen w-full sm:w-[480px] bg-surface border-l border-border-hi z-40 flex flex-col">
         {/* Title bar */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-canvas/50">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-canvas/50 shrink-0">
           <div className="flex items-center gap-2.5">
             <div className="flex gap-1">
               <span className="w-2.5 h-2.5 rounded-full bg-danger/60" />
@@ -179,7 +185,7 @@ export function AgentOutputPanel({
         </div>
 
         {/* Output */}
-        <div className="flex-1 overflow-y-auto p-4 font-mono text-[13px] text-muted leading-relaxed scanlines bg-canvas/30">
+        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-4 font-mono text-[13px] text-muted leading-relaxed scanlines bg-canvas/30">
           {companionError ? (
             <div className="flex flex-col items-center justify-center h-full gap-2 text-center">
               <span className="text-dim text-[20px]">⚡</span>
@@ -198,7 +204,8 @@ export function AgentOutputPanel({
           <div ref={bottomRef} />
         </div>
 
-        <div className="px-4 py-2 border-t border-border text-[12px] text-dim flex items-center justify-between">
+        {/* Footer */}
+        <div className="px-4 py-2 border-t border-border text-[12px] text-dim flex items-center justify-between shrink-0">
           <div className="flex items-center gap-1.5">
             {status === 'running' && (
               <span className="relative inline-flex w-1.5 h-1.5">
@@ -240,6 +247,7 @@ export function AgentOutputPanel({
           </div>
         </div>
       </div>
-    </div>
+    </>,
+    document.body,
   );
 }
