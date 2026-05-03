@@ -394,7 +394,7 @@ export function CommandBar() {
       {!open && (
         <button
           onClick={() => setOpen(true)}
-          className="fixed bottom-5 right-5 z-30 flex items-center gap-2 px-4 py-2.5 rounded-full font-semibold transition-all duration-200 bg-[#0d1117]/90 backdrop-blur-sm border border-[#facc15]/30 text-[#facc15] hover:border-[#facc15]/60 hover:shadow-[0_0_24px_rgba(250,204,21,0.25)] shadow-[0_0_12px_rgba(250,204,21,0.12),0_4px_16px_rgba(0,0,0,0.4)]"
+          className="fixed bottom-20 sm:bottom-5 right-5 z-30 flex items-center gap-2 px-4 py-2.5 rounded-full font-semibold transition-all duration-200 bg-[#0d1117]/90 backdrop-blur-sm border border-[#facc15]/30 text-[#facc15] hover:border-[#facc15]/60 hover:shadow-[0_0_24px_rgba(250,204,21,0.25)] shadow-[0_0_12px_rgba(250,204,21,0.12),0_4px_16px_rgba(0,0,0,0.4)]"
           title="เปิดแชทกับ Lead"
         >
           <svg
