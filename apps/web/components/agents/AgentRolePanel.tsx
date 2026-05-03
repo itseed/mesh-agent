@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { api } from '@/lib/api';
 
 const ROLE_COLOR: Record<string, string> = {
@@ -108,6 +109,14 @@ export function AgentRolePanel({
     }
   }
 
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [onClose]);
+
   async function handleStop() {
     if (!session) return;
     setStopping(true);
@@ -121,7 +130,9 @@ export function AgentRolePanel({
     }
   }
 
-  return (
+  if (typeof document === 'undefined') return null;
+
+  return createPortal(
     <>
       {/* Overlay */}
       <div className="fixed inset-0 bg-black/30 z-30" onClick={onClose} />
@@ -352,6 +363,7 @@ export function AgentRolePanel({
           )}
         </div>
       </div>
-    </>
+    </>,
+    document.body,
   );
 }
