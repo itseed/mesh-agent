@@ -5,6 +5,7 @@ import { AuthGuard } from '@/components/layout/AuthGuard';
 import { api } from '@/lib/api';
 import { PageLoader } from '@/components/ui/PageLoader';
 import { FolderBrowser } from '@/components/companion/FolderBrowser';
+import { AlertModal } from '@/components/ui/AlertModal';
 
 /* ── types ── */
 interface PathEntry {
@@ -562,6 +563,7 @@ function ProjectDetail({
   const [autoContext, setAutoContext] = useState('');
   const [contextLoading, setContextLoading] = useState(false);
   const [savingContext, setSavingContext] = useState(false);
+  const [alertMsg, setAlertMsg] = useState<string | null>(null);
 
   useEffect(() => {
     if (tab === 'context' && project?.id) {
@@ -584,7 +586,7 @@ function ProjectDetail({
       const result = await api.projects.saveContext(project.id, brief);
       setAutoContext(result.autoContext);
     } catch (e: any) {
-      alert(e.message ?? 'Save failed');
+      setAlertMsg(e.message ?? 'Save failed');
     } finally {
       setSavingContext(false);
     }
@@ -597,6 +599,7 @@ function ProjectDetail({
   };
 
   return (
+    <>
     <div className="flex flex-col h-full">
       <div className="px-6 py-4 border-b border-border shrink-0">
         <div className="flex items-center gap-2">
@@ -669,6 +672,8 @@ function ProjectDetail({
         )}
       </div>
     </div>
+    {alertMsg && <AlertModal message={alertMsg} onClose={() => setAlertMsg(null)} />}
+    </>
   );
 }
 
@@ -1070,7 +1075,7 @@ export default function ProjectsPage() {
               </div>
               {/* Paths section — becomes split when browser open */}
               <div>
-                <div className={cBrowserOpen ? 'flex gap-4' : undefined}>
+                <div className={cBrowserOpen ? 'flex flex-col lg:flex-row gap-4' : undefined}>
                   <div className={cBrowserOpen ? 'flex-1 min-w-0' : undefined}>
                     <PathRows
                       rows={cPaths}
@@ -1092,7 +1097,7 @@ export default function ProjectsPage() {
                     )}
                   </div>
                   {cBrowserOpen && (
-                    <div className="w-72 shrink-0">
+                    <div className="w-full lg:w-72 shrink-0">
                       <FolderBrowser initialPath={homedir} />
                     </div>
                   )}

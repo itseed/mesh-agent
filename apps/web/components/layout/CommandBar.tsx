@@ -4,6 +4,7 @@ import { usePathname } from 'next/navigation';
 import Image from 'next/image';
 import { api, ApiError } from '@/lib/api';
 import { useChatStream } from '@/lib/ws';
+import { ConfirmModal } from '@/components/ui/ConfirmModal';
 
 const ROLE_DOT: Record<string, string> = {
   frontend: '#22d3ee',
@@ -131,6 +132,7 @@ export function CommandBar() {
   const [stoppedSessions, setStoppedSessions] = useState<Set<string>>(new Set());
   const [executionMode, setExecutionMode] = useState<'cloud' | 'local'>('cloud');
   const [companionConnected, setCompanionConnected] = useState(false);
+  const [confirmClear, setConfirmClear] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const openRef = useRef(open);
@@ -321,7 +323,6 @@ export function CommandBar() {
   }
 
   async function clearHistory() {
-    if (!confirm('ล้างประวัติแชท?')) return;
     await api.chat.clear();
     setHistory([]);
   }
@@ -439,7 +440,7 @@ export function CommandBar() {
                 หัวข้อใหม่
               </button>
               <button
-                onClick={clearHistory}
+                onClick={() => setConfirmClear(true)}
                 className="text-muted hover:text-text text-[12px] px-2 py-1 transition-colors"
                 title="ล้างประวัติ"
               >
@@ -697,6 +698,13 @@ export function CommandBar() {
             Enter ส่ง · Shift+Enter ขึ้นบรรทัดใหม่ · วางรูปได้เลย
           </p>
         </div>
+      )}
+      {confirmClear && (
+        <ConfirmModal
+          message="ล้างประวัติแชท?"
+          onConfirm={() => { setConfirmClear(false); clearHistory(); }}
+          onCancel={() => setConfirmClear(false)}
+        />
       )}
     </>
   );

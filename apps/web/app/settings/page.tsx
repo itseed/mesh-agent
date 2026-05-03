@@ -6,6 +6,7 @@ import { AppShell } from '@/components/layout/AppShell';
 import { AuthGuard } from '@/components/layout/AuthGuard';
 import { api } from '@/lib/api';
 import { PageLoader } from '@/components/ui/PageLoader';
+import { ConfirmModal } from '@/components/ui/ConfirmModal';
 
 interface GhStatus {
   connected: boolean;
@@ -78,6 +79,7 @@ function SettingsPageInner() {
   const [generatingToken, setGeneratingToken] = useState(false);
   const [newToken, setNewToken] = useState<string | null>(null);
   const [copiedToken, setCopiedToken] = useState(false);
+  const [confirmGithubDisconnect, setConfirmGithubDisconnect] = useState(false);
 
   // Claude CLI tab state
   const [cliTesting, setCliTesting] = useState(false);
@@ -178,7 +180,6 @@ function SettingsPageInner() {
   }
 
   async function disconnect() {
-    if (!confirm('ตัดการเชื่อมต่อ GitHub?')) return;
     try {
       await api.settings.disconnect();
       setInfo('ตัดการเชื่อมต่อแล้ว');
@@ -344,7 +345,7 @@ function SettingsPageInner() {
                     Token: <span className="font-mono text-dim">{status.tokenPreview ?? '—'}</span>
                   </span>
                   <button
-                    onClick={disconnect}
+                    onClick={() => setConfirmGithubDisconnect(true)}
                     className="text-muted hover:text-danger text-[13px] px-3 py-1.5 rounded border border-border hover:border-danger/40 transition-all"
                   >
                     ตัดการเชื่อมต่อ
@@ -972,6 +973,14 @@ mesh-companion connect ${process.env.NEXT_PUBLIC_API_URL ?? 'https://your-api.co
           </div>
         )}
       </AppShell>
+      {confirmGithubDisconnect && (
+        <ConfirmModal
+          message="ตัดการเชื่อมต่อ GitHub?"
+          danger
+          onConfirm={() => { setConfirmGithubDisconnect(false); disconnect(); }}
+          onCancel={() => setConfirmGithubDisconnect(false)}
+        />
+      )}
     </AuthGuard>
   );
 }

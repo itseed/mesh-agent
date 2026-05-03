@@ -5,6 +5,7 @@ import type { Task, TaskComment } from '@meshagent/shared';
 import { api } from '@/lib/api';
 import type { ReviewIssue } from './task-detail/styles';
 import { parseReviewIssues } from './task-detail/utils';
+import { AlertModal } from '@/components/ui/AlertModal';
 import { TaskHeader } from './task-detail/TaskHeader';
 import { OverviewTab } from './task-detail/OverviewTab';
 import { CommentsTab } from './task-detail/CommentsTab';
@@ -61,6 +62,7 @@ export function TaskDetailPanel({
   const [selectedIssues, setSelectedIssues] = useState<Set<number>>(new Set());
   const [fixingIssues, setFixingIssues] = useState(false);
   const [fixError, setFixError] = useState<string | null>(null);
+  const [alertMsg, setAlertMsg] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
   const [executionMode, setExecutionMode] = useState<'cloud' | 'local'>('cloud');
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -302,7 +304,7 @@ export function TaskDetailPanel({
       const fresh = await api.tasks.activities(task.id);
       setActivities(fresh);
     } catch (e: any) {
-      alert(e.message ?? 'Start failed');
+      setAlertMsg(e.message ?? 'Start failed');
     } finally {
       setStarting(false);
     }
@@ -461,6 +463,7 @@ export function TaskDetailPanel({
           </div>
         )}
       </div>
+      {alertMsg && <AlertModal message={alertMsg} onClose={() => setAlertMsg(null)} />}
     </>,
     document.body,
   );

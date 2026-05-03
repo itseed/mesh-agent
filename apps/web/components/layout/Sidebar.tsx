@@ -86,7 +86,7 @@ export function Sidebar() {
   const isAdmin = user?.role === 'admin';
 
   return (
-    <aside className="fixed inset-y-0 left-0 z-40 flex flex-col bg-surface border-r border-border w-14 lg:w-[216px] transition-[width]">
+    <aside className="fixed inset-y-0 left-0 z-40 hidden sm:flex flex-col bg-surface border-r border-border w-14 lg:w-[216px] transition-[width]">
       {/* Logo */}
       <div
         className="h-13 flex items-center px-3.5 border-b border-border shrink-0"

@@ -4,6 +4,7 @@ import { DragDropContext, DropResult } from '@hello-pangea/dnd';
 import { KanbanColumn } from './KanbanColumn';
 import { TaskDetailPanel } from './TaskDetailPanel';
 import { api } from '@/lib/api';
+import { AlertModal } from '@/components/ui/AlertModal';
 
 const STAGES = ['backlog', 'in_progress', 'review', 'done'] as const;
 
@@ -16,6 +17,7 @@ interface KanbanBoardProps {
 export function KanbanBoard({ initialTasks, projects, onRefresh }: KanbanBoardProps) {
   const [tasks, setTasks] = useState(initialTasks);
   const [selectedTask, setSelectedTask] = useState<any | null>(null);
+  const [alertMsg, setAlertMsg] = useState<string | null>(null);
   const selectedTaskRef = useRef(selectedTask);
   selectedTaskRef.current = selectedTask;
 
@@ -48,7 +50,7 @@ export function KanbanBoard({ initialTasks, projects, onRefresh }: KanbanBoardPr
       await api.tasks.start(id);
       // Board refreshes via WebSocket task.stage event
     } catch (e: any) {
-      alert(e.message ?? 'Start failed');
+      setAlertMsg(e.message ?? 'Start failed');
     }
   }
 
@@ -90,6 +92,7 @@ export function KanbanBoard({ initialTasks, projects, onRefresh }: KanbanBoardPr
           }}
         />
       )}
+      {alertMsg && <AlertModal message={alertMsg} onClose={() => setAlertMsg(null)} />}
     </>
   );
 }
